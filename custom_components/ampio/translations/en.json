@@ -1,30 +1,101 @@
 {
     "config": {
         "abort": {
-            "already_configured": "Ampio is already configured",
-            "already_in_progress": "Ampio configuration is already in progress"
+            "already_configured": "Device is already configured",
+            "reauth_successful": "Re-authentication was successful",
+            "reconfigure_successful": "Reconfiguration was successful",
+            "unique_id_mismatch": "The Ampio server reported a different identity than the one originally configured."
         },
         "error": {
-            "connection_error": "Can't connect to Ampio MQTT Broker",
-            "invalid_password": "Invalid password!",
-            "resolve_error": "Can't resolve address of the Ampio MQTT Broker."
+            "cannot_connect": "Failed to connect",
+            "invalid_auth": "Invalid authentication",
+            "no_server_info": "Could not read the server identity. Your account must have permission to read the Ampio configuration."
         },
-        "flow_title": "Ampio: {name}",
+        "flow_title": "Ampio M-SERV ({name})",
         "step": {
-            "discovery_confirm": {
-                "description": "Do you want to add the Ampio node `{name}` to Home Assistant?",
-                "title": "Discovered Ampio node"
-            },
-            "broker": {
+            "reauth_confirm": {
                 "data": {
-                    "broker": "Host",
-                    "discovery": "Enable discovery",
-                    "port": "Port",
-                    "username": "Username",
-                    "password": "Password"
+                    "password": "Password",
+                    "username": "Username"
                 },
-                "description": "Please enter connection settings of your Ampio MQTT broker."
+                "data_description": {
+                    "password": "Your Ampio account password.",
+                    "username": "Your Ampio account username."
+                },
+                "description": "The stored credentials for your Ampio server were rejected. Enter the current username and password to keep the integration connected.",
+                "title": "Re-authenticate with Ampio"
+            },
+            "reconfigure": {
+                "data": {
+                    "host": "Host",
+                    "password": "Password",
+                    "port": "Port",
+                    "username": "Username"
+                },
+                "data_description": {
+                    "host": "Hostname or IP address of the Ampio server (M-SERV).",
+                    "password": "Your Ampio account password.",
+                    "port": "MQTT port of the Ampio server (default 1883).",
+                    "username": "Your Ampio account username."
+                },
+                "description": "Change how Home Assistant connects to your Ampio server. The server must be the same one you originally configured.",
+                "title": "Reconfigure Ampio"
+            },
+            "user": {
+                "data": {
+                    "host": "Host",
+                    "password": "Password",
+                    "port": "Port",
+                    "username": "Username"
+                },
+                "data_description": {
+                    "host": "Hostname or IP address of the Ampio server (M-SERV).",
+                    "password": "Your Ampio account password.",
+                    "port": "MQTT port of the Ampio server (default 1883).",
+                    "username": "Your Ampio account username."
+                },
+                "description": "Enter the address and credentials of your Ampio server.",
+                "title": "Connect to Ampio"
             }
+        }
+    },
+    "entity": {
+        "sensor": {
+            "co2": {
+                "name": "CO2"
+            },
+            "humidity": {
+                "name": "Humidity"
+            },
+            "iaq": {
+                "name": "Air quality index"
+            },
+            "illuminance": {
+                "name": "Illuminance"
+            },
+            "loudness": {
+                "name": "Loudness"
+            },
+            "module_last_seen": {
+                "name": "Last seen"
+            },
+            "pressure_abs": {
+                "name": "Absolute pressure"
+            },
+            "pressure_rel": {
+                "name": "Relative pressure"
+            },
+            "temperature": {
+                "name": "Temperature"
+            }
+        }
+    },
+    "exceptions": {
+        "cannot_connect": {
+            "message": "Cannot connect to the Ampio server."
+        },
+        "invalid_auth": {
+            "message": "The Ampio server rejected the stored credentials."
         }
     }
 }

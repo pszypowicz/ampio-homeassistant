@@ -1,132 +1,197 @@
-"""Ampio Sensors."""
-import functools
-import logging
-from datetime import timedelta
-from typing import Optional
+"""Sensor platform for the Ampio integration."""
 
-from homeassistant.components import sensor
-from homeassistant.const import CONF_DEVICE_CLASS, CONF_ICON, CONF_UNIT_OF_MEASUREMENT
-from homeassistant.core import callback
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.restore_state import RestoreEntity
-from homeassistant.helpers.typing import ConfigType, HomeAssistantType
+from datetime import UTC, datetime
 
-from . import discovery, subscription
-from .const import (
-    CONF_STATE_TOPIC,
-    DATA_AMPIO,
-    DATA_AMPIO_DISPATCHERS,
-    DEFAULT_QOS,
-    SIGNAL_ADD_ENTITIES,
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
 )
-from .entity import AmpioEntity
+from homeassistant.const import (
+    CONCENTRATION_PARTS_PER_MILLION,
+    LIGHT_LUX,
+    PERCENTAGE,
+    EntityCategory,
+    UnitOfPressure,
+    UnitOfSoundPressure,
+    UnitOfTemperature,
+)
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-_LOGGER = logging.getLogger(__name__)
+from .coordinator import AmpioConfigEntry, AmpioLocalCoordinator
+from .entity import AmpioEntity, identifier_prefix, module_device_info
 
-CONF_EXPIRE_AFTER = "expire_after"
-DEFAULT_FORCE_UPDATE = False
-DEFAULT_NAME = "Ampio Sensor"
-SCAN_INTERVAL = timedelta(seconds=15)
+PARALLEL_UPDATES = 0
 
-
-class AmpioSensor(AmpioEntity, RestoreEntity, Entity):
-    """Representation of Ampio Sensor."""
-
-    def __init__(self, config):
-        """Initialize the sensor."""
-        AmpioEntity.__init__(self, config)
-
-    async def subscribe_topics(self):
-        """(Re)Subscribe to topics."""
-
-        @callback
-        def state_message_received(msg):
-            """Handler new MQTT message."""
-            payload = msg.payload
-            try:
-                self._state = float(payload)
-            except ValueError:
-                self._state = None
-
-            self.async_write_ha_state()
-
-        self._sub_state = await subscription.async_subscribe_topics(
-            self.hass,
-            self._sub_state,
-            {
-                "state_topic": {
-                    "topic": self._config[CONF_STATE_TOPIC],
-                    "msg_callback": state_message_received,
-                    "qos": DEFAULT_QOS,
-                }
-            },
-        )
-
-    async def async_added_to_hass(self):
-        """Entity added to the hass."""
-        await super().async_added_to_hass()
-        last_state = await self.async_get_last_state()
-        if not last_state:
-            return
-        self._state = last_state.state
-
-
-    async def async_will_remove_from_hass(self):
-        """Unsubscribe when removed."""
-        self._sub_state = await subscription.async_unsubscribe_topics(
-            self.hass, self._sub_state
-        )
-
-    @property
-    def unit_of_measurement(self):
-        """Return the unit this state is expressed in."""
-        return self._config.get(CONF_UNIT_OF_MEASUREMENT)
-
-    @property
-    def state(self):
-        """Return the state of the entity."""
-        return self._state
-
-    @property
-    def icon(self):
-        """Return the icon."""
-        return self._config.get(CONF_ICON)
-
-    @property
-    def device_class(self) -> Optional[str]:
-        """Return the device class of the sensor."""
-        return self._config.get(CONF_DEVICE_CLASS)
-
-    @property
-    def should_poll(self):
-        """Poll the sensor to get even data stream even if ther is no change."""
-        return True
-
-    @property
-    def force_update(self) -> bool:
-        """Return True if state updates should be forced.
-
-        If True, a state change will be triggered anytime the state property is
-        updated, not just when the value changes.
-        """
-        return True
+# Static descriptions for the known sensor kinds the library can report.
+# Translation keys map into strings.json -> entity.sensor.<key>.name.
+_SENSOR_DESCRIPTIONS: dict[str, SensorEntityDescription] = {
+    "temperature": SensorEntityDescription(
+        key="temperature",
+        translation_key="temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+    ),
+    "humidity": SensorEntityDescription(
+        key="humidity",
+        translation_key="humidity",
+        device_class=SensorDeviceClass.HUMIDITY,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+    ),
+    "pressure_abs": SensorEntityDescription(
+        key="pressure_abs",
+        translation_key="pressure_abs",
+        device_class=SensorDeviceClass.ATMOSPHERIC_PRESSURE,
+        native_unit_of_measurement=UnitOfPressure.HPA,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+    ),
+    "pressure_rel": SensorEntityDescription(
+        key="pressure_rel",
+        translation_key="pressure_rel",
+        device_class=SensorDeviceClass.PRESSURE,
+        native_unit_of_measurement=UnitOfPressure.HPA,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+    ),
+    "loudness": SensorEntityDescription(
+        key="loudness",
+        translation_key="loudness",
+        device_class=SensorDeviceClass.SOUND_PRESSURE,
+        native_unit_of_measurement=UnitOfSoundPressure.DECIBEL,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+    ),
+    "illuminance": SensorEntityDescription(
+        key="illuminance",
+        translation_key="illuminance",
+        device_class=SensorDeviceClass.ILLUMINANCE,
+        native_unit_of_measurement=LIGHT_LUX,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+    ),
+    "iaq": SensorEntityDescription(
+        key="iaq",
+        translation_key="iaq",
+        device_class=SensorDeviceClass.AQI,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+    ),
+    "co2": SensorEntityDescription(
+        key="co2",
+        translation_key="co2",
+        device_class=SensorDeviceClass.CO2,
+        native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+    ),
+}
 
 
 async def async_setup_entry(
-    hass: HomeAssistantType, config_entry: ConfigType, async_add_entities
-):
-    """Set up MQTT sensors dynamically through MQTT discovery."""
-    entities_to_create = hass.data[DATA_AMPIO][sensor.DOMAIN]
+    hass: HomeAssistant,
+    entry: AmpioConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up Ampio sensors, adding new ones as they are discovered."""
+    coordinator = entry.runtime_data
+    known_objects: set[int] = set()
+    known_modules: set[int] = set()
 
-    unsub = async_dispatcher_connect(
-        hass,
-        SIGNAL_ADD_ENTITIES,
-        functools.partial(
-            discovery.async_add_entities,
-            async_add_entities,
-            entities_to_create,
-            AmpioSensor,
-        ),
-    )
-    hass.data[DATA_AMPIO][DATA_AMPIO_DISPATCHERS].append(unsub)
+    @callback
+    def _discover() -> None:
+        new_modules = [
+            mid for mid in coordinator.client.modules if mid not in known_modules
+        ]
+        new_sensors: list[tuple[int, SensorEntityDescription]] = []
+        for oid, obj in coordinator.client.sensors.items():
+            if oid in known_objects or obj.kind is None:
+                continue
+            description = _SENSOR_DESCRIPTIONS.get(obj.kind.key)
+            if description is None or (obj.value is None and not obj.name):
+                continue
+            new_sensors.append((oid, description))
+        if not new_sensors and not new_modules:
+            return
+        known_objects.update(oid for oid, _ in new_sensors)
+        known_modules.update(new_modules)
+        entities: list[SensorEntity] = [
+            AmpioModuleLastSeenSensor(coordinator, mid) for mid in new_modules
+        ]
+        entities.extend(
+            AmpioSensor(coordinator, oid, description)
+            for oid, description in new_sensors
+        )
+        async_add_entities(entities)
+
+    entry.async_on_unload(coordinator.async_add_listener(_discover))
+    _discover()
+
+
+class AmpioSensor(AmpioEntity, SensorEntity):
+    """A sensor backed by an Ampio DB object."""
+
+    def __init__(
+        self,
+        coordinator: AmpioLocalCoordinator,
+        object_id: int,
+        description: SensorEntityDescription,
+    ) -> None:
+        """Initialize the sensor from its classified object."""
+        super().__init__(coordinator, object_id)
+        self.entity_description = description
+        obj = coordinator.client.objects[object_id]
+        if obj.name:
+            self._attr_name = obj.name
+
+    @property
+    def native_value(self) -> float | str | None:
+        """Return the current value (numeric where possible)."""
+        obj = self.object
+        if obj is None or obj.value is None:
+            return None
+        try:
+            return float(obj.value)
+        except ValueError:
+            return obj.value
+
+
+class AmpioModuleLastSeenSensor(CoordinatorEntity[AmpioLocalCoordinator], SensorEntity):
+    """Diagnostic timestamp of the last state any module object reported."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "module_last_seen"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: AmpioLocalCoordinator, module_id: int) -> None:
+        """Initialize the diagnostic sensor for a physical module."""
+        super().__init__(coordinator)
+        self._module_id = module_id
+        prefix = identifier_prefix(coordinator)
+        self._attr_unique_id = f"{prefix}_module_{module_id}_last_seen"
+        self._attr_device_info = module_device_info(coordinator, module_id)
+
+    @property
+    def available(self) -> bool:
+        """Available when the broker is connected and the module is known."""
+        return (
+            super().available
+            and self.coordinator.client.available
+            and self._module_id in self.coordinator.client.modules
+        )
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return the last-seen timestamp as a timezone-aware datetime."""
+        module = self.coordinator.client.modules.get(self._module_id)
+        if module is None or module.last_seen is None:
+            return None
+        return datetime.fromtimestamp(module.last_seen, tz=UTC)

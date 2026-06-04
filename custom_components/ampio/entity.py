@@ -1,155 +1,155 @@
-"""Ampio Entities."""
-import logging
-from typing import Any, Dict, Optional
+"""Base entity for the Ampio integration."""
 
-from homeassistant.const import (
-    CONF_DEVICE,
-    CONF_DEVICE_CLASS,
-    CONF_FRIENDLY_NAME,
-    CONF_ICON,
-    CONF_NAME,
-)
-from homeassistant.core import Event
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.entity_registry import EntityRegistry, async_get_registry
-from homeassistant.helpers.typing import ConfigType
+from ampio_mqtt import AmpioObject
+
+from homeassistant.const import CONF_MAC
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from .const import DOMAIN
+from .coordinator import AmpioLocalCoordinator
 
 
-from .const import CONF_STATE_TOPIC, CONF_UNIQUE_ID
+def identifier_prefix(coordinator: AmpioLocalCoordinator) -> str:
+    """Stable identifier prefix sourced from the M-SERV MAC.
 
-_LOGGER = logging.getLogger(__name__)
+    The config flow refuses to create an entry without a server identity, so
+    ``unique_id`` is always set by the time entities are built.
+    """
+    unique_id = coordinator.config_entry.unique_id
+    assert unique_id is not None
+    return unique_id
 
 
-class AmpioEntity(Entity):
-    """Base class for Ampio Entity."""
+def _is_load_attached(
+    coordinator: AmpioLocalCoordinator,
+    obj: AmpioObject,
+) -> bool:
+    """Whether the object physically lives elsewhere than its host module.
 
-    def __init__(self, config):
-        """Initialize the sensor."""
-        self._config: Dict[str, Any] = config
-        self._device_info: Dict[str, Any] = config.get(CONF_DEVICE)
-        self._unique_id = config.get(CONF_UNIQUE_ID)
-        self._state = None
-        self._sub_state = None
-        self._available = False
+    Sensors always live at the module (an M-SENS reading is wherever the box
+    is bolted). Future platforms may flip this on: a relay output drives a
+    load that may live anywhere, and a wire-back input on an output-bearing
+    module (M-REL) is the same shape. The coordinator argument is here so
+    those future branches can consult ``module.capabilities`` without a
+    signature churn. Today only sensor kinds reach this function, all of
+    them module-attached.
+    """
+    return False
+
+
+def _module_room_hint(coordinator: AmpioLocalCoordinator, module_id: int) -> str | None:
+    """Return the unique room name shared by a module's module-attached objects.
+
+    Walks every object the broker has classified under ``module_id``. Objects
+    flagged load-attached by ``_is_load_attached`` are deliberately excluded
+    so a multi-room relay board does not block the area hint on its own
+    co-located sensor or input. Returns the room iff every module-attached
+    object that has a room maps to the same one; otherwise ``None``.
+    """
+    if not coordinator.room_map:
+        return None
+    rooms: set[str] = set()
+    for obj in coordinator.client.objects.values():
+        if obj.device_id != module_id or obj.kind is None:
+            continue
+        if _is_load_attached(coordinator, obj):
+            continue
+        room = coordinator.room_map.get(obj.id)
+        if room:
+            rooms.add(room)
+    if len(rooms) == 1:
+        return rooms.pop()
+    return None
+
+
+def module_device_info(
+    coordinator: AmpioLocalCoordinator, module_id: int | None
+) -> DeviceInfo:
+    """Build the device info for a physical module, or the generic hub.
+
+    ``module_id is None`` produces the fallback "Ampio" hub device used when an
+    object has no ``id_urzadzenia``. The M-SERV module gets its sw_version and
+    configuration_url from the server info reply; all other modules are
+    linked to the M-SERV through ``via_device`` so HA renders the topology.
+    """
+    prefix = identifier_prefix(coordinator)
+    if module_id is None:
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"{prefix}:hub")},
+            name="Ampio",
+            manufacturer="Ampio",
+        )
+    module = coordinator.client.modules.get(module_id)
+    mserv_id = coordinator.client.mserv_id
+    server_info = coordinator.client.server_info
+    is_mserv = mserv_id is not None and module_id == mserv_id
+
+    info: DeviceInfo = {
+        "identifiers": {(DOMAIN, f"{prefix}:{module_id}")},
+        "name": (
+            module.name
+            if module is not None and module.name
+            else f"Ampio module {module_id}"
+        ),
+        "manufacturer": "Ampio",
+    }
+    if module is not None and module.model:
+        info["model"] = module.model
+    if module is not None:
+        # The globally-unique CAN id is the module's stable hardware address.
+        # Prefer it over the local bus address, which is just a position (the
+        # M-SERV's local mac is 1 while its global id carries the real value).
+        can_mac = module.mac_global if module.mac_global is not None else module.mac
+        if can_mac is not None:
+            info["serial_number"] = f"0x{can_mac:X}"
+    if is_mserv and server_info is not None and server_info.server_version:
+        info["sw_version"] = server_info.server_version
+    elif module is not None and module.sw_version is not None:
+        info["sw_version"] = str(module.sw_version)
+    if module is not None and module.hw_version is not None:
+        info["hw_version"] = str(module.hw_version)
+    if is_mserv and server_info is not None and server_info.local_ip:
+        info["configuration_url"] = f"http://{server_info.local_ip}"
+    if is_mserv:
+        ethernet_mac = coordinator.config_entry.data.get(CONF_MAC)
+        if ethernet_mac:
+            info["connections"] = {(CONNECTION_NETWORK_MAC, ethernet_mac)}
+    if not is_mserv and mserv_id is not None:
+        info["via_device"] = (DOMAIN, f"{prefix}:{mserv_id}")
+    if not is_mserv:
+        # The M-SERV is infrastructure (server cabinet, comms closet); even
+        # when its module-attached objects share a room, an area there is a
+        # worse hint than none.
+        room = _module_room_hint(coordinator, module_id)
+        if room is not None:
+            info["suggested_area"] = room
+    return info
+
+
+class AmpioEntity(CoordinatorEntity[AmpioLocalCoordinator]):
+    """Base class for Ampio entities backed by a DB object."""
+
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinator: AmpioLocalCoordinator, object_id: int) -> None:
+        """Initialize the entity."""
+        super().__init__(coordinator)
+        self._object_id = object_id
+        obj = coordinator.client.objects[object_id]
+        self._attr_unique_id = f"{identifier_prefix(coordinator)}_obj_{object_id}"
+        self._attr_device_info = module_device_info(coordinator, obj.device_id)
 
     @property
-    def should_poll(self):
-        """No polling needed."""
-        return False
-
-    @property
-    def name(self):
-        """Return the name of the sensor."""
-        return self._config[CONF_NAME]
-
-    @property
-    def unique_id(self):
-        """Return a unique ID."""
-        return self._unique_id
+    def object(self) -> AmpioObject | None:
+        """The current backing object, if still present."""
+        return self.coordinator.client.objects.get(self._object_id)
 
     @property
     def available(self) -> bool:
-        return self._available
-
-    @property
-    def device_class(self) -> Optional[str]:
-        """Return the device class of the sensor."""
-        return self._config.get(CONF_DEVICE_CLASS)
-
-    @property
-    def device_info(self):
-        """Return a device description for device registry."""
-        return self._device_info
-
-    @property
-    def icon(self):
-        """Return the icon."""
-        return self._config.get(CONF_ICON)
-
-    async def subscribe_topics(self):
-        """Call to subscribe topics for entity."""
-        return
-
-    async def async_added_to_hass(self):
-        """Action for initial topics subscription."""
-        await super().async_added_to_hass()
-        await self.subscribe_topics()
-
-        # Update name with configured if None
-        entity_registry: EntityRegistry = await async_get_registry(self.hass)
-        if self.registry_entry.name is None:
-            entity_registry.async_update_entity(
-                self.entity_id, name=self._config[CONF_FRIENDLY_NAME]
-            )
-        self._available = True
-
-    @property
-    def device_state_attributes(self) -> Optional[Dict[str, Any]]:
-        """Return device specific state attributes.
-        Implemented by platform classes. Convention for attribute names
-        is lowercase snake_case.
-        """
-        state_topic = self._config.get(CONF_STATE_TOPIC)
-        if state_topic:
-            parts = state_topic.split("/")
-            if len(parts) > 1:
-                return {"Ampio": f"{parts[-4].lower()}/{parts[-2]}/{parts[-1]}"}
-        return None
-
-
-class AmpioEntityDeviceInfo(Entity):
-    """Mixin used for mqtt platforms that support the device registry."""
-
-    def __init__(self, device_config: Optional[ConfigType], config_entry=None) -> None:
-        """Initialize the device mixin."""
-        self._device_config = device_config
-        self._config_entry = config_entry
-
-    async def discovery_update(self, device_config):
-        """Handle updated discovery message."""
-        self._device_config = device_config
-        self.async_write_ha_state()
-
-    @property
-    def device_info(self):
-        """Return a device description for device registry."""
-        return self._device_config
-
-
-class AmpioModuleDiscoveryUpdate(Entity):
-    """Mixin used to handle updated discovery message."""
-
-    def __init__(self, discovery_update=None) -> None:
-        """Initialize the discovery update mixin."""
-        self._discovery_update = discovery_update
-        self._remove_signal = None
-        self._removed_from_hass = False
-
-    async def async_added_to_hass(self) -> None:
-        """Subscribe to discovery updates."""
-        await super().async_added_to_hass()
-
-        async def device_registry_updated(_event: Event) -> None:
-            data = _event.data
-            if data["action"] == "update":
-                device_id = data["device_id"]
-                device_registry = (
-                    await self.hass.helpers.device_registry.async_get_registry()
-                )
-                device_config = device_registry.async_get(device_id)
-                self._discovery_update(device_config)
-
-        self._remove_signal = self.hass.bus.async_listen(
-            dr.EVENT_DEVICE_REGISTRY_UPDATED, device_registry_updated
+        """Available when connected and the object exists."""
+        return (
+            super().available
+            and self.coordinator.client.available
+            and self.object is not None
         )
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Stop listening to signal and cleanup discovery data.."""
-        self._cleanup_discovery_on_remove()
-
-    def _cleanup_discovery_on_remove(self) -> None:
-        """Stop listening to signal and cleanup discovery data."""
-        if self._remove_signal:
-            self._remove_signal()
-            self._remove_signal = None

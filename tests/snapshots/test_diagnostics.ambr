@@ -1,0 +1,152 @@
+# serializer version: 1
+# name: test_config_entry_diagnostics
+  dict({
+    'available': True,
+    'entry': dict({
+      'data': dict({
+        'host': '**REDACTED**',
+        'password': '**REDACTED**',
+        'port': 1883,
+        'username': '**REDACTED**',
+      }),
+      'has_unique_id': True,
+      'version': 1,
+    }),
+    'modules': list([
+      dict({
+        'capabilities': list([
+          'env_sensor',
+          'ir_output',
+        ]),
+        'hw_version': 7,
+        'id': 17,
+        'last_seen': 1779565263.0,
+        'mac': 52111,
+        'mac_global': None,
+        'model': 'M-SENS',
+        'name': 'm-sens salon',
+        'sw_version': 63,
+        'type': 44,
+      }),
+      dict({
+        'capabilities': list([
+          'digital_input',
+          'digital_output',
+          'temperature_input',
+        ]),
+        'hw_version': 2,
+        'id': 3,
+        'last_seen': None,
+        'mac': 48770,
+        'mac_global': None,
+        'model': 'M-REL-8s',
+        'name': 'MREL 3',
+        'sw_version': 11000,
+        'type': 4,
+      }),
+      dict({
+        'capabilities': list([
+          'digital_input',
+          'digital_output',
+          'hub',
+          'temperature_input',
+        ]),
+        'hw_version': 7,
+        'id': 1,
+        'last_seen': None,
+        'mac': 1,
+        'mac_global': 47846,
+        'model': 'M-SERV-s',
+        'name': 'MSERV',
+        'sw_version': 11639,
+        'type': 10,
+      }),
+    ]),
+    'mserv_module_id': 1,
+    'objects': dict({
+      'by_typ_komponentu': dict({
+        'lin_wej': 3,
+        'temp': 1,
+      }),
+      'classified_sensors': 4,
+      'total': 4,
+    }),
+    'room_map': dict({
+      '36': 'Salon',
+      '37': 'Salon',
+      '43': 'Salon',
+    }),
+    'server_info': dict({
+      'device_id': '0011223344556677',
+      'local_ip': '**REDACTED**',
+      'mac': 47846,
+      'mqtt_version': '5.133.11',
+      'server_revision': '409',
+      'server_version': '1865',
+    }),
+  })
+# ---
+# name: test_device_diagnostics
+  dict({
+    'module': dict({
+      'capabilities': list([
+        'env_sensor',
+        'ir_output',
+      ]),
+      'hw_version': 7,
+      'id': 17,
+      'last_seen': 1779565263.0,
+      'mac': 52111,
+      'mac_global': None,
+      'model': 'M-SENS',
+      'name': 'm-sens salon',
+      'sw_version': 63,
+      'type': 44,
+    }),
+    'objects': list([
+      dict({
+        'device_id': 17,
+        'has_name': True,
+        'has_value': True,
+        'id': 36,
+        'interpretacja': 1,
+        'kind': 'temperature',
+        'typ_komponentu': 'temp',
+      }),
+      dict({
+        'device_id': 17,
+        'has_name': True,
+        'has_value': True,
+        'id': 37,
+        'interpretacja': 1,
+        'kind': 'humidity',
+        'typ_komponentu': 'lin_wej',
+      }),
+      dict({
+        'device_id': 17,
+        'has_name': False,
+        'has_value': True,
+        'id': 43,
+        'interpretacja': 7,
+        'kind': 'co2',
+        'typ_komponentu': 'lin_wej',
+      }),
+      dict({
+        'device_id': 17,
+        'has_name': False,
+        'has_value': False,
+        'id': 99,
+        'interpretacja': 2,
+        'kind': 'pressure_abs',
+        'typ_komponentu': 'lin_wej',
+      }),
+    ]),
+  })
+# ---
+# name: test_device_diagnostics_for_unknown_device
+  dict({
+    'module': None,
+    'objects': list([
+    ]),
+  })
+# ---

@@ -1,61 +1,33 @@
-# Home Assistant Ampio Custom Integration
+# Ampio for Home Assistant (HACS)
 
-[![GH-release](https://img.shields.io/github/v/release/kstaniek/ampio-hacc.svg?style=flat-square)](https://github.com/kstaniek/ampio-hacc/releases)
-[![GH-downloads](https://img.shields.io/github/downloads/kstaniek/ampio-hacc/total?style=flat-square)](https://github.com/kstaniek/ampio-hacc/releases)
-[![GH-last-commit](https://img.shields.io/github/last-commit/kstaniek/ampio-hacc.svg?style=flat-square)](https://github.com/kstaniek/ampio-hacc/commits/master)
-[![GH-code-size](https://img.shields.io/github/languages/code-size/kstaniek/ampio-hacc.svg?color=red&style=flat-square)](https://github.com/kstaniek/ampio-hacc)
-[![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg?style=flat-square)](https://github.com/hacs)
+A Home Assistant integration for the [Ampio Smart Home](https://ampio.com/) system, talking to the local M-SERV controller over MQTT via the [`ampio-mqtt`](https://pypi.org/project/ampio-mqtt/) library. Local push, zeroconf and DHCP discovery, no cloud.
 
+## Status
 
-[![Ampio](https://ampio.pl/wp-content/themes/1140FluidStarkers/images/ampio_dark.png)](https://ampio.pl)
+This repository is a staging ground for an integration that has been submitted upstream to `home-assistant/core`. The Python code under `custom_components/ampio/` is kept byte-identical to the open core PR (branch `ampio-local-push-integration`); the only divergences are the two HACS-mandated fields in `manifest.json` (`version`, `documentation`). Tests under `tests/` mirror core's, with a deterministic path transform so they run in this repo's CI.
 
-This is the custom integration of Ampio Smart Home System with  Home Assistant.
+The integration currently ships a single platform: `sensor`. Additional platforms (`binary_sensor`, `light`, `switch`, `cover`, ...) are being authored here ahead of the upstream PR's merge, then cut into follow-up PRs against core once the parent PR lands. See `CLAUDE.md` for the full discipline.
 
-It uses MQTT connecting directly to the MQTT broker running on Ampio Server.
+## Install via HACS
 
-Currently there are following modules supported:
-- MSERV-3s - flags
-- MCON - Satel only
-- MSENS - Both types
-- MROL-4s
-- MPR-8s
-- MOC-4
-- MRT-16s
-- MLED-1
-- MDIM-8s
-- MRGBu-1
-- MDOT-2
-- MDOT-4
-- MDOT-9
-- MDOT-15LCD
+1. Open HACS in Home Assistant.
+2. Add this repository as a Custom Repository (category: Integration).
+3. Install "Ampio".
+4. Restart Home Assistant.
+5. The integration is discovered automatically via DHCP and zeroconf when the M-SERV is on the same network; otherwise, add it from Settings -> Devices & Services -> Add Integration -> Ampio.
 
-The integation works with Ampio MQTT Bridge version: 3.41.2
+Requires Home Assistant 2025.2.0 or newer, Python 3.13+, and `ampio-mqtt>=1.5.0` (installed automatically).
 
-## Installtion
-Copy the ampio folder and all of its contents into your Home Assistant's custom_components folder. This is often located inside of your /config folder. If you are running Hass.io, use SAMBA to copy the folder over. If you are running Home Assistant Supervised, the custom_components folder might be located at /usr/share/hassio/homeassistant. It is possible that your custom_components folder does not exist. If that is the case, create the folder in the proper location, and then copy the localtuya folder and all of its contents inside the newly created custom_components folder.
+## Relationship to home-assistant/core
 
-Alternatively, you can install Ampio integration through HACS by adding this repository.
+The long-term home for this integration is `home-assistant/core`, not HACS. This repo exists to:
 
-## Configuration
+- let real users exercise the integration ahead of the upstream PR's merge,
+- gather field validation that strengthens the upstream review,
+- stage additional platforms whose author-here-first / cut-to-core-later workflow keeps the open PR scoped.
 
-Start by going to Configuration - Integration and pressing the "+" button to create a new Integration, then select Ampio in the drop-down menu.
+When the parent core PR merges, each platform added here gets a follow-up PR against `home-assistant/core`, and the corresponding files in this repo revert to strict-mirror mode with respect to the merged code. The repo never accumulates HACS-only shortcuts; if a pattern would not pass core review, it does not live here.
 
-![config](https://github.com/kstaniek/ampio-hacc/blob/master/static/config1.png)
+## Quality
 
-Provide the Ampio server IP address and leave default port number.
-The username should be admin and with the admin pasword configured for Ampio Smart Home Application.
-Click `Submit` button.
-
-![config](https://github.com/kstaniek/ampio-hacc/blob/master/static/config2.png)
-
-Click `Finish`
-
-Once you finish the configuration you should see the Ampio integration on the list of installe integration with the number of discovered items.
-
-![config](https://github.com/kstaniek/ampio-hacc/blob/master/static/config3.png)
-
-The configuration is done.
-
-## Thanks to
-
-Olek from Ampio for help, patience and effort to build the stable MQTT Broker for Ampio Smart Home System.
+Every change in this repo aims to clear the same gates a core PR would: `ruff`, `mypy`, `hassfest`, and a `pytest` suite mirrored from core. CI runs all four. The current parent PR ships at silver on the integration quality scale; new platforms target the same minimum.
