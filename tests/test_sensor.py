@@ -292,8 +292,11 @@ async def test_module_without_catalogue_row_gets_bare_device(
         Platform.SENSOR, DOMAIN, f"{MSERV_MAC}_leaf_0_dead_temp_0_1"
     )
     assert entity_id is not None
-    child = device_registry.async_get(entity_registry.async_get(entity_id).device_id)
+    entity_entry = entity_registry.async_get(entity_id)
+    assert entity_entry is not None
+    child = device_registry.async_get(entity_entry.device_id)
     assert child is not None
+    assert isinstance(child, dr.ChildDeviceEntry)
     assert child.parent_device_id == device.id
 
 

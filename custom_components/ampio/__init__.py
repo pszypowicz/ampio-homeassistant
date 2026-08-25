@@ -6,7 +6,6 @@ from ampio_mqtt import (
     AmpioAuthError,
     AmpioClient,
     AmpioConnectionError,
-    AmpioTimeoutError,
     AuthFailed,
     AvailabilityChanged,
     ConnectionDied,
@@ -125,7 +124,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     rooms: dict[int, str] = {}
     try:
         rooms = await client.fetch_rooms()
-    except AmpioConnectionError, AmpioTimeoutError:
+    except AmpioConnectionError:
         _LOGGER.warning(
             "Could not fetch the Ampio room map; "
             "new devices register without a suggested area"

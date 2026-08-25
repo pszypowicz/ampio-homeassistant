@@ -73,7 +73,11 @@ rules:
   repair-issues:
     status: exempt
     comment: This integration has no repairable conditions.
-  stale-devices: todo
+  stale-devices:
+    status: done
+    comment: |
+      A grant change cannot be distinguished from a temporary absence, so
+      stale devices are kept and the user deletes them from the UI.
 
   # Platinum
   async-dependency: done

@@ -176,13 +176,17 @@ async def test_restricted_account_groups_by_module_mac(
         for entity in entities
         if entity.domain == "scene" or entity.entity_id == hub_entity_id
     ]
-    module_entities = [entity for entity in entities if entity not in hub_entities]
+    hub_entity_ids = {entity.entity_id for entity in hub_entities}
+    module_entities = [
+        entity for entity in entities if entity.entity_id not in hub_entity_ids
+    ]
     assert len(scene_entities) == 1
     assert all(entity.device_id == hub.id for entity in hub_entities)
-    assert all(
-        device_registry.async_get(entity.device_id).parent_device_id == module.id
-        for entity in module_entities
-    )
+    for entity in module_entities:
+        device = device_registry.async_get(entity.device_id)
+        assert device is not None
+        assert isinstance(device, dr.ChildDeviceEntry)
+        assert device.parent_device_id == module.id
 
 
 async def test_tier_switch_keeps_device_grouping(
@@ -303,12 +307,14 @@ async def test_availability_transitions_log_once_per_edge(
 
 
 async def test_module_devices_preregistered(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
 ) -> None:
     """Module parent devices exist after setup, with catalogue metadata."""
     await setup_integration(hass, mock_config_entry)
 
-    device_registry = dr.async_get(hass)
     hub = device_registry.async_get_device_by_identifier(
         (DOMAIN, MSERV_MAC), mock_config_entry.entry_id
     )
@@ -317,6 +323,8 @@ async def test_module_devices_preregistered(
     )
     assert hub is not None
     assert module_device is not None
+    assert hub.area_id is None
+    assert module_device.area_id is None
     assert module_device.name == "m-sens salon"
     assert module_device.via_device_id == hub.id
     assert mock_config_entry.runtime_data.module_device_ids[52111] == module_device.id
@@ -333,18 +341,26 @@ async def test_room_fetch_failure_degrades(
     await setup_integration(hass, mock_config_entry)
 
     assert mock_config_entry.state is ConfigEntryState.LOADED
-    assert "room map" in caplog.text
+    room_map_warnings = [
+        record
+        for record in caplog.records
+        if record.levelname == "WARNING" and "room map" in record.getMessage()
+    ]
+    assert len(room_map_warnings) == 1
     assert mock_config_entry.runtime_data.rooms == {}
 
 
 async def test_objects_become_child_devices(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+    area_registry: ar.AreaRegistry,
 ) -> None:
     """Module-owned objects get child devices with names, rooms, entities."""
     await setup_integration(hass, mock_config_entry)
 
-    device_registry = dr.async_get(hass)
-    entity_registry = er.async_get(hass)
     module_device = device_registry.async_get_device_by_identifier(
         MSENS_IDENTIFIER, mock_config_entry.entry_id
     )
@@ -357,14 +373,16 @@ async def test_objects_become_child_devices(
     assert child is not None
     assert child.parent_device_id == module_device.id
     assert child.name == "Temperatura"
-    area = ar.async_get(hass).async_get_area_by_name("Salon")
+    area = area_registry.async_get_area_by_name("Salon")
     assert area is not None
     assert child.area_id == area.id
     entity_id = entity_registry.async_get_entity_id(
         "sensor", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_temp_0_1"
     )
     assert entity_id is not None
-    assert entity_registry.async_get(entity_id).device_id == child.id
+    entity_entry = entity_registry.async_get(entity_id)
+    assert entity_entry is not None
+    assert entity_entry.device_id == child.id
 
     # Unnamed object 43 (CO2): fallback device name, translated entity name.
     unnamed = device_registry.async_get_child_device_by_identifier(
@@ -376,21 +394,26 @@ async def test_objects_become_child_devices(
 
 
 async def test_server_owned_object_stays_on_hub(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
 ) -> None:
     """Server-owned objects attach to the hub device, with no child device."""
     await setup_integration(hass, mock_config_entry)
 
-    device_registry = dr.async_get(hass)
-    entity_registry = er.async_get(hass)
     hub = device_registry.async_get_device_by_identifier(
         (DOMAIN, MSERV_MAC), mock_config_entry.entry_id
     )
+    assert hub is not None
     entity_id = entity_registry.async_get_entity_id(
         "binary_sensor", DOMAIN, f"{MSERV_MAC}_leaf_0_1_flaga_0_9"
     )
     assert entity_id is not None
-    assert entity_registry.async_get(entity_id).device_id == hub.id
+    entity_entry = entity_registry.async_get(entity_id)
+    assert entity_entry is not None
+    assert entity_entry.device_id == hub.id
     assert (
         device_registry.async_get_child_device_by_identifier(
             (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_1_flaga_0_9"), mock_config_entry.entry_id
@@ -400,12 +423,14 @@ async def test_server_owned_object_stays_on_hub(
 
 
 async def test_remove_config_entry_device(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
 ) -> None:
     """Only devices with no live backing object may be deleted."""
     await setup_integration(hass, mock_config_entry)
 
-    device_registry = dr.async_get(hass)
     hub = device_registry.async_get_device_by_identifier(
         (DOMAIN, MSERV_MAC), mock_config_entry.entry_id
     )
@@ -415,6 +440,9 @@ async def test_remove_config_entry_device(
     child = device_registry.async_get_child_device_by_identifier(
         (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_temp_0_1"), mock_config_entry.entry_id
     )
+    assert hub is not None
+    assert module_device is not None
+    assert child is not None
 
     assert not await async_remove_config_entry_device(hass, mock_config_entry, hub)
     assert not await async_remove_config_entry_device(
