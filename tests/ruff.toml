@@ -1,0 +1,14 @@
+# Mirrors core's tests/ruff.toml: the "tests" banned-api entry in the root
+# config exists so that custom_components/ampio never imports test helpers.
+# Applied unmodified inside this directory it would also ban this package's
+# own self-referential imports (e.g. `from . import setup_integration`,
+# `from .conftest import ...`), because this tree is the flat `tests`
+# package itself rather than core's `tests/components/<domain>` nesting.
+# Restate the other banned-api entries since extending a config replaces
+# the parent table instead of merging it.
+extend = "../pyproject.toml"
+
+[lint.flake8-tidy-imports.banned-api]
+"async_timeout".msg = "use asyncio.timeout instead"
+"pytz".msg = "use zoneinfo instead"
+"__future__.annotations".msg = "It should not be needed because Home Assistant requires Python 3.14+"
