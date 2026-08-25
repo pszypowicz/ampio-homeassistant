@@ -176,7 +176,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> bo
 
 
 async def async_remove_config_entry_device(
-    hass: HomeAssistant, entry: AmpioConfigEntry, device_entry: dr.DeviceEntry
+    hass: HomeAssistant, entry: AmpioConfigEntry, device_entry: dr.AnyDeviceEntry
 ) -> bool:
     """Allow removing devices whose objects the account no longer receives.
 
