@@ -157,8 +157,14 @@ async def test_restricted_account_groups_by_module_mac(
     entities = er.async_entries_for_config_entry(
         entity_registry, mock_config_entry.entry_id
     )
-    assert len(entities) == 19
-    assert all(entity.device_id == module.id for entity in entities)
+    assert len(entities) == 20
+    # Scenes live on the hub device regardless of account tier; every other
+    # entity in the catalogue is module-bound.
+    module_entities = [entity for entity in entities if entity.domain != "scene"]
+    scene_entities = [entity for entity in entities if entity.domain == "scene"]
+    assert len(scene_entities) == 1
+    assert all(entity.device_id == module.id for entity in module_entities)
+    assert all(entity.device_id == hub.id for entity in scene_entities)
 
 
 async def test_tier_switch_keeps_device_grouping(
