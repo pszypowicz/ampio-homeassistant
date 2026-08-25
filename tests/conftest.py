@@ -72,6 +72,7 @@ def make_object(
     value: str | None = None,
     params: int = 0,
     matter_device_type: int | None = None,
+    tilt_position: int | None = None,
 ) -> AmpioObject:
     """Build a classified object the way discovery would."""
     return AmpioObject(
@@ -85,6 +86,7 @@ def make_object(
         params=params,
         value=value,
         matter_device_type=matter_device_type,
+        tilt_position=tilt_position,
     )
 
 
@@ -96,7 +98,9 @@ def make_object(
 # The two input objects (a named flag, an unnamed motion detection) feed the
 # binary_sensor platform the same way. The four output objects (a named
 # dimmer, an rgbw, a Matter-tagged relay light, an untagged relay) feed the
-# light platform; the untagged relay is exposed by no platform yet.
+# light platform; the untagged relay is exposed by no platform yet. The
+# three cover objects (a plain roleta without feedback, a percent roleta, a
+# lamella blind) feed the cover platform.
 DEFAULT_OBJECTS = (
     make_object(
         36,
@@ -159,6 +163,33 @@ DEFAULT_OBJECTS = (
         matter_device_type=0x0100,
     ),
     make_object(74, "przekaznik", 0, leaf_id="0_cb8f_rel_0_4", funkcja=6, value="1"),
+    make_object(
+        81,
+        "roleta",
+        0,
+        leaf_id="0_cb8f_rol_0_1",
+        funkcja=7,
+        name="Roleta Sypialnia",
+    ),
+    make_object(
+        82,
+        "roleta_procenty",
+        0,
+        leaf_id="0_cb8f_rolp_0_2",
+        funkcja=8,
+        name="Roleta Kuchnia",
+        value="35",
+    ),
+    make_object(
+        83,
+        "roleta_lamelki",
+        0,
+        leaf_id="0_cb8f_roll_0_3",
+        funkcja=9,
+        name="Zaluzja Goscinny",
+        value="70",
+        tilt_position=40,
+    ),
     make_object(132, "lin_wej", 7, leaf_id="0_cb8f_lin_0_3", funkcja=3, params=16),
     make_object(99, "lin_wej", 2, leaf_id="", funkcja=4),
 )
