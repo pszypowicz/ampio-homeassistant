@@ -8,4 +8,4 @@ DOMAIN: Final = "ampio"
 
 PLATFORMS: Final = [Platform.SENSOR]
 
-DEFAULT_PORT: Final = 1883
+DEFAULT_HOST: Final = "ampio.local"

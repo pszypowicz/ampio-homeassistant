@@ -1,155 +1,112 @@
 """Base entity for the Ampio integration."""
 
-from ampio_mqtt import AmpioObject
+from collections.abc import Iterator
+from typing import override
 
-from homeassistant.const import CONF_MAC
-from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from ampio_mqtt import (
+    AmpioClient,
+    AmpioObject,
+    AvailabilityChanged,
+    ObjectRemoved,
+    ObjectUpdated,
+)
 
+from homeassistant.core import callback
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import Entity
+
+from . import AmpioData
 from .const import DOMAIN
-from .coordinator import AmpioLocalCoordinator
 
 
-def identifier_prefix(coordinator: AmpioLocalCoordinator) -> str:
-    """Stable identifier prefix sourced from the M-SERV MAC.
+def eligible_objects(client: AmpioClient) -> Iterator[AmpioObject]:
+    """The objects any platform may expose as entities.
 
-    The config flow refuses to create an entry without a server identity, so
-    ``unique_id`` is always set by the time entities are built.
+    ``visible`` is the M-SERV's own predicate for what the user still sees
+    in Ampio Designer; ghost rows that survived removal fail it. A missing
+    ``stable_key`` would otherwise leak into the unique_id.
     """
-    unique_id = coordinator.config_entry.unique_id
-    assert unique_id is not None
-    return unique_id
+    return (
+        obj
+        for obj in client.objects.values()
+        if obj.visible and obj.stable_key is not None
+    )
 
 
-def _is_load_attached(
-    coordinator: AmpioLocalCoordinator,
-    obj: AmpioObject,
-) -> bool:
-    """Whether the object physically lives elsewhere than its host module.
+def _opt_str(value: object | None) -> str | None:
+    """Stringify a catalogue field, passing None through."""
+    return None if value is None else str(value)
 
-    Sensors always live at the module (an M-SENS reading is wherever the box
-    is bolted). Future platforms may flip this on: a relay output drives a
-    load that may live anywhere, and a wire-back input on an output-bearing
-    module (M-REL) is the same shape. The coordinator argument is here so
-    those future branches can consult ``module.capabilities`` without a
-    signature churn. Today only sensor kinds reach this function, all of
-    them module-attached.
+
+def _device_info(data: AmpioData, obj: AmpioObject) -> DeviceInfo:
+    """Device info for the module owning ``obj``, or the M-SERV hub.
+
+    Keyed on the leaf-derived module mac, which both account tiers receive,
+    so the grouping survives an account-tier switch; the admin-only module
+    catalogue contributes metadata only. Every catalogue-derived field is
+    always passed so a tier downgrade degrades the whole device coherently
+    instead of mixing the fallback name with stale metadata.
     """
-    return False
+    if obj.is_server_owned or (mac := obj.module_mac) is None:
+        return DeviceInfo(identifiers={(DOMAIN, data.prefix)})
+    module = data.client.module_for(obj)
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"{data.prefix}:{mac}")},
+        name=(module.name if module else None) or f"Ampio module 0x{mac:X}",
+        manufacturer="Ampio",
+        via_device_id=data.hub_device_id,
+        model=module.model if module else None,
+        sw_version=_opt_str(module.sw_version) if module else None,
+        hw_version=_opt_str(module.hw_version) if module else None,
+        serial_number=_opt_str(module.mac_global) if module else None,
+    )
 
 
-def _module_room_hint(coordinator: AmpioLocalCoordinator, module_id: int) -> str | None:
-    """Return the unique room name shared by a module's module-attached objects.
-
-    Walks every object the broker has classified under ``module_id``. Objects
-    flagged load-attached by ``_is_load_attached`` are deliberately excluded
-    so a multi-room relay board does not block the area hint on its own
-    co-located sensor or input. Returns the room iff every module-attached
-    object that has a room maps to the same one; otherwise ``None``.
-    """
-    if not coordinator.room_map:
-        return None
-    rooms: set[str] = set()
-    for obj in coordinator.client.objects.values():
-        if obj.device_id != module_id or obj.kind is None:
-            continue
-        if _is_load_attached(coordinator, obj):
-            continue
-        room = coordinator.room_map.get(obj.id)
-        if room:
-            rooms.add(room)
-    if len(rooms) == 1:
-        return rooms.pop()
-    return None
-
-
-def module_device_info(
-    coordinator: AmpioLocalCoordinator, module_id: int | None
-) -> DeviceInfo:
-    """Build the device info for a physical module, or the generic hub.
-
-    ``module_id is None`` produces the fallback "Ampio" hub device used when an
-    object has no ``id_urzadzenia``. The M-SERV module gets its sw_version and
-    configuration_url from the server info reply; all other modules are
-    linked to the M-SERV through ``via_device`` so HA renders the topology.
-    """
-    prefix = identifier_prefix(coordinator)
-    if module_id is None:
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"{prefix}:hub")},
-            name="Ampio",
-            manufacturer="Ampio",
-        )
-    module = coordinator.client.modules.get(module_id)
-    mserv_id = coordinator.client.mserv_id
-    server_info = coordinator.client.server_info
-    is_mserv = mserv_id is not None and module_id == mserv_id
-
-    info: DeviceInfo = {
-        "identifiers": {(DOMAIN, f"{prefix}:{module_id}")},
-        "name": (
-            module.name
-            if module is not None and module.name
-            else f"Ampio module {module_id}"
-        ),
-        "manufacturer": "Ampio",
-    }
-    if module is not None and module.model:
-        info["model"] = module.model
-    if module is not None:
-        # The globally-unique CAN id is the module's stable hardware address.
-        # Prefer it over the local bus address, which is just a position (the
-        # M-SERV's local mac is 1 while its global id carries the real value).
-        can_mac = module.mac_global if module.mac_global is not None else module.mac
-        if can_mac is not None:
-            info["serial_number"] = f"0x{can_mac:X}"
-    if is_mserv and server_info is not None and server_info.server_version:
-        info["sw_version"] = server_info.server_version
-    elif module is not None and module.sw_version is not None:
-        info["sw_version"] = str(module.sw_version)
-    if module is not None and module.hw_version is not None:
-        info["hw_version"] = str(module.hw_version)
-    if is_mserv and server_info is not None and server_info.local_ip:
-        info["configuration_url"] = f"http://{server_info.local_ip}"
-    if is_mserv:
-        ethernet_mac = coordinator.config_entry.data.get(CONF_MAC)
-        if ethernet_mac:
-            info["connections"] = {(CONNECTION_NETWORK_MAC, ethernet_mac)}
-    if not is_mserv and mserv_id is not None:
-        info["via_device"] = (DOMAIN, f"{prefix}:{mserv_id}")
-    if not is_mserv:
-        # The M-SERV is infrastructure (server cabinet, comms closet); even
-        # when its module-attached objects share a room, an area there is a
-        # worse hint than none.
-        room = _module_room_hint(coordinator, module_id)
-        if room is not None:
-            info["suggested_area"] = room
-    return info
-
-
-class AmpioEntity(CoordinatorEntity[AmpioLocalCoordinator]):
-    """Base class for Ampio entities backed by a DB object."""
+class AmpioEntity(Entity):
+    """Entity backed by one Ampio object."""
 
     _attr_has_entity_name = True
+    _attr_should_poll = False
 
-    def __init__(self, coordinator: AmpioLocalCoordinator, object_id: int) -> None:
-        """Initialize the entity."""
-        super().__init__(coordinator)
-        self._object_id = object_id
-        obj = coordinator.client.objects[object_id]
-        self._attr_unique_id = f"{identifier_prefix(coordinator)}_obj_{object_id}"
-        self._attr_device_info = module_device_info(coordinator, obj.device_id)
+    def __init__(self, data: AmpioData, obj: AmpioObject) -> None:
+        """Initialize from the discovery-time object snapshot."""
+        self._data = data
+        self._object_id = obj.id
+        # ``stable_key`` survives a module swap; the prefix scopes it per server.
+        self._attr_unique_id = f"{data.prefix}_{obj.stable_key}"
+        self._attr_device_info = _device_info(data, obj)
+        if obj.name:
+            self._attr_name = obj.name
 
-    @property
-    def object(self) -> AmpioObject | None:
-        """The current backing object, if still present."""
-        return self.coordinator.client.objects.get(self._object_id)
-
-    @property
-    def available(self) -> bool:
-        """Available when connected and the object exists."""
-        return (
-            super().available
-            and self.coordinator.client.available
-            and self.object is not None
+    @override
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to the pushes that affect this entity's state."""
+        client = self._data.client
+        self.async_on_remove(
+            client.subscribe(self._object_changed, of=(ObjectUpdated, ObjectRemoved))
         )
+        self.async_on_remove(
+            client.subscribe(self._availability_changed, of=AvailabilityChanged)
+        )
+
+    @callback
+    def _object_changed(self, event: ObjectUpdated | ObjectRemoved) -> None:
+        """Write state when the backing object updates or is evicted."""
+        if event.object.id == self._object_id:
+            self.async_write_ha_state()
+
+    @callback
+    def _availability_changed(self, event: AvailabilityChanged) -> None:
+        """Write state on every broker connection transition."""
+        self.async_write_ha_state()
+
+    @property
+    def _object(self) -> AmpioObject | None:
+        """The backing object, or None once the catalogue dropped it."""
+        return self._data.client.objects.get(self._object_id)
+
+    @property
+    @override
+    def available(self) -> bool:
+        """Available while the broker is connected and the object exists."""
+        return self._data.client.available and self._object is not None

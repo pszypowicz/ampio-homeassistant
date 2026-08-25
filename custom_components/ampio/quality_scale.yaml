@@ -15,14 +15,16 @@ rules:
   docs-actions:
     status: exempt
     comment: This integration does not provide additional actions.
+  docs-conditions:
+    status: exempt
+    comment: This integration does not have any conditions.
   docs-high-level-description: done
   docs-installation-instructions: done
   docs-removal-instructions: done
-  entity-event-setup:
+  docs-triggers:
     status: exempt
-    comment: |
-      Entities are notified through the DataUpdateCoordinator listener
-      mechanism; no direct event subscriptions in the entity classes.
+    comment: This integration does not have any triggers.
+  entity-event-setup: done
   entity-unique-id: done
   has-entity-name: done
   runtime-data: done
@@ -43,14 +45,14 @@ rules:
   integration-owner: done
   log-when-unavailable: done
   parallel-updates: done
-  reauthentication-flow: done
+  reauthentication-flow: todo
   test-coverage: done
 
   # Gold
   devices: done
-  diagnostics: done
-  discovery-update-info: done
-  discovery: done
+  diagnostics: todo
+  discovery-update-info: todo
+  discovery: todo
   docs-data-update: todo
   docs-examples: todo
   docs-known-limitations: todo
@@ -58,7 +60,7 @@ rules:
   docs-supported-functions: todo
   docs-troubleshooting: todo
   docs-use-cases: todo
-  dynamic-devices: done
+  dynamic-devices: todo
   entity-category: done
   entity-device-class: done
   entity-disabled-by-default:
@@ -67,7 +69,7 @@ rules:
   entity-translations: done
   exception-translations: done
   icon-translations: todo
-  reconfiguration-flow: done
+  reconfiguration-flow: todo
   repair-issues:
     status: exempt
     comment: This integration has no repairable conditions.
