@@ -1,12 +1,12 @@
 # Ampio for Home Assistant (HACS)
 
-A Home Assistant integration for the [Ampio Smart Home](https://ampio.com/) system, talking to the local M-SERV controller over MQTT via the [`ampio-mqtt`](https://pypi.org/project/ampio-mqtt/) library. Local push, zeroconf and DHCP discovery, no cloud.
+A Home Assistant integration for the [Ampio Smart Home](https://ampio.com/) system, talking to the local M-SERV controller over MQTT via the [`ampio-mqtt`](https://pypi.org/project/ampio-mqtt/) library. Local push, no cloud.
 
 ## Status
 
-This repository is a staging ground for an integration that has been submitted upstream to `home-assistant/core`. The Python code under `custom_components/ampio/` is kept byte-identical to the open core PR (branch `ampio-local-push-integration`); the only divergences are the two HACS-mandated fields in `manifest.json` (`version`, `documentation`). Tests under `tests/` mirror core's, with a deterministic path transform so they run in this repo's CI.
+This repository is a staging ground for an integration that has been submitted upstream to `home-assistant/core`. The Python code under `custom_components/ampio/` is kept byte-identical to the open core PR ([PR #179548](https://github.com/home-assistant/core/pull/179548), branch `ampio-sensor`); the only divergences are the two HACS-mandated fields in `manifest.json` (`version`, `documentation`). Tests under `tests/` mirror core's, with a deterministic path transform so they run in this repo's CI.
 
-The integration currently ships a single platform: `sensor`. Additional platforms (`binary_sensor`, `light`, `switch`, `cover`, ...) are being authored here ahead of the upstream PR's merge, then cut into follow-up PRs against core once the parent PR lands. See `CLAUDE.md` for the full discipline.
+The integration currently ships a single platform: `sensor`. Additional platforms follow here in this order: `binary_sensor`, `light`, `cover`, `switch`, `climate`, `scene`. After the parent PR merges, each becomes a follow-up core PR. See `CLAUDE.md` for the full discipline.
 
 ## Install via HACS
 
@@ -14,9 +14,21 @@ The integration currently ships a single platform: `sensor`. Additional platform
 2. Add this repository as a Custom Repository (category: Integration).
 3. Install "Ampio".
 4. Restart Home Assistant.
-5. The integration is discovered automatically via DHCP and zeroconf when the M-SERV is on the same network; otherwise, add it from Settings -> Devices & Services -> Add Integration -> Ampio.
+5. Add it from Settings -> Devices & Services -> Add Integration -> Ampio. Enter the M-SERV host and credentials.
 
-Requires Home Assistant 2025.2.0 or newer, Python 3.13+, and `ampio-mqtt>=1.5.0` (installed automatically).
+Requires Home Assistant 2026.8.0 or newer and `ampio-mqtt==0.24.0` (installed automatically).
+
+## Roadmap
+
+The first HACS release ships after the full platform surface lands:
+
+- [x] `sensor`
+- [ ] `binary_sensor`
+- [ ] `light`
+- [ ] `cover`
+- [ ] `switch`
+- [ ] `climate`
+- [ ] `scene`
 
 ## Relationship to home-assistant/core
 
@@ -30,4 +42,4 @@ When the parent core PR merges, each platform added here gets a follow-up PR aga
 
 ## Quality
 
-Every change in this repo aims to clear the same gates a core PR would: `ruff`, `mypy`, `hassfest`, and a `pytest` suite mirrored from core. CI runs all four. The current parent PR ships at silver on the integration quality scale; new platforms target the same minimum.
+Every change in this repo aims to clear the same gates a core PR would: `ruff`, `mypy`, `hassfest`, and a `pytest` suite mirrored from core. CI runs all four. The parent PR ships at bronze on the integration quality scale. New platforms match the parent PR's shape and test depth. Quality-scale upgrades come later through follow-up core PRs.

@@ -1,7 +1,7 @@
 # Ampio
 
-Home Assistant integration for the [Ampio Smart Home](https://ampio.com/) system over local MQTT, with zeroconf and DHCP discovery. Local push, no cloud.
+Home Assistant integration for the [Ampio Smart Home](https://ampio.com/) system over local MQTT. Local push, no cloud.
 
-This repo tracks an integration submitted upstream to `home-assistant/core`. The code under `custom_components/ampio/` mirrors the open core PR; HACS lets you try it ahead of merge. Currently sensor-only; more platforms are being added here and will be cut into follow-up core PRs once the parent PR lands.
+This repo tracks an integration submitted upstream to `home-assistant/core` ([PR #179548](https://github.com/home-assistant/core/pull/179548)). The code under `custom_components/ampio/` mirrors the open core PR, and HACS lets you try it ahead of merge. The sensor platform is available now. The roadmap adds `binary_sensor`, `light`, `cover`, `switch`, `climate`, and `scene` before the first release.
 
-Requires Home Assistant 2025.2.0+, Python 3.13+, and `ampio-mqtt>=1.5.0` (auto-installed).
+Requires Home Assistant 2026.8.0+ and `ampio-mqtt==0.24.0` (auto-installed).
