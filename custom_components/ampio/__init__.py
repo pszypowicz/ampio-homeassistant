@@ -173,3 +173,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
 async def async_unload_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: AmpioConfigEntry, device_entry: dr.DeviceEntry
+) -> bool:
+    """Allow removing devices whose objects the account no longer receives.
+
+    Grant changes and tier downgrades leave devices behind by design; this
+    lets the user prune them while every live device stays protected.
+    """
+    data = entry.runtime_data
+    live = {data.prefix}
+    for obj in eligible_objects(data.client):
+        if obj.is_server_owned or (mac := obj.module_mac) is None:
+            continue
+        live.add(f"{data.prefix}:{mac}")
+        live.add(f"{data.prefix}:obj:{obj.stable_key}")
+    return not any(
+        domain == DOMAIN and identifier in live
+        for domain, identifier in device_entry.identifiers
+    )

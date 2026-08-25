@@ -14,6 +14,7 @@ from ampio_mqtt import (
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.ampio import async_remove_config_entry_device
 from custom_components.ampio.const import DOMAIN
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
@@ -396,3 +397,31 @@ async def test_server_owned_object_stays_on_hub(
         )
         is None
     )
+
+
+async def test_remove_config_entry_device(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Only devices with no live backing object may be deleted."""
+    await setup_integration(hass, mock_config_entry)
+
+    device_registry = dr.async_get(hass)
+    hub = device_registry.async_get_device_by_identifier(
+        (DOMAIN, MSERV_MAC), mock_config_entry.entry_id
+    )
+    module_device = device_registry.async_get_device_by_identifier(
+        MSENS_IDENTIFIER, mock_config_entry.entry_id
+    )
+    child = device_registry.async_get_child_device_by_identifier(
+        (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_temp_0_1"), mock_config_entry.entry_id
+    )
+
+    assert not await async_remove_config_entry_device(hass, mock_config_entry, hub)
+    assert not await async_remove_config_entry_device(
+        hass, mock_config_entry, module_device
+    )
+    assert not await async_remove_config_entry_device(hass, mock_config_entry, child)
+
+    # Drop the temp object from the catalogue: its child device goes stale.
+    del mock_client.objects[36]
+    assert await async_remove_config_entry_device(hass, mock_config_entry, child)
