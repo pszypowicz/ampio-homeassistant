@@ -4,18 +4,16 @@ pythonpath = ["."]
 asyncio_mode = "auto"
 
 # Ruff config mirrors Home Assistant core's pyproject.toml so the integration
-# files (byte-identical to core) lint clean here. The intentional divergences
-# from core's config are:
+# files (byte-identical to core) lint clean here. This root config (select,
+# ignore, extend-aliases, banned-api, required ruff version) is verbatim from
+# core except for two intentional divergences:
 # - isort known-first-party adds custom_components, and keeps homeassistant
 #   first-party so the mirrored files sort the same as upstream.
 # - per-file-ignores paths use the custom_components / tests layout instead
 #   of core's homeassistant / tests/components layout.
-# - tests/ruff.toml drops the "tests" banned-api entry for this directory
-#   only, mirroring core's own tests/ruff.toml override. This tree is the
-#   flat `tests` package itself (core nests at tests/components/<domain>),
-#   so applying the ban here would also flag its own relative imports.
-# Everything else (select, ignore, extend-aliases, banned-api, required
-# ruff version) is verbatim from core.
+# tests/ruff.toml mirrors core's own tests/ruff.toml test-scope override,
+# with adaptations documented there (this tree is the flat `tests` package
+# itself, unlike core's tests/components/<domain> nesting).
 [tool.ruff]
 required-version = ">=0.16.3"
 target-version = "py314"
