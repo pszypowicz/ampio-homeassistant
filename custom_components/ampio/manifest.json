@@ -1,12 +1,13 @@
 {
   "domain": "ampio",
-  "name": "Ampio System",
+  "name": "Ampio",
+  "codeowners": ["@pszypowicz"],
   "config_flow": true,
-  "documentation": "https://www.example.com",
-  "dependencies": ["mqtt"],
-  "codeowners": [],
-  "zeroconf": ["_ampio-mqtt._tcp.local."],
-  "requirements": ["paho-mqtt==1.5.0"],
-  "version": "0.0.3",
-  "iot_class": "local_push"
+  "documentation": "https://github.com/pszypowicz/ampio-hacc",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "loggers": ["ampio_mqtt"],
+  "quality_scale": "bronze",
+  "requirements": ["ampio-mqtt==0.24.0"],
+  "version": "0.1.0"
 }

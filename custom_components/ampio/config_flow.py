@@ -1,73 +1,61 @@
-"""Config flow to configure Ampio System."""
-from collections import OrderedDict
-from typing import Optional
+"""Config flow for the Ampio integration."""
 
+import logging
+from typing import Any, override
+
+from ampio_mqtt import AmpioAuthError, AmpioClient, AmpioConnectionError
 import voluptuous as vol
 
-from homeassistant import config_entries
-from homeassistant.components.mqtt.config_flow import try_connection
-from homeassistant.components.mqtt.const import CONF_BROKER
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 
-DOMAIN = "ampio"
-CLIENT_ID = "HomeAssistant-{}".format("12312312")
-KEEPALIVE = 600
+from .const import DEFAULT_HOST, DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
+
+STEP_USER_DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HOST): str,
+        vol.Required(CONF_USERNAME): str,
+        vol.Required(CONF_PASSWORD): str,
+    }
+)
 
 
-@config_entries.HANDLERS.register("ampio")
-class AmpioFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a Ampio config flow."""
+class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Ampio."""
 
-    VERSION = 1
-    CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_PUSH
-
-    def __init__(self):
-        """Initialize flow."""
-        self._broker: Optional[str] = None
-        self._port: Optional[int] = None
-
-    async def async_step_user(self, user_input=None):
-        """Handle a flow initialized by the user."""
-        if self._async_current_entries():
-            return self.async_abort(reason="single_instance_allowed")
-
-        return await self.async_step_broker()
-
-    async def async_step_broker(self, user_input=None):
-        """Confirm the setup."""
-        errors = {}
-
+    @override
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle the initial step."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            can_connect = await self.hass.async_add_executor_job(
-                try_connection,
-                user_input[CONF_BROKER],
-                user_input[CONF_PORT],
-                user_input.get(CONF_USERNAME),
-                user_input.get(CONF_PASSWORD),
-            )
-
-            if can_connect:
+            try:
+                info = await AmpioClient.test_connection(
+                    user_input[CONF_HOST],
+                    user_input[CONF_USERNAME],
+                    user_input[CONF_PASSWORD],
+                )
+            except AmpioAuthError:
+                errors["base"] = "invalid_auth"
+            except AmpioConnectionError:
+                errors["base"] = "cannot_connect"
+            except Exception:
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+            else:
+                await self.async_set_unique_id(info.key)
+                self._abort_if_unique_id_configured(updates=user_input)
                 return self.async_create_entry(
-                    title=user_input[CONF_BROKER], data=user_input
+                    title=user_input[CONF_HOST], data=user_input
                 )
 
-            errors["base"] = "cannot_connect"
-
-        fields = OrderedDict()
-        fields[vol.Required(CONF_BROKER, default=self._broker or vol.UNDEFINED)] = str
-        fields[vol.Required(CONF_PORT, default=self._port or 1883)] = vol.Coerce(int)
-        fields[vol.Optional(CONF_USERNAME)] = str
-        fields[vol.Optional(CONF_PASSWORD)] = str
-
         return self.async_show_form(
-            step_id="broker", data_schema=vol.Schema(fields), errors=errors
-        )
-
-    async def async_step_zeroconf(self, discovery_info):
-        """Prepare configuration for a discovered Ampio device."""
-        print(discovery_info)
-        self._broker = discovery_info[CONF_HOST]
-        self._port = discovery_info[CONF_PORT]
-        return self.async_show_form(
-            step_id="broker", description_placeholders={"name": self._broker}
+            step_id="user",
+            data_schema=self.add_suggested_values_to_schema(
+                STEP_USER_DATA_SCHEMA, user_input or {CONF_HOST: DEFAULT_HOST}
+            ),
+            errors=errors,
         )

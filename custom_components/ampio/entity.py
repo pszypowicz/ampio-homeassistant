@@ -1,155 +1,112 @@
-"""Ampio Entities."""
-import logging
-from typing import Any, Dict, Optional
+"""Base entity for the Ampio integration."""
 
-from homeassistant.const import (
-    CONF_DEVICE,
-    CONF_DEVICE_CLASS,
-    CONF_FRIENDLY_NAME,
-    CONF_ICON,
-    CONF_NAME,
+from collections.abc import Iterator
+from typing import override
+
+from ampio_mqtt import (
+    AmpioClient,
+    AmpioObject,
+    AvailabilityChanged,
+    ObjectRemoved,
+    ObjectUpdated,
 )
-from homeassistant.core import Event
-from homeassistant.helpers import device_registry as dr
+
+from homeassistant.core import callback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.entity_registry import EntityRegistry, async_get_registry
-from homeassistant.helpers.typing import ConfigType
+
+from . import AmpioData
+from .const import DOMAIN
 
 
-from .const import CONF_STATE_TOPIC, CONF_UNIQUE_ID
+def eligible_objects(client: AmpioClient) -> Iterator[AmpioObject]:
+    """The objects any platform may expose as entities.
 
-_LOGGER = logging.getLogger(__name__)
+    ``visible`` is the M-SERV's own predicate for what the user still sees
+    in Ampio Designer; ghost rows that survived removal fail it. A missing
+    ``stable_key`` would otherwise leak into the unique_id.
+    """
+    return (
+        obj
+        for obj in client.objects.values()
+        if obj.visible and obj.stable_key is not None
+    )
+
+
+def _opt_str(value: object | None) -> str | None:
+    """Stringify a catalogue field, passing None through."""
+    return None if value is None else str(value)
+
+
+def _device_info(data: AmpioData, obj: AmpioObject) -> DeviceInfo:
+    """Device info for the module owning ``obj``, or the M-SERV hub.
+
+    Keyed on the leaf-derived module mac, which both account tiers receive,
+    so the grouping survives an account-tier switch; the admin-only module
+    catalogue contributes metadata only. Every catalogue-derived field is
+    always passed so a tier downgrade degrades the whole device coherently
+    instead of mixing the fallback name with stale metadata.
+    """
+    if obj.is_server_owned or (mac := obj.module_mac) is None:
+        return DeviceInfo(identifiers={(DOMAIN, data.prefix)})
+    module = data.client.module_for(obj)
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"{data.prefix}:{mac}")},
+        name=(module.name if module else None) or f"Ampio module 0x{mac:X}",
+        manufacturer="Ampio",
+        via_device_id=data.hub_device_id,
+        model=module.model if module else None,
+        sw_version=_opt_str(module.sw_version) if module else None,
+        hw_version=_opt_str(module.hw_version) if module else None,
+        serial_number=_opt_str(module.mac_global) if module else None,
+    )
 
 
 class AmpioEntity(Entity):
-    """Base class for Ampio Entity."""
+    """Entity backed by one Ampio object."""
 
-    def __init__(self, config):
-        """Initialize the sensor."""
-        self._config: Dict[str, Any] = config
-        self._device_info: Dict[str, Any] = config.get(CONF_DEVICE)
-        self._unique_id = config.get(CONF_UNIQUE_ID)
-        self._state = None
-        self._sub_state = None
-        self._available = False
+    _attr_has_entity_name = True
+    _attr_should_poll = False
 
-    @property
-    def should_poll(self):
-        """No polling needed."""
-        return False
+    def __init__(self, data: AmpioData, obj: AmpioObject) -> None:
+        """Initialize from the discovery-time object snapshot."""
+        self._data = data
+        self._object_id = obj.id
+        # ``stable_key`` survives a module swap; the prefix scopes it per server.
+        self._attr_unique_id = f"{data.prefix}_{obj.stable_key}"
+        self._attr_device_info = _device_info(data, obj)
+        if obj.name:
+            self._attr_name = obj.name
 
-    @property
-    def name(self):
-        """Return the name of the sensor."""
-        return self._config[CONF_NAME]
+    @override
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to the pushes that affect this entity's state."""
+        client = self._data.client
+        self.async_on_remove(
+            client.subscribe(self._object_changed, of=(ObjectUpdated, ObjectRemoved))
+        )
+        self.async_on_remove(
+            client.subscribe(self._availability_changed, of=AvailabilityChanged)
+        )
 
-    @property
-    def unique_id(self):
-        """Return a unique ID."""
-        return self._unique_id
+    @callback
+    def _object_changed(self, event: ObjectUpdated | ObjectRemoved) -> None:
+        """Write state when the backing object updates or is evicted."""
+        if event.object.id == self._object_id:
+            self.async_write_ha_state()
 
-    @property
-    def available(self) -> bool:
-        return self._available
-
-    @property
-    def device_class(self) -> Optional[str]:
-        """Return the device class of the sensor."""
-        return self._config.get(CONF_DEVICE_CLASS)
-
-    @property
-    def device_info(self):
-        """Return a device description for device registry."""
-        return self._device_info
-
-    @property
-    def icon(self):
-        """Return the icon."""
-        return self._config.get(CONF_ICON)
-
-    async def subscribe_topics(self):
-        """Call to subscribe topics for entity."""
-        return
-
-    async def async_added_to_hass(self):
-        """Action for initial topics subscription."""
-        await super().async_added_to_hass()
-        await self.subscribe_topics()
-
-        # Update name with configured if None
-        entity_registry: EntityRegistry = await async_get_registry(self.hass)
-        if self.registry_entry.name is None:
-            entity_registry.async_update_entity(
-                self.entity_id, name=self._config[CONF_FRIENDLY_NAME]
-            )
-        self._available = True
-
-    @property
-    def device_state_attributes(self) -> Optional[Dict[str, Any]]:
-        """Return device specific state attributes.
-        Implemented by platform classes. Convention for attribute names
-        is lowercase snake_case.
-        """
-        state_topic = self._config.get(CONF_STATE_TOPIC)
-        if state_topic:
-            parts = state_topic.split("/")
-            if len(parts) > 1:
-                return {"Ampio": f"{parts[-4].lower()}/{parts[-2]}/{parts[-1]}"}
-        return None
-
-
-class AmpioEntityDeviceInfo(Entity):
-    """Mixin used for mqtt platforms that support the device registry."""
-
-    def __init__(self, device_config: Optional[ConfigType], config_entry=None) -> None:
-        """Initialize the device mixin."""
-        self._device_config = device_config
-        self._config_entry = config_entry
-
-    async def discovery_update(self, device_config):
-        """Handle updated discovery message."""
-        self._device_config = device_config
+    @callback
+    def _availability_changed(self, event: AvailabilityChanged) -> None:
+        """Write state on every broker connection transition."""
         self.async_write_ha_state()
 
     @property
-    def device_info(self):
-        """Return a device description for device registry."""
-        return self._device_config
+    def _object(self) -> AmpioObject | None:
+        """The backing object, or None once the catalogue dropped it."""
+        return self._data.client.objects.get(self._object_id)
 
-
-class AmpioModuleDiscoveryUpdate(Entity):
-    """Mixin used to handle updated discovery message."""
-
-    def __init__(self, discovery_update=None) -> None:
-        """Initialize the discovery update mixin."""
-        self._discovery_update = discovery_update
-        self._remove_signal = None
-        self._removed_from_hass = False
-
-    async def async_added_to_hass(self) -> None:
-        """Subscribe to discovery updates."""
-        await super().async_added_to_hass()
-
-        async def device_registry_updated(_event: Event) -> None:
-            data = _event.data
-            if data["action"] == "update":
-                device_id = data["device_id"]
-                device_registry = (
-                    await self.hass.helpers.device_registry.async_get_registry()
-                )
-                device_config = device_registry.async_get(device_id)
-                self._discovery_update(device_config)
-
-        self._remove_signal = self.hass.bus.async_listen(
-            dr.EVENT_DEVICE_REGISTRY_UPDATED, device_registry_updated
-        )
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Stop listening to signal and cleanup discovery data.."""
-        self._cleanup_discovery_on_remove()
-
-    def _cleanup_discovery_on_remove(self) -> None:
-        """Stop listening to signal and cleanup discovery data."""
-        if self._remove_signal:
-            self._remove_signal()
-            self._remove_signal = None
+    @property
+    @override
+    def available(self) -> bool:
+        """Available while the broker is connected and the object exists."""
+        return self._data.client.available and self._object is not None

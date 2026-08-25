@@ -1,156 +1,143 @@
-"""Ampio Systems Platform."""
-import asyncio
-import json
-import logging
-from typing import Any, Dict, Optional
+"""The Ampio integration."""
 
-import voluptuous as vol
+from dataclasses import dataclass
+import logging
+
+from ampio_mqtt import (
+    AmpioAuthError,
+    AmpioClient,
+    AmpioConnectionError,
+    AuthFailed,
+    AvailabilityChanged,
+    ConnectionDied,
+)
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
-    CONF_CLIENT_ID,
-    CONF_DEVICE,
-    CONF_DEVICE_CLASS,
-    CONF_FRIENDLY_NAME,
-    CONF_ICON,
-    CONF_NAME,
+    CONF_HOST,
     CONF_PASSWORD,
-    CONF_PORT,
-    CONF_PROTOCOL,
     CONF_USERNAME,
     EVENT_HOMEASSISTANT_STOP,
 )
-from homeassistant.core import Event, callback
-from homeassistant.helpers import (
-    config_validation as cv,
-    device_registry as dr,
-    event,
-    template,
+from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ConfigEntryError,
+    ConfigEntryNotReady,
 )
-from homeassistant.helpers.dispatcher import (
-    async_dispatcher_connect,
-    async_dispatcher_send,
-)
-from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.entity_registry import EntityRegistry, async_get_registry
-from homeassistant.helpers.typing import ConfigType, HomeAssistantType
+from homeassistant.helpers import device_registry as dr
 
-from .client import AmpioAPI, async_setup_discovery
-from .const import (
-    AMPIO_CONNECTED,
-    AMPIO_DISCOVERY_UPDATED,
-    AMPIO_MODULE_DISCOVERY_UPDATED,
-    COMPONENTS,
-    CONF_BROKER,
-    CONF_STATE_TOPIC,
-    CONF_UNIQUE_ID,
-    DATA_AMPIO,
-    DATA_AMPIO_API,
-    DATA_AMPIO_DISPATCHERS,
-    DATA_AMPIO_PLATFORM_LOADED,
-    PROTOCOL_311,
-    SIGNAL_ADD_ENTITIES,
-)
-from .models import AmpioModuleInfo
+from .const import DOMAIN, PLATFORMS
 
 _LOGGER = logging.getLogger(__name__)
 
-DOMAIN = "ampio"
+type AmpioConfigEntry = ConfigEntry[AmpioData]
 
 
-VERSION_TOPIC_FROM = "ampio/from/info/version"
-VERSION_TOPIC_TO = "ampio/to/info/version"
+@dataclass
+class AmpioData:
+    """Runtime data for one Ampio server."""
 
-DISCOVERY_TOPIC_FROM = "ampio/from/can/dev/list"
-DISCOVERY_TOPIC_TO = "ampio/to/can/dev/list"
-
-ATTR_DEVICES = "devices"
-
-CONF_KEEPALIVE = "keepalive"
-
-PROTOCOL_31 = "3.1"
-
-DEFAULT_PORT = 1883
-DEFAULT_KEEPALIVE = 60
-DEFAULT_PROTOCOL = PROTOCOL_311
+    client: AmpioClient
+    # The server's identity key; scopes unique_ids and device identifiers so
+    # two servers on one Home Assistant instance never collide.
+    prefix: str
+    hub_device_id: str
 
 
-CONFIG_SCHEMA = vol.Schema(
-    {
-        DOMAIN: vol.All(
-            vol.Schema(
-                {
-                    vol.Optional(CONF_CLIENT_ID): cv.string,
-                    vol.Optional(CONF_KEEPALIVE, default=DEFAULT_KEEPALIVE): vol.All(
-                        vol.Coerce(int), vol.Range(min=15)
-                    ),
-                    vol.Optional(CONF_BROKER): cv.string,
-                    vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
-                    vol.Optional(CONF_USERNAME): cv.string,
-                    vol.Optional(CONF_PASSWORD): cv.string,
-                    vol.Optional(CONF_PROTOCOL, default=DEFAULT_PROTOCOL): vol.All(
-                        cv.string, vol.In([PROTOCOL_31, PROTOCOL_311])
-                    ),
-                },
-            ),
-        )
-    },
-    extra=vol.ALLOW_EXTRA,
-)
+async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> bool:
+    """Set up Ampio from a config entry."""
+    client = AmpioClient(
+        entry.data[CONF_HOST],
+        entry.data[CONF_USERNAME],
+        entry.data[CONF_PASSWORD],
+    )
+    entry.async_on_unload(client.stop)
 
+    # Home Assistant does not unload entries when it stops, so without this the
+    # connection dies by task cancellation and is reported as a lost connection.
+    async def _async_stop_client(event: Event) -> None:
+        await client.stop()
 
-async def async_setup(hass: HomeAssistantType, config: ConfigType):
-    """Stub to allow setting up this component.
-    Configuration through YAML is not supported at this time.
-    """
-    return True
-
-
-async def async_setup_entry(hass: HomeAssistantType, config_entry: ConfigEntry) -> bool:
-    """Set up the Ampio component."""
-
-    ampio_data = hass.data.setdefault(DATA_AMPIO, {})
-
-    for component in COMPONENTS:
-        ampio_data.setdefault(component, [])
-
-    conf = CONFIG_SCHEMA({DOMAIN: dict(config_entry.data)})[DOMAIN]
-
-    ampio_data[DATA_AMPIO_API]: AmpioAPI = AmpioAPI(
-        hass, config_entry, conf,
+    entry.async_on_unload(
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _async_stop_client)
     )
 
-    ampio_data[DATA_AMPIO_DISPATCHERS] = []
-    ampio_data[DATA_AMPIO_PLATFORM_LOADED] = []
+    try:
+        discovered = await client.start()
+    except AmpioAuthError as err:
+        raise ConfigEntryAuthFailed(
+            translation_domain=DOMAIN, translation_key="invalid_auth"
+        ) from err
+    except AmpioConnectionError as err:
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN, translation_key="cannot_connect"
+        ) from err
+    # A True start() guarantees the server identity; the None check narrows the type.
+    if not discovered or (info := client.server_info) is None:
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN, translation_key="discovery_timeout"
+        )
+    prefix = info.key
+    # A different M-SERV answering at the stored host must fail setup instead
+    # of silently re-keying every unique_id and device under its prefix.
+    if prefix != entry.unique_id:
+        raise ConfigEntryError(
+            translation_domain=DOMAIN, translation_key="unexpected_device"
+        )
 
-    for component in COMPONENTS:
-        coro = hass.config_entries.async_forward_entry_setup(config_entry, component)
-        ampio_data[DATA_AMPIO_PLATFORM_LOADED].append(hass.async_create_task(coro))
+    # The hub is built from the server-info reply both account tiers receive;
+    # an administrator's M-SERV module row contributes the user-given name.
+    mserv = client.mserv
+    hub = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, prefix)},
+        manufacturer="Ampio",
+        name=mserv.name if mserv and mserv.name else "M-SERV",
+        model=mserv.model if mserv and mserv.model else "M-SERV",
+        sw_version=info.server_version,
+        serial_number=info.device_id,
+        configuration_url=f"http://{info.local_ip}" if info.local_ip else None,
+    )
+    entry.runtime_data = AmpioData(client, prefix, hub.id)
 
-    await ampio_data[DATA_AMPIO_API].async_connect()
+    was_unavailable = False
 
-    async def async_connected():
-        """Start discovery on connected."""
-        await async_setup_discovery(hass, conf, config_entry)
+    @callback
+    def _availability_changed(event: AvailabilityChanged) -> None:
+        """Log a real outage once on loss and once on restore."""
+        nonlocal was_unavailable
+        if not event.available:
+            was_unavailable = True
+            _LOGGER.warning("Connection to the Ampio server lost; reconnecting")
+        elif was_unavailable:
+            was_unavailable = False
+            _LOGGER.info("Connection to the Ampio server restored")
 
-    async_dispatcher_connect(hass, AMPIO_CONNECTED, async_connected)
+    @callback
+    def _connection_ended(event: AuthFailed | ConnectionDied) -> None:
+        """Recover from a terminal connection failure by re-running setup.
 
-    async def async_stop_ampio(_event: Event):
-        """Stop MQTT component."""
-        await ampio_data[DATA_AMPIO_API].async_disconnect()
+        Both events mean the library's reconnect loop has stopped for good;
+        reloading re-raises a credential rejection as ConfigEntryAuthFailed
+        and retries everything else with backoff.
+        """
+        _LOGGER.error(
+            "Connection to the Ampio server ended (%s); reloading", event.reason
+        )
+        hass.config_entries.async_schedule_reload(entry.entry_id)
 
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, async_stop_ampio)
+    entry.async_on_unload(
+        client.subscribe(_availability_changed, of=AvailabilityChanged)
+    )
+    entry.async_on_unload(
+        client.subscribe(_connection_ended, of=(AuthFailed, ConnectionDied))
+    )
 
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
-async def async_unload_entry(hass, config_entry):
-    """Unload ZHA config entry."""
-    dispatchers = hass.data[DATA_AMPIO].get(DATA_AMPIO_DISPATCHERS, [])
-    for unsub_dispatcher in dispatchers:
-        unsub_dispatcher()
-
-    for component in COMPONENTS:
-        await hass.config_entries.async_forward_entry_unload(config_entry, component)
-
-    return True
+async def async_unload_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> bool:
+    """Unload a config entry."""
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
