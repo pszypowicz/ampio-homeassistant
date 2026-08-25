@@ -101,7 +101,8 @@ def make_object(
 # switch platform) feed the light and switch platforms, plus a plug-tagged
 # relay for the switch platform's outlet class. The three cover objects (a
 # plain roleta without feedback, a percent roleta, a lamella blind) feed the
-# cover platform.
+# cover platform. The thermostat object feeds the climate platform; its value
+# is the running flag.
 DEFAULT_OBJECTS = (
     make_object(
         36,
@@ -200,6 +201,15 @@ DEFAULT_OBJECTS = (
         name="Zaluzja Goscinny",
         value="70",
         tilt_position=40,
+    ),
+    make_object(
+        91,
+        "reg",
+        0,
+        leaf_id="0_cb8f_reg_0_1",
+        funkcja=11,
+        name="Termostat Salon",
+        value="1",
     ),
     make_object(132, "lin_wej", 7, leaf_id="0_cb8f_lin_0_3", funkcja=3, params=16),
     make_object(99, "lin_wej", 2, leaf_id="", funkcja=4),
