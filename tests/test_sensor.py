@@ -1,7 +1,8 @@
 """Tests for the Ampio sensor platform."""
 
+from collections.abc import Generator
 from dataclasses import replace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from ampio_mqtt import (
     OPEN_SENSOR_KEY_PREFIXES,
@@ -36,6 +37,13 @@ from .conftest import (
 TEMPERATURE_ENTITY_ID = "sensor.m_sens_salon_temperatura"
 HUMIDITY_ENTITY_ID = "sensor.m_sens_salon_wilgotnosc"
 CO2_ENTITY_ID = "sensor.m_sens_salon_co2"
+
+
+@pytest.fixture(autouse=True)
+def sensor_only() -> Generator[None]:
+    """Limit setup to the sensor platform so snapshots stay platform-scoped."""
+    with patch("custom_components.ampio.PLATFORMS", [Platform.SENSOR]):
+        yield
 
 
 async def _push_value(

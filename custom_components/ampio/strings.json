@@ -26,6 +26,11 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "flag": {
+        "name": "Flag"
+      }
+    },
     "sensor": {
       "co2": {
         "name": "CO2"
