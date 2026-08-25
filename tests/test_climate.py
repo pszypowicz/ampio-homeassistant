@@ -13,12 +13,14 @@ from pytest_homeassistant_custom_component.common import (
 from syrupy.assertion import SnapshotAssertion
 
 from homeassistant.components.climate import (
+    ATTR_CURRENT_TEMPERATURE,
     ATTR_HVAC_ACTION,
     ATTR_PRESET_MODE,
     DOMAIN as CLIMATE_DOMAIN,
     SERVICE_SET_PRESET_MODE,
     SERVICE_SET_TEMPERATURE,
     HVACAction,
+    HVACMode,
 )
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_TEMPERATURE, Platform
 from homeassistant.core import HomeAssistant
@@ -123,10 +125,9 @@ async def test_action_follows_running_and_cooling_flags(
     mock_client.objects[91] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
-    assert (
-        hass.states.get(THERMOSTAT_ENTITY_ID).attributes[ATTR_HVAC_ACTION]
-        == HVACAction.COOLING
-    )
+    state = hass.states.get(THERMOSTAT_ENTITY_ID)
+    assert state.attributes[ATTR_HVAC_ACTION] == HVACAction.COOLING
+    assert state.state == HVACMode.COOL
 
 
 async def test_unknown_mode_letter_reads_no_preset(
@@ -134,6 +135,26 @@ async def test_unknown_mode_letter_reads_no_preset(
 ) -> None:
     """A wire letter outside the vocabulary maps to no preset, not a guess."""
     await setup_integration(hass, mock_config_entry)
+    assert (
+        hass.states.get(THERMOSTAT_ENTITY_ID).attributes[ATTR_PRESET_MODE] == "schedule"
+    )
 
     await _push_thermostat(hass, mock_client, mode="X")
     assert hass.states.get(THERMOSTAT_ENTITY_ID).attributes[ATTR_PRESET_MODE] is None
+
+
+async def test_missing_readback_reads_no_temperature_or_preset(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Before the first rich push, temperature and preset attributes are None."""
+    await setup_integration(hass, mock_config_entry)
+
+    obj = replace(mock_client.objects[91], thermostat=None)
+    mock_client.objects[91] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+    await hass.async_block_till_done()
+
+    state = hass.states.get(THERMOSTAT_ENTITY_ID)
+    assert state.attributes[ATTR_CURRENT_TEMPERATURE] is None
+    assert state.attributes[ATTR_TEMPERATURE] is None
+    assert state.attributes[ATTR_PRESET_MODE] is None

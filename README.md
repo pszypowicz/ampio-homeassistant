@@ -15,7 +15,7 @@ A Home Assistant integration for the [Ampio Smart Home](https://ampio.com/) syst
 | `light`         | Dimmers, RGBW outputs, and relays tagged as lights in Ampio Designer         |
 | `cover`         | Shutters and blinds, with position and slat tilt where the hardware has them |
 | `switch`        | Remaining relays, with the outlet class for plug-tagged ones                 |
-| `climate`       | Heating regulators with target-temperature control                           |
+| `climate`       | Heating regulators with temperature readback and operating-mode presets      |
 | `scene`         | The Ampio app's scene catalog                                                |
 
 ## Installation

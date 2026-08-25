@@ -19,9 +19,8 @@ from .entity import AmpioEntity, eligible_objects
 
 PARALLEL_UPDATES = 0
 
-# The regulator's operating modes: wire letter to preset name. S and M are
-# the Designer's Schedule and Manual modes (library-documented); A and H
-# follow the Designer vocabulary.
+# The regulator's operating modes: wire letter (ampio_mqtt.HEATING_MODES) to
+# preset name, following the Designer vocabulary.
 PRESET_BY_MODE = {
     "A": "auto",
     "S": "schedule",
@@ -53,8 +52,6 @@ class AmpioClimate(AmpioEntity, ClimateEntity):
     the cooling flag. The running flag drives the action.
     """
 
-    _attr_hvac_mode = HVACMode.HEAT
-    _attr_hvac_modes = [HVACMode.HEAT]
     _attr_preset_modes = list(PRESET_BY_MODE.values())
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.PRESET_MODE
@@ -67,6 +64,20 @@ class AmpioClimate(AmpioEntity, ClimateEntity):
         if (obj := self._object) is None:
             return None
         return obj.thermostat
+
+    @property
+    @override
+    def hvac_mode(self) -> HVACMode:
+        """HEAT, or COOL when the regulator is configured for cooling."""
+        if (thermostat := self._thermostat) is not None and thermostat.cooling:
+            return HVACMode.COOL
+        return HVACMode.HEAT
+
+    @property
+    @override
+    def hvac_modes(self) -> list[HVACMode]:
+        """The single mode the regulator's configuration selects."""
+        return [self.hvac_mode]
 
     @property
     @override
