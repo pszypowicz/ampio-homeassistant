@@ -249,3 +249,13 @@ max-complexity = 25
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 property-decorators = ["propcache.api.cached_property"]
+
+# mypy --strict's blanket no_implicit_reexport flags names like ColorMode,
+# which core light platforms import from `homeassistant.components.light`
+# relying on that package's implicit re-export (it carries no __all__).
+# Core's own mypy.ini resets no_implicit_reexport to false for every
+# `homeassistant.components.*` module; this mirrors that override so code
+# copied from core type-checks the way core's own CI type-checks it.
+[[tool.mypy.overrides]]
+module = "homeassistant.components.*"
+no_implicit_reexport = false

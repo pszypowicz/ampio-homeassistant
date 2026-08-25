@@ -71,6 +71,7 @@ def make_object(
     name: str | None = None,
     value: str | None = None,
     params: int = 0,
+    matter_device_type: int | None = None,
 ) -> AmpioObject:
     """Build a classified object the way discovery would."""
     return AmpioObject(
@@ -83,6 +84,7 @@ def make_object(
         leaf_id=leaf_id,
         params=params,
         value=value,
+        matter_device_type=matter_device_type,
     )
 
 
@@ -92,7 +94,9 @@ def make_object(
 # where adding a CO2 object in Designer leaves an unnamed stub sharing the
 # leafId behind; the ghost is a removed-but-still-returned row with no leafId.
 # The two input objects (a named flag, an unnamed motion detection) feed the
-# binary_sensor platform the same way.
+# binary_sensor platform the same way. The four output objects (a named
+# dimmer, an rgbw, a Matter-tagged relay light, an untagged relay) feed the
+# light platform; the untagged relay is exposed by no platform yet.
 DEFAULT_OBJECTS = (
     make_object(
         36,
@@ -126,6 +130,35 @@ DEFAULT_OBJECTS = (
         value="1",
     ),
     make_object(62, "detekcja", 0, leaf_id="0_cb8f_det_0_2", funkcja=2, value="0"),
+    make_object(
+        71,
+        "led",
+        0,
+        leaf_id="0_cb8f_led_0_1",
+        funkcja=3,
+        name="Taras LED",
+        value="128",
+    ),
+    make_object(
+        72,
+        "rgbw",
+        0,
+        leaf_id="0_cb8f_rgbw_0_2",
+        funkcja=4,
+        name="Salon RGBW",
+        value=str(60 | 120 << 8 | 180 << 16 | 240 << 24),
+    ),
+    make_object(
+        73,
+        "przekaznik",
+        0,
+        leaf_id="0_cb8f_rel_0_3",
+        funkcja=5,
+        name="Kinkiet",
+        value="0",
+        matter_device_type=0x0100,
+    ),
+    make_object(74, "przekaznik", 0, leaf_id="0_cb8f_rel_0_4", funkcja=6, value="1"),
     make_object(132, "lin_wej", 7, leaf_id="0_cb8f_lin_0_3", funkcja=3, params=16),
     make_object(99, "lin_wej", 2, leaf_id="", funkcja=4),
 )
