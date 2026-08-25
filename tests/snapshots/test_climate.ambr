@@ -11,6 +11,12 @@
       ]),
       <ClimateEntityCapabilityAttribute.MAX_TEMP: 'max_temp'>: 35,
       <ClimateEntityCapabilityAttribute.MIN_TEMP: 'min_temp'>: 7,
+      <ClimateEntityCapabilityAttribute.PRESET_MODES: 'preset_modes'>: list([
+        'auto',
+        'schedule',
+        'manual',
+        'holiday',
+      ]),
     }),
     'config_entry_id': <ANY>,
     'config_subentry_id': <ANY>,
@@ -36,7 +42,7 @@
     'platform': 'ampio',
     'previous_unique_id': None,
     'suggested_object_id': None,
-    'supported_features': <ClimateEntityFeature: 1>,
+    'supported_features': <ClimateEntityFeature: 17>,
     'translation_key': None,
     'unique_id': '47846_leaf_0_cb8f_reg_0_1',
     'unit_of_measurement': None,
@@ -45,7 +51,7 @@
 # name: test_all_entities[climate.m_sens_salon_termostat_salon-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
-      <ClimateEntityStateAttribute.CURRENT_TEMPERATURE: 'current_temperature'>: None,
+      <ClimateEntityStateAttribute.CURRENT_TEMPERATURE: 'current_temperature'>: 21.8,
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'm-sens salon Termostat Salon',
       <ClimateEntityStateAttribute.HVAC_ACTION: 'hvac_action'>: <HVACAction.HEATING: 'heating'>,
       <ClimateEntityCapabilityAttribute.HVAC_MODES: 'hvac_modes'>: list([
@@ -53,8 +59,15 @@
       ]),
       <ClimateEntityCapabilityAttribute.MAX_TEMP: 'max_temp'>: 35,
       <ClimateEntityCapabilityAttribute.MIN_TEMP: 'min_temp'>: 7,
-      <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <ClimateEntityFeature: 1>,
-      <ClimateEntityStateAttribute.TARGET_TEMPERATURE: 'temperature'>: None,
+      <ClimateEntityStateAttribute.PRESET_MODE: 'preset_mode'>: 'schedule',
+      <ClimateEntityCapabilityAttribute.PRESET_MODES: 'preset_modes'>: list([
+        'auto',
+        'schedule',
+        'manual',
+        'holiday',
+      ]),
+      <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <ClimateEntityFeature: 17>,
+      <ClimateEntityStateAttribute.TARGET_TEMPERATURE: 'temperature'>: 22.5,
     }),
     'context': <ANY>,
     'entity_id': 'climate.m_sens_salon_termostat_salon',

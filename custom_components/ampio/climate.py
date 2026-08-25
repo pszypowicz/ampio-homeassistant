@@ -2,7 +2,7 @@
 
 from typing import Any, override
 
-from ampio_mqtt import ThermostatKind
+from ampio_mqtt import ThermostatKind, ThermostatState
 
 from homeassistant.components.climate import (
     ClimateEntity,
@@ -18,6 +18,18 @@ from . import AmpioConfigEntry
 from .entity import AmpioEntity, eligible_objects
 
 PARALLEL_UPDATES = 0
+
+# The regulator's operating modes: wire letter (ampio_mqtt.HEATING_MODES) to
+# preset name, following the Designer vocabulary.
+PRESET_BY_MODE: dict[str, str] = {
+    "A": "auto",
+    "S": "schedule",
+    "M": "manual",
+    "H": "holiday",
+}
+MODE_BY_PRESET: dict[str, str] = {
+    preset: mode for mode, preset in PRESET_BY_MODE.items()
+}
 
 
 async def async_setup_entry(
@@ -37,31 +49,84 @@ async def async_setup_entry(
 class AmpioClimate(AmpioEntity, ClimateEntity):
     """A heating regulator backed by an Ampio ``reg`` object.
 
-    The library surfaces the regulator's running flag and the
-    ``setTemperature`` verb; the rich readback (measured and target
-    temperature, mode) is tracked in ampio-mqtt#73. Until it lands, the
-    target temperature is the last value commanded from this entity and
-    the current temperature stays unknown.
+    State reads the regulator's climate readback: measured and target
+    temperatures, the operating-mode letter (exposed as a preset), and
+    the cooling flag. The running flag drives the action.
     """
 
-    _attr_hvac_mode = HVACMode.HEAT
-    _attr_hvac_modes = [HVACMode.HEAT]
-    _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
+    _attr_preset_modes = list(PRESET_BY_MODE.values())
+    _attr_supported_features = (
+        ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.PRESET_MODE
+    )
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
-    _attr_target_temperature: float | None = None
+
+    @property
+    def _thermostat(self) -> ThermostatState | None:
+        """The regulator's readback, or None before the first rich push."""
+        if (obj := self._object) is None:
+            return None
+        return obj.thermostat
+
+    @property
+    @override
+    def hvac_mode(self) -> HVACMode:
+        """COOL while the readback's cooling flag is set, HEAT otherwise."""
+        if (thermostat := self._thermostat) is not None and thermostat.cooling:
+            return HVACMode.COOL
+        return HVACMode.HEAT
+
+    @property
+    @override
+    def hvac_modes(self) -> list[HVACMode]:
+        """The single mode the readback currently selects."""
+        return [self.hvac_mode]
+
+    @property
+    @override
+    def current_temperature(self) -> float | None:
+        """The measured temperature from the readback."""
+        if (thermostat := self._thermostat) is None:
+            return None
+        return thermostat.measured_temperature
+
+    @property
+    @override
+    def target_temperature(self) -> float | None:
+        """The setpoint from the readback."""
+        if (thermostat := self._thermostat) is None:
+            return None
+        return thermostat.target_temperature
+
+    @property
+    @override
+    def preset_mode(self) -> str | None:
+        """The operating mode's preset name; None for an unknown letter."""
+        if (thermostat := self._thermostat) is None or thermostat.mode is None:
+            return None
+        return PRESET_BY_MODE.get(thermostat.mode)
 
     @property
     @override
     def hvac_action(self) -> HVACAction | None:
-        """Heating while the running flag is set, idle otherwise."""
+        """Idle while stopped; cooling or heating by the readback flag."""
         if (obj := self._object) is None:
             return None
-        return HVACAction.HEATING if obj.is_on else HVACAction.IDLE
+        if not obj.is_on:
+            return HVACAction.IDLE
+        if (thermostat := obj.thermostat) is not None and thermostat.cooling:
+            return HVACAction.COOLING
+        return HVACAction.HEATING
 
     @override
     async def async_set_temperature(self, **kwargs: Any) -> None:
-        """Send the setpoint and remember it optimistically."""
-        temperature: float = kwargs[ATTR_TEMPERATURE]
-        await self._data.client.set_temperature(self._object_id, temperature)
-        self._attr_target_temperature = temperature
-        self.async_write_ha_state()
+        """Send the setpoint; the state follows the readback echo."""
+        await self._data.client.set_temperature(
+            self._object_id, kwargs[ATTR_TEMPERATURE]
+        )
+
+    @override
+    async def async_set_preset_mode(self, preset_mode: str) -> None:
+        """Send the operating mode matching the chosen preset."""
+        await self._data.client.set_heating_mode(
+            self._object_id, MODE_BY_PRESET[preset_mode]
+        )
