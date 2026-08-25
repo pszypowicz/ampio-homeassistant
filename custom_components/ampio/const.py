@@ -6,6 +6,11 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "ampio"
 
-PLATFORMS: Final = [Platform.BINARY_SENSOR, Platform.LIGHT, Platform.SENSOR]
+PLATFORMS: Final = [
+    Platform.BINARY_SENSOR,
+    Platform.COVER,
+    Platform.LIGHT,
+    Platform.SENSOR,
+]
 
 DEFAULT_HOST: Final = "ampio.local"
