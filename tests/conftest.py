@@ -13,6 +13,8 @@ from unittest.mock import MagicMock, patch
 from ampio_mqtt import AmpioModule, AmpioObject, AmpioServerInfo
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.syrupy import HomeAssistantSnapshotExtension
+from syrupy.assertion import SnapshotAssertion
 
 from custom_components.ampio.const import DOMAIN
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
@@ -21,6 +23,19 @@ from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
     """Load the Ampio custom component in every test."""
+
+
+@pytest.fixture
+def snapshot(snapshot: SnapshotAssertion) -> SnapshotAssertion:
+    """Pin the snapshot fixture to the Home Assistant extension.
+
+    The plugin-delivered override in pytest-homeassistant-custom-component
+    only wins when it registers after syrupy, and plugin registration order
+    is not deterministic across environments. A conftest fixture takes
+    precedence over both plugins, so the Home Assistant serializer and the
+    snapshots directory apply everywhere.
+    """
+    return snapshot.use_extension(HomeAssistantSnapshotExtension)
 
 
 MSERV_MAC = "47846"
