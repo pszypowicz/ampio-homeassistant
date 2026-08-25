@@ -4,55 +4,25 @@ pythonpath = ["."]
 asyncio_mode = "auto"
 
 # Ruff config mirrors Home Assistant core's pyproject.toml so the integration
-# files (byte-identical to core) lint clean here. The only intentional
-# divergences are isort known-first-party (adds custom_components, and keeps
-# homeassistant first-party so the mirrored files sort the same as upstream)
-# and per-file-ignores paths (custom_components / tests layout instead of
-# core's homeassistant / tests/components layout).
+# files (byte-identical to core) lint clean here. This root config (select,
+# ignore, extend-aliases, banned-api, required ruff version) is verbatim from
+# core except for two intentional divergences:
+# - isort known-first-party adds custom_components, and keeps homeassistant
+#   first-party so the mirrored files sort the same as upstream.
+# - per-file-ignores paths use the custom_components / tests layout instead
+#   of core's homeassistant / tests/components layout.
+# tests/ruff.toml mirrors core's own tests/ruff.toml test-scope override,
+# with adaptations documented there (this tree is the flat `tests` package
+# itself, unlike core's tests/components/<domain> nesting).
 [tool.ruff]
-required-version = ">=0.15.13"
+required-version = ">=0.16.3"
 target-version = "py314"
 
 [tool.ruff.lint]
 select = [
   "A001",   # Variable {name} is shadowing a Python builtin
   "ASYNC",  # flake8-async
-  "B002",   # Python does not support the unary prefix increment
-  "B003",   # Assigning to os.environ doesn't clear the environment
-  "B004",   # Using hasattr(x, "__call__") instead of callable(x)
-  "B005",   # Using .strip() with multi-character strings is misleading
-  "B006",   # Do not use mutable data structures for argument defaults
-  "B007",   # Loop control variable {name} not used within loop body
-  "B009",   # Do not call getattr with a constant attribute value. It is not any safer than normal property access.
-  "B010",   # Do not call setattr with a constant attribute value. It is not any safer than normal property access.
-  "B011",   # Do not call assert False since python -O removes these calls
-  "B012",   # Use of break/continue/return inside a finally block
-  "B013",   # A length-one tuple literal is redundant in exception handlers
-  "B014",   # Exception handler with duplicate exception
-  "B015",   # Pointless comparison. Did you mean to assign a value? Otherwise, prepend assert or remove it.
-  "B016",   # Cannot raise a literal. Did you intend to return it or raise an exception?
-  "B017",   # pytest.raises(BaseException) should be considered evil
-  "B018",   # Found useless attribute access. Either assign it to a variable or remove it.
-  "B020",   # Loop control variable overrides iterable it iterates
-  "B021",   # f-string used as docstring
-  "B022",   # No arguments passed to contextlib.suppress
-  "B023",   # Function definition does not bind loop variable {name}
-  "B024",   # `{name}` is an abstract base class, but it has no abstract methods or properties
-  "B025",   # try-except* block with duplicate exception {name}
-  "B026",   # Star-arg unpacking after a keyword argument is strongly discouraged
-  "B027",   # Empty method in abstract base class without abstract decorator
-  "B028",   # No explicit stacklevel keyword argument found in warnings.warn
-  "B029",   # Using except (): with an empty tuple is a no-op
-  "B030",   # Except handlers should only be exception classes
-  "B031",   # Using the result of the groupby() generator
-  "B032",   # Possible unintentional type annotation (using :). Did you mean to assign (using =)?
-  "B033",   # Set should not contain duplicate items
-  "B034",   # re.sub/subn/split should pass count/maxsplit as keyword arguments
-  "B035",   # Dictionary comprehension uses static key
-  "B039",   # ContextVar with mutable literal or function call as default
-  "B904",   # Use raise from to specify exception cause
-  "B905",   # zip() without an explicit strict= parameter
-  "B911",   # itertools.batched() without explicit strict= parameter
+  "B",      # flake8-bugbear
   "BLE",
   "C",      # complexity
   "COM818", # Trailing comma on bare tuple prohibited
@@ -73,6 +43,7 @@ select = [
   "LOG",    # flake8-logging
   "N804",   # First argument of a class method should be named cls
   "N805",   # First argument of a method should be named self
+  "N806",   # Variable {name} in function should be snake_case
   "N815",   # Variable {name} in class scope should not be mixedCase
   "PERF",   # Perflint
   "PGH",    # pygrep-hooks
@@ -83,34 +54,7 @@ select = [
   "PYI",    # flake8-pyi
   "RET",    # flake8-return
   "RSE",    # flake8-raise
-  "RUF005", # Consider iterable unpacking instead of concatenation
-  "RUF006", # Store a reference to the return value of asyncio.create_task
-  "RUF007", # Prefer itertools.pairwise() over zip() when iterating over successive pairs
-  "RUF008", # Do not use mutable default values for dataclass attributes
-  "RUF010", # Use explicit conversion flag
-  "RUF013", # PEP 484 prohibits implicit Optional
-  "RUF016", # Slice in indexed access to type {value_type} uses type {index_type} instead of an integer
-  "RUF017", # Avoid quadratic list summation
-  "RUF018", # Avoid assignment expressions in assert statements
-  "RUF019", # Unnecessary key check before dictionary access
-  "RUF020", # {never_like} | T is equivalent to T
-  "RUF021", # Parenthesize a and b expressions when chaining and and or together, to make the precedence clear
-  "RUF022", # Sort __all__
-  "RUF023", # Sort __slots__
-  "RUF024", # Do not pass mutable objects as values to dict.fromkeys
-  "RUF026", # default_factory is a positional-only argument to defaultdict
-  "RUF030", # print() call in assert statement is likely unintentional
-  "RUF032", # Decimal() called with float literal argument
-  "RUF033", # __post_init__ method with argument defaults
-  "RUF034", # Useless if-else condition
-  "RUF037", # Unnecessary empty iterable within deque call
-  "RUF046", # Unnecessary cast to int
-  "RUF051", # Use dict.pop(key, None) instead of if-key-in-dict-del
-  "RUF057", # Unnecessary round call
-  "RUF059", # unused-unpacked-variable
-  "RUF100", # Unused `noqa` directive
-  "RUF101", # noqa directives that use redirected rule codes
-  "RUF200", # Failed to parse pyproject.toml: {message}
+  "RUF",    # Ruff-specific rules (see `ignore` for exclusions)
   "S107",   # Possible hardcoded password assigned to function default
   "S102",   # Use of exec detected
   "S103",   # bad-file-permissions
@@ -213,6 +157,67 @@ ignore = [
   "LOG004",
 ]
 
+[tool.ruff.lint.flake8-import-conventions.extend-aliases]
+"homeassistant.components.air_quality.PLATFORM_SCHEMA" = "AIR_QUALITY_PLATFORM_SCHEMA"
+"homeassistant.components.alarm_control_panel.PLATFORM_SCHEMA" = "ALARM_CONTROL_PANEL_PLATFORM_SCHEMA"
+"homeassistant.components.binary_sensor.PLATFORM_SCHEMA" = "BINARY_SENSOR_PLATFORM_SCHEMA"
+"homeassistant.components.button.PLATFORM_SCHEMA" = "BUTTON_PLATFORM_SCHEMA"
+"homeassistant.components.calendar.PLATFORM_SCHEMA" = "CALENDAR_PLATFORM_SCHEMA"
+"homeassistant.components.camera.PLATFORM_SCHEMA" = "CAMERA_PLATFORM_SCHEMA"
+"homeassistant.components.climate.PLATFORM_SCHEMA" = "CLIMATE_PLATFORM_SCHEMA"
+"homeassistant.components.conversation.PLATFORM_SCHEMA" = "CONVERSATION_PLATFORM_SCHEMA"
+"homeassistant.components.cover.PLATFORM_SCHEMA" = "COVER_PLATFORM_SCHEMA"
+"homeassistant.components.date.PLATFORM_SCHEMA" = "DATE_PLATFORM_SCHEMA"
+"homeassistant.components.datetime.PLATFORM_SCHEMA" = "DATETIME_PLATFORM_SCHEMA"
+"homeassistant.components.device_tracker.PLATFORM_SCHEMA" = "DEVICE_TRACKER_PLATFORM_SCHEMA"
+"homeassistant.components.event.PLATFORM_SCHEMA" = "EVENT_PLATFORM_SCHEMA"
+"homeassistant.components.fan.PLATFORM_SCHEMA" = "FAN_PLATFORM_SCHEMA"
+"homeassistant.components.geo_location.PLATFORM_SCHEMA" = "GEO_LOCATION_PLATFORM_SCHEMA"
+"homeassistant.components.humidifier.PLATFORM_SCHEMA" = "HUMIDIFIER_PLATFORM_SCHEMA"
+"homeassistant.components.image.PLATFORM_SCHEMA" = "IMAGE_PLATFORM_SCHEMA"
+"homeassistant.components.image_processing.PLATFORM_SCHEMA" = "IMAGE_PROCESSING_PLATFORM_SCHEMA"
+"homeassistant.components.lawn_mower.PLATFORM_SCHEMA" = "LAWN_MOWER_PLATFORM_SCHEMA"
+"homeassistant.components.light.PLATFORM_SCHEMA" = "LIGHT_PLATFORM_SCHEMA"
+"homeassistant.components.lock.PLATFORM_SCHEMA" = "LOCK_PLATFORM_SCHEMA"
+"homeassistant.components.media_player.PLATFORM_SCHEMA" = "MEDIA_PLAYER_PLATFORM_SCHEMA"
+"homeassistant.components.notify.PLATFORM_SCHEMA" = "NOTIFY_PLATFORM_SCHEMA"
+"homeassistant.components.number.PLATFORM_SCHEMA" = "NUMBER_PLATFORM_SCHEMA"
+"homeassistant.components.remote.PLATFORM_SCHEMA" = "REMOTE_PLATFORM_SCHEMA"
+"homeassistant.components.scene.PLATFORM_SCHEMA" = "SCENE_PLATFORM_SCHEMA"
+"homeassistant.components.select.PLATFORM_SCHEMA" = "SELECT_PLATFORM_SCHEMA"
+"homeassistant.components.sensor.PLATFORM_SCHEMA" = "SENSOR_PLATFORM_SCHEMA"
+"homeassistant.components.siren.PLATFORM_SCHEMA" = "SIREN_PLATFORM_SCHEMA"
+"homeassistant.components.stt.PLATFORM_SCHEMA" = "STT_PLATFORM_SCHEMA"
+"homeassistant.components.switch.PLATFORM_SCHEMA" = "SWITCH_PLATFORM_SCHEMA"
+"homeassistant.components.text.PLATFORM_SCHEMA" = "TEXT_PLATFORM_SCHEMA"
+"homeassistant.components.time.PLATFORM_SCHEMA" = "TIME_PLATFORM_SCHEMA"
+"homeassistant.components.todo.PLATFORM_SCHEMA" = "TODO_PLATFORM_SCHEMA"
+"homeassistant.components.tts.PLATFORM_SCHEMA" = "TTS_PLATFORM_SCHEMA"
+"homeassistant.components.vacuum.PLATFORM_SCHEMA" = "VACUUM_PLATFORM_SCHEMA"
+"homeassistant.components.valve.PLATFORM_SCHEMA" = "VALVE_PLATFORM_SCHEMA"
+"homeassistant.components.update.PLATFORM_SCHEMA" = "UPDATE_PLATFORM_SCHEMA"
+"homeassistant.components.wake_word.PLATFORM_SCHEMA" = "WAKE_WORD_PLATFORM_SCHEMA"
+"homeassistant.components.water_heater.PLATFORM_SCHEMA" = "WATER_HEATER_PLATFORM_SCHEMA"
+"homeassistant.components.weather.PLATFORM_SCHEMA" = "WEATHER_PLATFORM_SCHEMA"
+"homeassistant.core.DOMAIN" = "HOMEASSISTANT_DOMAIN"
+"homeassistant.helpers.area_registry" = "ar"
+"homeassistant.helpers.category_registry" = "cr"
+"homeassistant.helpers.config_validation" = "cv"
+"homeassistant.helpers.device_registry" = "dr"
+"homeassistant.helpers.entity_registry" = "er"
+"homeassistant.helpers.floor_registry" = "fr"
+"homeassistant.helpers.issue_registry" = "ir"
+"homeassistant.helpers.label_registry" = "lr"
+"homeassistant.util.color" = "color_util"
+"homeassistant.util.dt" = "dt_util"
+"homeassistant.util.json" = "json_util"
+"homeassistant.util.location" = "location_util"
+"homeassistant.util.logging" = "logging_util"
+"homeassistant.util.network" = "network_util"
+"homeassistant.util.ulid" = "ulid_util"
+"homeassistant.util.uuid" = "uuid_util"
+"homeassistant.util.yaml" = "yaml_util"
+
 [tool.ruff.lint.flake8-pytest-style]
 fixture-parentheses = false
 mark-parentheses = false
@@ -220,6 +225,7 @@ mark-parentheses = false
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "async_timeout".msg = "use asyncio.timeout instead"
 "pytz".msg = "use zoneinfo instead"
+"tests".msg = "You should not import tests"
 "__future__.annotations".msg = "It should not be needed because Home Assistant requires Python 3.14+"
 
 [tool.ruff.lint.isort]

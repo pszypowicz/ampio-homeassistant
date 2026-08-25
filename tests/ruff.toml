@@ -1,0 +1,35 @@
+# Mirrors core's tests/ruff.toml, which extends the general ruff rules
+# specifically for the test tree.
+extend = "../pyproject.toml"
+
+[lint]
+
+extend-ignore = [
+    "B904", # Use raise from to specify exception cause
+    "N806",   # Variable {name} in function should be snake_case
+    "N815", # Variable {name} in class scope should not be mixedCase
+    "RUF018", # Avoid assignment expressions in assert statements
+    "DTZ011", # date.today() used: tests commonly use naive dates
+    "S107", # Possible hardcoded password assigned to function default
+    "SLF001", # Private member accessed: Tests do often test internals a lot
+]
+
+# Core's root "tests" banned-api entry exists so custom_components/ampio
+# never imports test helpers; applied unmodified in this directory it would
+# also ban this package's own self-referential imports (e.g.
+# `from . import setup_integration`, `from .conftest import ...`), because
+# this tree is the flat `tests` package itself rather than core's
+# tests/components/<domain> nesting. Dropped here, matching how core's own
+# tests/ruff.toml drops it for its tests tree. The __future__.annotations
+# ban is dropped here too, matching core's own tests/ruff.toml, which does
+# not re-apply it in the test scope either.
+[lint.flake8-tidy-imports.banned-api]
+"async_timeout".msg = "use asyncio.timeout instead"
+"pytz".msg = "use zoneinfo instead"
+"syrupy.SnapshotAssertion".msg = "use syrupy.assertion.SnapshotAssertion instead"
+
+# Core's [lint.isort] test overrides (known-first-party/known-third-party/
+# forced-separate for "tests") are deliberately not ported: this repo's
+# tests never do absolute `tests.*` imports (relative imports, or
+# pytest_homeassistant_custom_component instead of core's own tests
+# helpers), so there is nothing here for those overrides to affect.
