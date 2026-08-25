@@ -20,8 +20,8 @@ from homeassistant.helpers import entity_registry as er
 from . import setup_integration
 from .conftest import emit
 
-FLAG_ENTITY_ID = "binary_sensor.m_sens_salon_podlewanie"
-MOTION_ENTITY_ID = "binary_sensor.m_sens_salon_motion"
+FLAG_ENTITY_ID = "binary_sensor.podlewanie"
+MOTION_ENTITY_ID = "binary_sensor.ampio_object_leaf_0_cb8f_det_0_2_motion"
 
 
 @pytest.fixture(autouse=True)

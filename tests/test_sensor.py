@@ -34,9 +34,9 @@ from .conftest import (
     make_object,
 )
 
-TEMPERATURE_ENTITY_ID = "sensor.m_sens_salon_temperatura"
-HUMIDITY_ENTITY_ID = "sensor.m_sens_salon_wilgotnosc"
-CO2_ENTITY_ID = "sensor.m_sens_salon_co2"
+TEMPERATURE_ENTITY_ID = "sensor.salon_temperatura"
+HUMIDITY_ENTITY_ID = "sensor.wilgotnosc"
+CO2_ENTITY_ID = "sensor.ampio_object_leaf_0_cb8f_lin_0_3_co2"
 
 
 @pytest.fixture(autouse=True)
@@ -292,7 +292,9 @@ async def test_module_without_catalogue_row_gets_bare_device(
         Platform.SENSOR, DOMAIN, f"{MSERV_MAC}_leaf_0_dead_temp_0_1"
     )
     assert entity_id is not None
-    assert entity_registry.async_get(entity_id).device_id == device.id
+    child = device_registry.async_get(entity_registry.async_get(entity_id).device_id)
+    assert child is not None
+    assert child.parent_device_id == device.id
 
 
 @pytest.mark.parametrize(

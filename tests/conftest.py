@@ -110,7 +110,9 @@ def make_object(
 # relay for the switch platform's outlet class. The three cover objects (a
 # plain roleta without feedback, a percent roleta, a lamella blind) feed the
 # cover platform. The thermostat object feeds the climate platform; its value
-# is the running flag.
+# is the running flag. The named flag on module mac 1 (the M-SERV itself) is
+# server-owned, so it stays on the hub device instead of getting a child
+# device like every other module-owned object.
 DEFAULT_OBJECTS = (
     make_object(
         36,
@@ -227,6 +229,15 @@ DEFAULT_OBJECTS = (
     ),
     make_object(132, "lin_wej", 7, leaf_id="0_cb8f_lin_0_3", funkcja=3, params=16),
     make_object(99, "lin_wej", 2, leaf_id="", funkcja=4),
+    make_object(
+        121,
+        "flaga",
+        0,
+        leaf_id="0_1_flaga_0_9",
+        device_id=1,
+        name="Dom pusty",
+        value="0",
+    ),
 )
 
 # The default module catalogue an administrator account receives.

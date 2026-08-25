@@ -18,7 +18,11 @@ from custom_components.ampio.const import DOMAIN
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import (
+    area_registry as ar,
+    device_registry as dr,
+    entity_registry as er,
+)
 
 from . import setup_integration
 from .conftest import MSENS_FALLBACK_NAME, MSENS_IDENTIFIER, MSERV_MAC, USER_INPUT, emit
@@ -158,14 +162,26 @@ async def test_restricted_account_groups_by_module_mac(
     entities = er.async_entries_for_config_entry(
         entity_registry, mock_config_entry.entry_id
     )
-    assert len(entities) == 20
-    # Scenes live on the hub device regardless of account tier; every other
-    # entity in the catalogue is module-bound.
-    module_entities = [entity for entity in entities if entity.domain != "scene"]
+    assert len(entities) == 21
+    # Scenes and the server-owned flag live on the hub device regardless of
+    # account tier; every other entity in the catalogue sits on its own
+    # child device, bound to the module through parent_device_id.
+    hub_entity_id = entity_registry.async_get_entity_id(
+        "binary_sensor", DOMAIN, f"{MSERV_MAC}_leaf_0_1_flaga_0_9"
+    )
     scene_entities = [entity for entity in entities if entity.domain == "scene"]
+    hub_entities = [
+        entity
+        for entity in entities
+        if entity.domain == "scene" or entity.entity_id == hub_entity_id
+    ]
+    module_entities = [entity for entity in entities if entity not in hub_entities]
     assert len(scene_entities) == 1
-    assert all(entity.device_id == module.id for entity in module_entities)
-    assert all(entity.device_id == hub.id for entity in scene_entities)
+    assert all(entity.device_id == hub.id for entity in hub_entities)
+    assert all(
+        device_registry.async_get(entity.device_id).parent_device_id == module.id
+        for entity in module_entities
+    )
 
 
 async def test_tier_switch_keeps_device_grouping(
@@ -318,3 +334,65 @@ async def test_room_fetch_failure_degrades(
     assert mock_config_entry.state is ConfigEntryState.LOADED
     assert "room map" in caplog.text
     assert mock_config_entry.runtime_data.rooms == {}
+
+
+async def test_objects_become_child_devices(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Module-owned objects get child devices with names, rooms, entities."""
+    await setup_integration(hass, mock_config_entry)
+
+    device_registry = dr.async_get(hass)
+    entity_registry = er.async_get(hass)
+    module_device = device_registry.async_get_device_by_identifier(
+        MSENS_IDENTIFIER, mock_config_entry.entry_id
+    )
+    assert module_device is not None
+
+    # Named object 36 (Temperatura, room Salon).
+    child = device_registry.async_get_child_device_by_identifier(
+        (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_temp_0_1"), mock_config_entry.entry_id
+    )
+    assert child is not None
+    assert child.parent_device_id == module_device.id
+    assert child.name == "Temperatura"
+    area = ar.async_get(hass).async_get_area_by_name("Salon")
+    assert area is not None
+    assert child.area_id == area.id
+    entity_id = entity_registry.async_get_entity_id(
+        "sensor", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_temp_0_1"
+    )
+    assert entity_id is not None
+    assert entity_registry.async_get(entity_id).device_id == child.id
+
+    # Unnamed object 43 (CO2): fallback device name, translated entity name.
+    unnamed = device_registry.async_get_child_device_by_identifier(
+        (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_lin_0_3"), mock_config_entry.entry_id
+    )
+    assert unnamed is not None
+    assert unnamed.name == "Ampio object leaf_0_cb8f_lin_0_3"
+    assert unnamed.area_id is None
+
+
+async def test_server_owned_object_stays_on_hub(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Server-owned objects attach to the hub device, with no child device."""
+    await setup_integration(hass, mock_config_entry)
+
+    device_registry = dr.async_get(hass)
+    entity_registry = er.async_get(hass)
+    hub = device_registry.async_get_device_by_identifier(
+        (DOMAIN, MSERV_MAC), mock_config_entry.entry_id
+    )
+    entity_id = entity_registry.async_get_entity_id(
+        "binary_sensor", DOMAIN, f"{MSERV_MAC}_leaf_0_1_flaga_0_9"
+    )
+    assert entity_id is not None
+    assert entity_registry.async_get(entity_id).device_id == hub.id
+    assert (
+        device_registry.async_get_child_device_by_identifier(
+            (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_1_flaga_0_9"), mock_config_entry.entry_id
+        )
+        is None
+    )
