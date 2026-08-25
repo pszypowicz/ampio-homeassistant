@@ -97,10 +97,11 @@ def make_object(
 # leafId behind; the ghost is a removed-but-still-returned row with no leafId.
 # The two input objects (a named flag, an unnamed motion detection) feed the
 # binary_sensor platform the same way. The four output objects (a named
-# dimmer, an rgbw, a Matter-tagged relay light, an untagged relay) feed the
-# light platform; the untagged relay is exposed by no platform yet. The
-# three cover objects (a plain roleta without feedback, a percent roleta, a
-# lamella blind) feed the cover platform.
+# dimmer, an rgbw, a Matter-tagged relay light, an untagged relay for the
+# switch platform) feed the light and switch platforms, plus a plug-tagged
+# relay for the switch platform's outlet class. The three cover objects (a
+# plain roleta without feedback, a percent roleta, a lamella blind) feed the
+# cover platform.
 DEFAULT_OBJECTS = (
     make_object(
         36,
@@ -163,6 +164,16 @@ DEFAULT_OBJECTS = (
         matter_device_type=0x0100,
     ),
     make_object(74, "przekaznik", 0, leaf_id="0_cb8f_rel_0_4", funkcja=6, value="1"),
+    make_object(
+        75,
+        "przekaznik",
+        0,
+        leaf_id="0_cb8f_rel_0_5",
+        funkcja=10,
+        name="Gniazdo Taras",
+        value="0",
+        matter_device_type=0x010A,
+    ),
     make_object(
         81,
         "roleta",

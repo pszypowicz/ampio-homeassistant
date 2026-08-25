@@ -11,6 +11,7 @@ PLATFORMS: Final = [
     Platform.COVER,
     Platform.LIGHT,
     Platform.SENSOR,
+    Platform.SWITCH,
 ]
 
 DEFAULT_HOST: Final = "ampio.local"
