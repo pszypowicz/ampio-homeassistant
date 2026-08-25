@@ -15,6 +15,7 @@ from syrupy.assertion import SnapshotAssertion
 from homeassistant.components.climate import (
     ATTR_CURRENT_TEMPERATURE,
     ATTR_HVAC_ACTION,
+    ATTR_HVAC_MODES,
     ATTR_PRESET_MODE,
     DOMAIN as CLIMATE_DOMAIN,
     SERVICE_SET_PRESET_MODE,
@@ -128,6 +129,7 @@ async def test_action_follows_running_and_cooling_flags(
     state = hass.states.get(THERMOSTAT_ENTITY_ID)
     assert state.attributes[ATTR_HVAC_ACTION] == HVACAction.COOLING
     assert state.state == HVACMode.COOL
+    assert state.attributes[ATTR_HVAC_MODES] == [HVACMode.COOL]
 
 
 async def test_unknown_mode_letter_reads_no_preset(
@@ -146,7 +148,7 @@ async def test_unknown_mode_letter_reads_no_preset(
 async def test_missing_readback_reads_no_temperature_or_preset(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """Before the first rich push, temperature and preset attributes are None."""
+    """A reg object with no readback reads no temperature or preset."""
     await setup_integration(hass, mock_config_entry)
 
     obj = replace(mock_client.objects[91], thermostat=None)
@@ -158,3 +160,29 @@ async def test_missing_readback_reads_no_temperature_or_preset(
     assert state.attributes[ATTR_CURRENT_TEMPERATURE] is None
     assert state.attributes[ATTR_TEMPERATURE] is None
     assert state.attributes[ATTR_PRESET_MODE] is None
+
+
+@pytest.mark.parametrize(
+    ("letter", "preset"),
+    [("A", "auto"), ("S", "schedule"), ("M", "manual"), ("H", "holiday")],
+)
+async def test_preset_round_trip(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    letter: str,
+    preset: str,
+) -> None:
+    """Every wire letter reads back as its preset, and setting it sends the letter."""
+    await setup_integration(hass, mock_config_entry)
+
+    await _push_thermostat(hass, mock_client, mode=letter)
+    assert hass.states.get(THERMOSTAT_ENTITY_ID).attributes[ATTR_PRESET_MODE] == preset
+
+    await hass.services.async_call(
+        CLIMATE_DOMAIN,
+        SERVICE_SET_PRESET_MODE,
+        {ATTR_ENTITY_ID: THERMOSTAT_ENTITY_ID, ATTR_PRESET_MODE: preset},
+        blocking=True,
+    )
+    mock_client.set_heating_mode.assert_awaited_once_with(91, letter)

@@ -21,13 +21,15 @@ PARALLEL_UPDATES = 0
 
 # The regulator's operating modes: wire letter (ampio_mqtt.HEATING_MODES) to
 # preset name, following the Designer vocabulary.
-PRESET_BY_MODE = {
+PRESET_BY_MODE: dict[str, str] = {
     "A": "auto",
     "S": "schedule",
     "M": "manual",
     "H": "holiday",
 }
-MODE_BY_PRESET = {preset: mode for mode, preset in PRESET_BY_MODE.items()}
+MODE_BY_PRESET: dict[str, str] = {
+    preset: mode for mode, preset in PRESET_BY_MODE.items()
+}
 
 
 async def async_setup_entry(
@@ -68,7 +70,7 @@ class AmpioClimate(AmpioEntity, ClimateEntity):
     @property
     @override
     def hvac_mode(self) -> HVACMode:
-        """HEAT, or COOL when the regulator is configured for cooling."""
+        """COOL while the readback's cooling flag is set, HEAT otherwise."""
         if (thermostat := self._thermostat) is not None and thermostat.cooling:
             return HVACMode.COOL
         return HVACMode.HEAT
@@ -76,7 +78,7 @@ class AmpioClimate(AmpioEntity, ClimateEntity):
     @property
     @override
     def hvac_modes(self) -> list[HVACMode]:
-        """The single mode the regulator's configuration selects."""
+        """The single mode the readback currently selects."""
         return [self.hvac_mode]
 
     @property
