@@ -4,9 +4,9 @@ A Home Assistant integration for the [Ampio Smart Home](https://ampio.com/) syst
 
 ## Status
 
-This repository is a staging ground for an integration that has been submitted upstream to `home-assistant/core`. The Python code under `custom_components/ampio/` is kept byte-identical to the open core PR ([PR #179548](https://github.com/home-assistant/core/pull/179548), branch `ampio-sensor`); the only divergences are the two HACS-mandated fields in `manifest.json` (`version`, `documentation`). Tests under `tests/` mirror core's, with a deterministic path transform so they run in this repo's CI.
+This repository is a staging ground for an integration that has been submitted upstream to `home-assistant/core`. The Python code under `custom_components/ampio/` is kept byte-identical to the open core PR ([PR #179548](https://github.com/home-assistant/core/pull/179548), branch `ampio-sensor`); the only divergences are the two HACS-mandated fields in `manifest.json` (`version`, `documentation`) and the tracked `translations/en.json`, which core generates at build time and does not track. Tests under `tests/` mirror core's, with a deterministic path transform so they run in this repo's CI.
 
-The integration currently ships a single platform: `sensor`. Additional platforms follow here in this order: `binary_sensor`, `light`, `cover`, `switch`, `climate`, `scene`. After the parent PR merges, each becomes a follow-up core PR. See `CLAUDE.md` for the full discipline.
+The integration currently ships a single platform: `sensor`. Additional platforms follow here in this order: `binary_sensor`, `light`, `cover`, `switch`, `climate`, `scene`. After the parent PR merges, each becomes a follow-up core PR. The parent PR is the spec for every mirrored file.
 
 ## Install via HACS
 
