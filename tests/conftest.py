@@ -10,7 +10,13 @@ from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from ampio_mqtt import AmpioModule, AmpioObject, AmpioScene, AmpioServerInfo
+from ampio_mqtt import (
+    AmpioModule,
+    AmpioObject,
+    AmpioScene,
+    AmpioServerInfo,
+    ThermostatState,
+)
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.syrupy import HomeAssistantSnapshotExtension
@@ -73,6 +79,7 @@ def make_object(
     params: int = 0,
     matter_device_type: int | None = None,
     tilt_position: int | None = None,
+    thermostat: ThermostatState | None = None,
 ) -> AmpioObject:
     """Build a classified object the way discovery would."""
     return AmpioObject(
@@ -87,6 +94,7 @@ def make_object(
         value=value,
         matter_device_type=matter_device_type,
         tilt_position=tilt_position,
+        thermostat=thermostat,
     )
 
 
@@ -210,6 +218,12 @@ DEFAULT_OBJECTS = (
         funkcja=11,
         name="Termostat Salon",
         value="1",
+        thermostat=ThermostatState(
+            measured_temperature=21.8,
+            target_temperature=22.5,
+            mode="S",
+            cooling=False,
+        ),
     ),
     make_object(132, "lin_wej", 7, leaf_id="0_cb8f_lin_0_3", funkcja=3, params=16),
     make_object(99, "lin_wej", 2, leaf_id="", funkcja=4),
