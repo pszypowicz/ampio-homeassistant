@@ -6,29 +6,35 @@ A Home Assistant integration for the [Ampio Smart Home](https://ampio.com/) syst
 
 This repository is a staging ground for an integration that has been submitted upstream to `home-assistant/core`. The Python code under `custom_components/ampio/` is kept byte-identical to the open core PR ([PR #179548](https://github.com/home-assistant/core/pull/179548), branch `ampio-sensor`); the only divergences are the two HACS-mandated fields in `manifest.json` (`version`, `documentation`) and the tracked `translations/en.json`, which core generates at build time and does not track. Tests under `tests/` mirror core's, with a deterministic path transform so they run in this repo's CI.
 
-The integration currently ships a single platform: `sensor`. Additional platforms follow here in this order: `binary_sensor`, `light`, `cover`, `switch`, `climate`, `scene`. After the parent PR merges, each becomes a follow-up core PR. The parent PR is the spec for every mirrored file.
+The full platform surface shipped in v0.1.0: sensor, binary_sensor, light, cover, switch, climate, and scene. After the parent PR merges, each platform becomes a follow-up core PR.
 
-## Install via HACS
+## Install
+
+[![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=pszypowicz&repository=ampio-homeassistant&category=integration)
+
+Click the badge, confirm the repository in HACS, install "Ampio", and restart Home Assistant.
+
+Manual steps, if you prefer them:
 
 1. Open HACS in Home Assistant.
-2. Add this repository as a Custom Repository (category: Integration).
-3. Install "Ampio".
-4. Restart Home Assistant.
-5. Add it from Settings -> Devices & Services -> Add Integration -> Ampio. Enter the M-SERV host and credentials.
+2. Add `https://github.com/pszypowicz/ampio-homeassistant` as a custom repository (type: Integration).
+3. Install "Ampio" and restart Home Assistant.
+4. Add the integration: Settings -> Devices & Services -> Add Integration -> Ampio.
+5. Enter the M-SERV host and the MQTT credentials of a Home Assistant user defined in the Ampio app.
 
-Requires Home Assistant 2026.8.0 or newer and `ampio-mqtt==0.24.0` (installed automatically).
+Requires Home Assistant 2026.8.0 or newer and `ampio-mqtt==0.26.0` (installed automatically).
 
 ## Roadmap
 
-The first HACS release ships after the full platform surface lands:
+The full platform surface shipped in v0.1.0:
 
 - [x] `sensor`
-- [ ] `binary_sensor`
-- [ ] `light`
-- [ ] `cover`
-- [ ] `switch`
-- [ ] `climate`
-- [ ] `scene`
+- [x] `binary_sensor`
+- [x] `light`
+- [x] `cover`
+- [x] `switch`
+- [x] `climate`
+- [x] `scene`
 
 ## Relationship to home-assistant/core
 
