@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 from ampio_mqtt import (
     AmpioAuthError,
     AmpioConnectionError,
+    AmpioTimeoutError,
     AuthFailed,
     AvailabilityChanged,
     ConnectionDied,
@@ -282,3 +283,38 @@ async def test_availability_transitions_log_once_per_edge(
 
     assert caplog.text.count("Connection to the Ampio server lost") == 1
     assert caplog.text.count("Connection to the Ampio server restored") == 1
+
+
+async def test_module_devices_preregistered(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Module parent devices exist after setup, with catalogue metadata."""
+    await setup_integration(hass, mock_config_entry)
+
+    device_registry = dr.async_get(hass)
+    hub = device_registry.async_get_device_by_identifier(
+        (DOMAIN, MSERV_MAC), mock_config_entry.entry_id
+    )
+    module_device = device_registry.async_get_device_by_identifier(
+        MSENS_IDENTIFIER, mock_config_entry.entry_id
+    )
+    assert hub is not None
+    assert module_device is not None
+    assert module_device.name == "m-sens salon"
+    assert module_device.via_device_id == hub.id
+    assert mock_config_entry.runtime_data.module_device_ids[52111] == module_device.id
+
+
+async def test_room_fetch_failure_degrades(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A failed room fetch logs one warning and setup still succeeds."""
+    mock_client.fetch_rooms.side_effect = AmpioTimeoutError("no reply")
+    await setup_integration(hass, mock_config_entry)
+
+    assert mock_config_entry.state is ConfigEntryState.LOADED
+    assert "room map" in caplog.text
+    assert mock_config_entry.runtime_data.rooms == {}

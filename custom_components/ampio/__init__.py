@@ -1,18 +1,17 @@
 """The Ampio integration."""
 
-from dataclasses import dataclass
 import logging
 
 from ampio_mqtt import (
     AmpioAuthError,
     AmpioClient,
     AmpioConnectionError,
+    AmpioTimeoutError,
     AuthFailed,
     AvailabilityChanged,
     ConnectionDied,
 )
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_HOST,
     CONF_PASSWORD,
@@ -28,21 +27,15 @@ from homeassistant.exceptions import (
 from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN, PLATFORMS
+from .data import AmpioConfigEntry, AmpioData
+from .entity import eligible_objects
 
 _LOGGER = logging.getLogger(__name__)
 
-type AmpioConfigEntry = ConfigEntry[AmpioData]
 
-
-@dataclass
-class AmpioData:
-    """Runtime data for one Ampio server."""
-
-    client: AmpioClient
-    # The server's identity key; scopes unique_ids and device identifiers so
-    # two servers on one Home Assistant instance never collide.
-    prefix: str
-    hub_device_id: str
+def _opt_str(value: object | None) -> str | None:
+    """Stringify a catalogue field, passing None through."""
+    return None if value is None else str(value)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> bool:
@@ -88,8 +81,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
 
     # The hub is built from the server-info reply both account tiers receive;
     # an administrator's M-SERV module row contributes the user-given name.
+    device_registry = dr.async_get(hass)
     mserv = client.mserv
-    hub = dr.async_get(hass).async_get_or_create(
+    hub = device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, prefix)},
         manufacturer="Ampio",
@@ -99,7 +93,45 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
         serial_number=info.device_id,
         configuration_url=f"http://{info.local_ip}" if info.local_ip else None,
     )
-    entry.runtime_data = AmpioData(client, prefix, hub.id)
+
+    # One parent device per module, registered before the platforms load so
+    # every object entity can reference its parent by registry id. Keyed on
+    # the leaf-derived mac both account tiers receive; the admin-only module
+    # catalogue contributes metadata only, so a tier downgrade degrades the
+    # whole device coherently instead of mixing the fallback name with stale
+    # metadata.
+    module_device_ids: dict[int, str] = {}
+    for obj in eligible_objects(client):
+        if obj.is_server_owned or (mac := obj.module_mac) is None:
+            continue
+        if mac in module_device_ids:
+            continue
+        module = client.module_for(obj)
+        device = device_registry.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, f"{prefix}:{mac}")},
+            name=(module.name if module else None) or f"Ampio module 0x{mac:X}",
+            manufacturer="Ampio",
+            via_device_id=hub.id,
+            model=module.model if module else None,
+            sw_version=_opt_str(module.sw_version) if module else None,
+            hw_version=_opt_str(module.hw_version) if module else None,
+            serial_number=_opt_str(module.mac_global) if module else None,
+        )
+        module_device_ids[mac] = device.id
+
+    # The room map only seeds suggested areas at device creation, so a
+    # failed fetch degrades to no suggestions instead of failing setup.
+    rooms: dict[int, str] = {}
+    try:
+        rooms = await client.fetch_rooms()
+    except AmpioConnectionError, AmpioTimeoutError:
+        _LOGGER.warning(
+            "Could not fetch the Ampio room map; "
+            "new devices register without a suggested area"
+        )
+
+    entry.runtime_data = AmpioData(client, prefix, hub.id, module_device_ids, rooms)
 
     was_unavailable = False
 

@@ -266,6 +266,10 @@ DEFAULT_SCENES = (
     AmpioScene(id=6, name="Nieaktywna", active=False),
 )
 
+# The room map the mocked fetch returns: a named sensor, a light, and a
+# cover get rooms; every other object stays roomless on purpose.
+DEFAULT_ROOMS = {36: "Salon", 71: "Taras", 81: "Sypialnia"}
+
 
 def emit(client: MagicMock, event: Any) -> None:
     """Dispatch ``event`` to the live listeners subscribed on the mocked client.
@@ -309,6 +313,7 @@ def mock_client_class() -> Generator[MagicMock]:
         client.server_info = SERVER_INFO
         client.mserv = client.modules[1]
         client.fetch_scenes.return_value = list(DEFAULT_SCENES)
+        client.fetch_rooms.return_value = dict(DEFAULT_ROOMS)
 
         # Mirrors the real resolver's documented contract over the seeded
         # catalogue: join by device_id, gated on the leaf-derived mac.

@@ -10,8 +10,8 @@ from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import AmpioConfigEntry, AmpioData
 from .const import DOMAIN
+from .data import AmpioConfigEntry, AmpioData
 
 PARALLEL_UPDATES = 0
 
