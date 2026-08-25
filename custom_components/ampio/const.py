@@ -11,6 +11,7 @@ PLATFORMS: Final = [
     Platform.CLIMATE,
     Platform.COVER,
     Platform.LIGHT,
+    Platform.SCENE,
     Platform.SENSOR,
     Platform.SWITCH,
 ]

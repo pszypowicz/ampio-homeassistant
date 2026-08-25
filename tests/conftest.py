@@ -10,7 +10,7 @@ from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from ampio_mqtt import AmpioModule, AmpioObject, AmpioServerInfo
+from ampio_mqtt import AmpioModule, AmpioObject, AmpioScene, AmpioServerInfo
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.syrupy import HomeAssistantSnapshotExtension
@@ -245,6 +245,13 @@ DEFAULT_MODULES = (
     ),
 )
 
+# The scene catalogue the mocked fetch returns: one enabled scene the
+# platform exposes and one disabled scene it must skip.
+DEFAULT_SCENES = (
+    AmpioScene(id=5, name="Wieczór", active=True, object_ids=frozenset({71, 72})),
+    AmpioScene(id=6, name="Nieaktywna", active=False),
+)
+
 
 def emit(client: MagicMock, event: Any) -> None:
     """Dispatch ``event`` to the live listeners subscribed on the mocked client.
@@ -287,6 +294,7 @@ def mock_client_class() -> Generator[MagicMock]:
         client.modules = {module.id: module for module in DEFAULT_MODULES}
         client.server_info = SERVER_INFO
         client.mserv = client.modules[1]
+        client.fetch_scenes.return_value = list(DEFAULT_SCENES)
 
         # Mirrors the real resolver's documented contract over the seeded
         # catalogue: join by device_id, gated on the leaf-derived mac.
