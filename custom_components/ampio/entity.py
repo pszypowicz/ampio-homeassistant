@@ -7,12 +7,14 @@ from ampio_mqtt import (
     AmpioClient,
     AmpioObject,
     AvailabilityChanged,
+    InputKind,
     ObjectRemoved,
     ObjectUpdated,
+    SensorKind,
 )
 
 from homeassistant.core import callback
-from homeassistant.helpers.device_registry import ChildDeviceInfo
+from homeassistant.helpers.device_registry import ChildDeviceInfo, DeviceInfo
 from homeassistant.helpers.entity import Entity
 
 from .const import DOMAIN
@@ -46,22 +48,37 @@ class AmpioEntity(Entity):
         # ``stable_key`` survives a module swap; the prefix scopes it per server.
         self._attr_unique_id = f"{data.prefix}_{obj.stable_key}"
         mac = obj.module_mac
-        parent_device_id = (
-            data.hub_device_id
-            if obj.is_server_owned or mac is None
-            else data.module_device_ids.get(mac, data.hub_device_id)
-        )
-        # The child device carries the object's name and room. An entity
-        # name of None then takes the device name instead of repeating
-        # it; unnamed objects keep their translated description name.
-        self._attr_device_info = ChildDeviceInfo(
-            identifiers={(DOMAIN, f"{data.prefix}:obj:{obj.stable_key}")},
-            name=obj.name or f"Ampio object {obj.stable_key}",
-            parent_device_id=parent_device_id,
-            suggested_area=data.rooms.get(obj.id),
-        )
-        if obj.name:
-            self._attr_name = None
+        on_hub = obj.is_server_owned or mac is None
+        if isinstance(obj.kind, InputKind | SensorKind):
+            # Sensors and inputs are properties of the module that carries
+            # them, not deployed devices of their own; the partition is by
+            # tier-independent classification so both account tiers build
+            # the identical device tree.
+            self._attr_device_info = DeviceInfo(
+                identifiers={
+                    (DOMAIN, data.prefix if on_hub else f"{data.prefix}:{mac}")
+                }
+            )
+            if obj.name:
+                self._attr_name = obj.name
+        else:
+            if on_hub:
+                parent_device_id = data.hub_device_id
+            else:
+                # ``on_hub`` is False only when ``mac`` is not None.
+                assert mac is not None
+                parent_device_id = data.module_device_ids.get(mac, data.hub_device_id)
+            # The child device carries the object's name and room. An entity
+            # name of None then takes the device name instead of repeating
+            # it; unnamed objects keep their translated description name.
+            self._attr_device_info = ChildDeviceInfo(
+                identifiers={(DOMAIN, f"{data.prefix}:obj:{obj.stable_key}")},
+                name=obj.name or f"Ampio object {obj.stable_key}",
+                parent_device_id=parent_device_id,
+                suggested_area=data.rooms.get(obj.id),
+            )
+            if obj.name:
+                self._attr_name = None
 
     @override
     async def async_added_to_hass(self) -> None:

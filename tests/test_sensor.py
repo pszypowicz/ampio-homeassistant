@@ -34,9 +34,9 @@ from .conftest import (
     make_object,
 )
 
-TEMPERATURE_ENTITY_ID = "sensor.salon_temperatura"
-HUMIDITY_ENTITY_ID = "sensor.wilgotnosc"
-CO2_ENTITY_ID = "sensor.ampio_object_leaf_0_cb8f_lin_0_3_co2"
+TEMPERATURE_ENTITY_ID = "sensor.m_sens_salon_temperatura"
+HUMIDITY_ENTITY_ID = "sensor.m_sens_salon_wilgotnosc"
+CO2_ENTITY_ID = "sensor.m_sens_salon_co2"
 
 
 @pytest.fixture(autouse=True)
@@ -250,7 +250,7 @@ async def test_hub_anchored_objects(
     entity_registry: er.EntityRegistry,
     leaf_id: str,
 ) -> None:
-    """The M-SERV's own objects and unresolvable leafs get hub-parented children."""
+    """The M-SERV's own objects and unresolvable leafs attach to the hub."""
     mock_client.objects[500] = make_object(
         500, "temp", 1, leaf_id=leaf_id, funkcja=5, name="Hub sensor"
     )
@@ -267,10 +267,7 @@ async def test_hub_anchored_objects(
     assert entity_id is not None
     entity_entry = entity_registry.async_get(entity_id)
     assert entity_entry is not None
-    child = device_registry.async_get(entity_entry.device_id)
-    assert child is not None
-    assert isinstance(child, dr.ChildDeviceEntry)
-    assert child.parent_device_id == hub.id
+    assert entity_entry.device_id == hub.id
 
 
 async def test_module_without_catalogue_row_gets_bare_device(
@@ -299,10 +296,7 @@ async def test_module_without_catalogue_row_gets_bare_device(
     assert entity_id is not None
     entity_entry = entity_registry.async_get(entity_id)
     assert entity_entry is not None
-    child = device_registry.async_get(entity_entry.device_id)
-    assert child is not None
-    assert isinstance(child, dr.ChildDeviceEntry)
-    assert child.parent_device_id == device.id
+    assert entity_entry.device_id == device.id
 
 
 @pytest.mark.parametrize(

@@ -20,8 +20,9 @@ from homeassistant.helpers import entity_registry as er
 from . import setup_integration
 from .conftest import emit
 
-FLAG_ENTITY_ID = "binary_sensor.podlewanie"
-MOTION_ENTITY_ID = "binary_sensor.ampio_object_leaf_0_cb8f_det_0_2_motion"
+FLAG_ENTITY_ID = "binary_sensor.m_sens_salon_podlewanie"
+MOTION_ENTITY_ID = "binary_sensor.m_sens_salon_motion"
+WEJ_ENTITY_ID = "binary_sensor.m_sens_salon_przycisk_kino"
 
 
 @pytest.fixture(autouse=True)
@@ -65,6 +66,21 @@ async def test_push_update_toggles_state(
     await hass.async_block_till_done()
 
     assert hass.states.get(FLAG_ENTITY_ID).state == STATE_OFF
+
+
+async def test_wej_push_update_toggles_state(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A pushed wired-button input update flips the entity between on and off."""
+    await setup_integration(hass, mock_config_entry)
+    assert hass.states.get(WEJ_ENTITY_ID).state == STATE_OFF
+
+    obj = replace(mock_client.objects[146], value="1")
+    mock_client.objects[146] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(WEJ_ENTITY_ID).state == STATE_ON
 
 
 async def test_nonzero_values_read_as_on(

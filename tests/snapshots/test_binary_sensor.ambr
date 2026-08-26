@@ -1,5 +1,5 @@
 # serializer version: 1
-# name: test_all_entities[binary_sensor.ampio_object_leaf_0_cb8f_det_0_2_motion-entry]
+# name: test_all_entities[binary_sensor.m_sens_salon_motion-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -13,7 +13,7 @@
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': None,
-    'entity_id': 'binary_sensor.ampio_object_leaf_0_cb8f_det_0_2_motion',
+    'entity_id': 'binary_sensor.m_sens_salon_motion',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -36,21 +36,21 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[binary_sensor.ampio_object_leaf_0_cb8f_det_0_2_motion-state]
+# name: test_all_entities[binary_sensor.m_sens_salon_motion-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'motion',
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Ampio object leaf_0_cb8f_det_0_2 Motion',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'm-sens salon Motion',
     }),
     'context': <ANY>,
-    'entity_id': 'binary_sensor.ampio_object_leaf_0_cb8f_det_0_2_motion',
+    'entity_id': 'binary_sensor.m_sens_salon_motion',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'off',
   })
 # ---
-# name: test_all_entities[binary_sensor.podlewanie-entry]
+# name: test_all_entities[binary_sensor.m_sens_salon_podlewanie-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -64,7 +64,7 @@
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': None,
-    'entity_id': 'binary_sensor.podlewanie',
+    'entity_id': 'binary_sensor.m_sens_salon_podlewanie',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -72,12 +72,12 @@
     'labels': set({
     }),
     'name': None,
-    'object_id_base': None,
+    'object_id_base': 'Podlewanie',
     'options': dict({
     }),
     'original_device_class': None,
     'original_icon': None,
-    'original_name': None,
+    'original_name': 'Podlewanie',
     'platform': 'ampio',
     'previous_unique_id': None,
     'suggested_object_id': None,
@@ -87,20 +87,20 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[binary_sensor.podlewanie-state]
+# name: test_all_entities[binary_sensor.m_sens_salon_podlewanie-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Podlewanie',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'm-sens salon Podlewanie',
     }),
     'context': <ANY>,
-    'entity_id': 'binary_sensor.podlewanie',
+    'entity_id': 'binary_sensor.m_sens_salon_podlewanie',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'on',
   })
 # ---
-# name: test_all_entities[binary_sensor.techniczne_dom_pusty-entry]
+# name: test_all_entities[binary_sensor.m_sens_salon_przycisk_kino-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -114,7 +114,7 @@
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': None,
-    'entity_id': 'binary_sensor.techniczne_dom_pusty',
+    'entity_id': 'binary_sensor.m_sens_salon_przycisk_kino',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -122,12 +122,62 @@
     'labels': set({
     }),
     'name': None,
-    'object_id_base': None,
+    'object_id_base': 'Przycisk kino',
     'options': dict({
     }),
     'original_device_class': None,
     'original_icon': None,
-    'original_name': None,
+    'original_name': 'Przycisk kino',
+    'platform': 'ampio',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': 0,
+    'translation_key': 'input',
+    'unique_id': '47846_leaf_0_cb8f_wej_0_9',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_all_entities[binary_sensor.m_sens_salon_przycisk_kino-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'm-sens salon Przycisk kino',
+    }),
+    'context': <ANY>,
+    'entity_id': 'binary_sensor.m_sens_salon_przycisk_kino',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'off',
+  })
+# ---
+# name: test_all_entities[binary_sensor.mserv_dom_pusty-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': None,
+    'config_entry_id': <ANY>,
+    'config_subentry_id': <ANY>,
+    'device_class': None,
+    'device_id': <ANY>,
+    'disabled_by': None,
+    'domain': 'binary_sensor',
+    'entity_category': None,
+    'entity_id': 'binary_sensor.mserv_dom_pusty',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': 'Dom pusty',
+    'options': dict({
+    }),
+    'original_device_class': None,
+    'original_icon': None,
+    'original_name': 'Dom pusty',
     'platform': 'ampio',
     'previous_unique_id': None,
     'suggested_object_id': None,
@@ -137,13 +187,13 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[binary_sensor.techniczne_dom_pusty-state]
+# name: test_all_entities[binary_sensor.mserv_dom_pusty-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Dom pusty',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'MSERV Dom pusty',
     }),
     'context': <ANY>,
-    'entity_id': 'binary_sensor.techniczne_dom_pusty',
+    'entity_id': 'binary_sensor.mserv_dom_pusty',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,

@@ -30,6 +30,10 @@ BINARY_SENSOR_DESCRIPTIONS: dict[str, BinarySensorEntityDescription] = {
             key="detekcja",
             device_class=BinarySensorDeviceClass.MOTION,
         ),
+        BinarySensorEntityDescription(
+            key="wej",
+            translation_key="input",
+        ),
     )
 }
 
