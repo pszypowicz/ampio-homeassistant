@@ -496,6 +496,16 @@ async def test_remove_config_entry_device(
     )
     assert not await async_remove_config_entry_device(hass, mock_config_entry, child)
 
+    # Stale sensor child device (pre-partition leftover) may be deleted
+    # because sensor objects no longer get child devices.
+    stale = device_registry.async_get_or_create_child(
+        config_entry_id=mock_config_entry.entry_id,
+        identifiers={(DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_temp_0_1")},
+        name="stale sensor child",
+        parent_device_id=module_device.id,
+    )
+    assert await async_remove_config_entry_device(hass, mock_config_entry, stale)
+
     # Drop the LED object from the catalogue: its child device goes stale.
     del mock_client.objects[71]
     assert await async_remove_config_entry_device(hass, mock_config_entry, child)

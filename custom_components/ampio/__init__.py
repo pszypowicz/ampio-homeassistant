@@ -9,6 +9,8 @@ from ampio_mqtt import (
     AuthFailed,
     AvailabilityChanged,
     ConnectionDied,
+    InputKind,
+    SensorKind,
 )
 
 from homeassistant.const import (
@@ -181,11 +183,15 @@ async def async_remove_config_entry_device(
 
     Grant changes and tier downgrades leave devices behind by design; this
     lets the user prune them while every live device stays protected.
+
+    Only OutputKind and ThermostatKind objects get child devices; InputKind
+    and SensorKind objects attach as plain entities and do not need protection.
     """
     data = entry.runtime_data
     live = {data.prefix}
     for obj in eligible_objects(data.client):
-        live.add(f"{data.prefix}:obj:{obj.stable_key}")
+        if not isinstance(obj.kind, InputKind | SensorKind):
+            live.add(f"{data.prefix}:obj:{obj.stable_key}")
         if not obj.is_server_owned and (mac := obj.module_mac) is not None:
             live.add(f"{data.prefix}:{mac}")
     return not any(
