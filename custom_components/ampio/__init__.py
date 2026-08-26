@@ -185,10 +185,9 @@ async def async_remove_config_entry_device(
     data = entry.runtime_data
     live = {data.prefix}
     for obj in eligible_objects(data.client):
-        if obj.is_server_owned or (mac := obj.module_mac) is None:
-            continue
-        live.add(f"{data.prefix}:{mac}")
         live.add(f"{data.prefix}:obj:{obj.stable_key}")
+        if not obj.is_server_owned and (mac := obj.module_mac) is not None:
+            live.add(f"{data.prefix}:{mac}")
     return not any(
         domain == DOMAIN and identifier in live
         for domain, identifier in device_entry.identifiers

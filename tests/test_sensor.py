@@ -250,7 +250,7 @@ async def test_hub_anchored_objects(
     entity_registry: er.EntityRegistry,
     leaf_id: str,
 ) -> None:
-    """The M-SERV's own objects and unresolvable leafs anchor to the hub."""
+    """The M-SERV's own objects and unresolvable leafs get hub-parented children."""
     mock_client.objects[500] = make_object(
         500, "temp", 1, leaf_id=leaf_id, funkcja=5, name="Hub sensor"
     )
@@ -265,7 +265,12 @@ async def test_hub_anchored_objects(
         Platform.SENSOR, DOMAIN, f"{MSERV_MAC}_leaf_{leaf_id}"
     )
     assert entity_id is not None
-    assert entity_registry.async_get(entity_id).device_id == hub.id
+    entity_entry = entity_registry.async_get(entity_id)
+    assert entity_entry is not None
+    child = device_registry.async_get(entity_entry.device_id)
+    assert child is not None
+    assert isinstance(child, dr.ChildDeviceEntry)
+    assert child.parent_device_id == hub.id
 
 
 async def test_module_without_catalogue_row_gets_bare_device(

@@ -164,24 +164,31 @@ async def test_restricted_account_groups_by_module_mac(
         entity_registry, mock_config_entry.entry_id
     )
     assert len(entities) == 21
-    # Scenes and the server-owned flag live on the hub device regardless of
-    # account tier; every other entity in the catalogue sits on its own
-    # child device, bound to the module through parent_device_id.
-    hub_entity_id = entity_registry.async_get_entity_id(
+    # Scenes live directly on the hub device regardless of account tier;
+    # every other entity in the catalogue sits on its own child device -
+    # bound to the module through parent_device_id, except the server-owned
+    # flag, whose child device is bound to the hub instead.
+    scene_entities = [entity for entity in entities if entity.domain == "scene"]
+    assert len(scene_entities) == 1
+    assert all(entity.device_id == hub.id for entity in scene_entities)
+
+    hub_flag_entity_id = entity_registry.async_get_entity_id(
         "binary_sensor", DOMAIN, f"{MSERV_MAC}_leaf_0_1_flaga_0_9"
     )
-    scene_entities = [entity for entity in entities if entity.domain == "scene"]
-    hub_entities = [
-        entity
-        for entity in entities
-        if entity.domain == "scene" or entity.entity_id == hub_entity_id
-    ]
-    hub_entity_ids = {entity.entity_id for entity in hub_entities}
+    assert hub_flag_entity_id is not None
+    hub_flag_entity = entity_registry.async_get(hub_flag_entity_id)
+    assert hub_flag_entity is not None
+    hub_flag_device = device_registry.async_get(hub_flag_entity.device_id)
+    assert hub_flag_device is not None
+    assert isinstance(hub_flag_device, dr.ChildDeviceEntry)
+    assert hub_flag_device.parent_device_id == hub.id
+
+    excluded_ids = {entity.entity_id for entity in scene_entities} | {
+        hub_flag_entity_id
+    }
     module_entities = [
-        entity for entity in entities if entity.entity_id not in hub_entity_ids
+        entity for entity in entities if entity.entity_id not in excluded_ids
     ]
-    assert len(scene_entities) == 1
-    assert all(entity.device_id == hub.id for entity in hub_entities)
     for entity in module_entities:
         device = device_registry.async_get(entity.device_id)
         assert device is not None
@@ -393,33 +400,46 @@ async def test_objects_become_child_devices(
     assert unnamed.area_id is None
 
 
-async def test_server_owned_object_stays_on_hub(
+async def test_server_owned_object_becomes_hub_child(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
     device_registry: dr.DeviceRegistry,
     entity_registry: er.EntityRegistry,
+    area_registry: ar.AreaRegistry,
 ) -> None:
-    """Server-owned objects attach to the hub device, with no child device."""
+    """Server-owned objects get a child device parented to the hub."""
     await setup_integration(hass, mock_config_entry)
 
     hub = device_registry.async_get_device_by_identifier(
         (DOMAIN, MSERV_MAC), mock_config_entry.entry_id
     )
     assert hub is not None
+
+    child = device_registry.async_get_child_device_by_identifier(
+        (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_1_flaga_0_9"), mock_config_entry.entry_id
+    )
+    assert child is not None
+    assert child.parent_device_id == hub.id
+    assert child.name == "Dom pusty"
+    area = area_registry.async_get_area_by_name("Techniczne")
+    assert area is not None
+    assert child.area_id == area.id
+
     entity_id = entity_registry.async_get_entity_id(
         "binary_sensor", DOMAIN, f"{MSERV_MAC}_leaf_0_1_flaga_0_9"
     )
     assert entity_id is not None
     entity_entry = entity_registry.async_get(entity_id)
     assert entity_entry is not None
-    assert entity_entry.device_id == hub.id
-    assert (
-        device_registry.async_get_child_device_by_identifier(
-            (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_1_flaga_0_9"), mock_config_entry.entry_id
-        )
-        is None
+    assert entity_entry.device_id == child.id
+
+    entities = er.async_entries_for_config_entry(
+        entity_registry, mock_config_entry.entry_id
     )
+    scene_entities = [entity for entity in entities if entity.domain == "scene"]
+    assert scene_entities
+    assert scene_entities[0].device_id == hub.id
 
 
 async def test_remove_config_entry_device(
@@ -440,15 +460,22 @@ async def test_remove_config_entry_device(
     child = device_registry.async_get_child_device_by_identifier(
         (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_temp_0_1"), mock_config_entry.entry_id
     )
+    hub_child = device_registry.async_get_child_device_by_identifier(
+        (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_1_flaga_0_9"), mock_config_entry.entry_id
+    )
     assert hub is not None
     assert module_device is not None
     assert child is not None
+    assert hub_child is not None
 
     assert not await async_remove_config_entry_device(hass, mock_config_entry, hub)
     assert not await async_remove_config_entry_device(
         hass, mock_config_entry, module_device
     )
     assert not await async_remove_config_entry_device(hass, mock_config_entry, child)
+    assert not await async_remove_config_entry_device(
+        hass, mock_config_entry, hub_child
+    )
 
     # Drop the temp object from the catalogue: its child device goes stale.
     del mock_client.objects[36]

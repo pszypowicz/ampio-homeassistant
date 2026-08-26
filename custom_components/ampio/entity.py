@@ -12,7 +12,7 @@ from ampio_mqtt import (
 )
 
 from homeassistant.core import callback
-from homeassistant.helpers.device_registry import ChildDeviceInfo, DeviceInfo
+from homeassistant.helpers.device_registry import ChildDeviceInfo
 from homeassistant.helpers.entity import Entity
 
 from .const import DOMAIN
@@ -47,28 +47,21 @@ class AmpioEntity(Entity):
         self._attr_unique_id = f"{data.prefix}_{obj.stable_key}"
         mac = obj.module_mac
         parent_device_id = (
-            None
+            data.hub_device_id
             if obj.is_server_owned or mac is None
-            else data.module_device_ids.get(mac)
+            else data.module_device_ids.get(mac, data.hub_device_id)
         )
-        if parent_device_id is None:
-            # Server-owned objects live on the hub device, which has its own
-            # name, so the entity keeps the object's name.
-            self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, data.prefix)})
-            if obj.name:
-                self._attr_name = obj.name
-        else:
-            # The child device carries the object's name and room. An entity
-            # name of None then takes the device name instead of repeating
-            # it; unnamed objects keep their translated description name.
-            self._attr_device_info = ChildDeviceInfo(
-                identifiers={(DOMAIN, f"{data.prefix}:obj:{obj.stable_key}")},
-                name=obj.name or f"Ampio object {obj.stable_key}",
-                parent_device_id=parent_device_id,
-                suggested_area=data.rooms.get(obj.id),
-            )
-            if obj.name:
-                self._attr_name = None
+        # The child device carries the object's name and room. An entity
+        # name of None then takes the device name instead of repeating
+        # it; unnamed objects keep their translated description name.
+        self._attr_device_info = ChildDeviceInfo(
+            identifiers={(DOMAIN, f"{data.prefix}:obj:{obj.stable_key}")},
+            name=obj.name or f"Ampio object {obj.stable_key}",
+            parent_device_id=parent_device_id,
+            suggested_area=data.rooms.get(obj.id),
+        )
+        if obj.name:
+            self._attr_name = None
 
     @override
     async def async_added_to_hass(self) -> None:

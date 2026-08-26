@@ -111,8 +111,8 @@ def make_object(
 # plain roleta without feedback, a percent roleta, a lamella blind) feed the
 # cover platform. The thermostat object feeds the climate platform; its value
 # is the running flag. The named flag on module mac 1 (the M-SERV itself) is
-# server-owned, so it stays on the hub device instead of getting a child
-# device like every other module-owned object.
+# server-owned, so its child device parents to the hub instead of a module
+# device like every other module-owned object's child.
 DEFAULT_OBJECTS = (
     make_object(
         36,
@@ -277,9 +277,10 @@ DEFAULT_SCENES = (
     AmpioScene(id=6, name="Nieaktywna", active=False),
 )
 
-# The room map the mocked fetch returns: a named sensor, a light, and a
-# cover get rooms; every other object stays roomless on purpose.
-DEFAULT_ROOMS = {36: "Salon", 71: "Taras", 81: "Sypialnia"}
+# The room map the mocked fetch returns: a named sensor, a light, a cover,
+# and the server-owned flag get rooms; every other object stays roomless on
+# purpose.
+DEFAULT_ROOMS = {36: "Salon", 71: "Taras", 81: "Sypialnia", 121: "Techniczne"}
 
 
 def emit(client: MagicMock, event: Any) -> None:
