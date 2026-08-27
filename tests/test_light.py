@@ -108,7 +108,38 @@ async def test_dimmer_brightness_maps_to_set_value(
         {ATTR_ENTITY_ID: DIMMER_ENTITY_ID, ATTR_BRIGHTNESS: 200},
         blocking=True,
     )
-    mock_client.set_value.assert_awaited_once_with(71, 200)
+    mock_client.set_value.assert_awaited_once_with(71, 200, pulse_ms=None)
+
+
+async def test_timed_lights_pulse_on_turn_on(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A configured Designer time turns the on writes into timed pulses.
+
+    The M-SERV never applies the time server-side, so the integration
+    sends it, as the Ampio app does - the staircase-timer case.
+    """
+    for oid, pulse in ((73, 120000), (71, 30000)):
+        mock_client.objects[oid] = replace(mock_client.objects[oid], pulse_ms=pulse)
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: RELAY_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.set_value.assert_awaited_once_with(73, 255, pulse_ms=120000)
+    mock_client.turn_on.assert_not_called()
+
+    mock_client.set_value.reset_mock()
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: DIMMER_ENTITY_ID, ATTR_BRIGHTNESS: 180},
+        blocking=True,
+    )
+    mock_client.set_value.assert_awaited_once_with(71, 180, pulse_ms=30000)
 
 
 async def test_dimmer_turn_on_without_brightness(

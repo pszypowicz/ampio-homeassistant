@@ -35,6 +35,22 @@ def eligible_objects(client: AmpioClient) -> Iterator[AmpioObject]:
     )
 
 
+async def async_turn_on_honoring_pulse(
+    client: AmpioClient, obj: AmpioObject | None, object_id: int
+) -> None:
+    """Send the on write, timed when Designer configures a pulse length.
+
+    The M-SERV never applies the configured time server-side; the app
+    reads the column and sends the timed command itself, and so does the
+    integration. Without a configured time (or once the object is gone),
+    the plain verb latches, which is the server truth either way.
+    """
+    if obj is not None and obj.pulse_ms:
+        await client.set_value(object_id, 255, pulse_ms=obj.pulse_ms)
+    else:
+        await client.turn_on(object_id)
+
+
 class AmpioEntity(Entity):
     """Entity backed by one Ampio object."""
 

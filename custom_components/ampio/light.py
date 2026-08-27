@@ -14,7 +14,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .data import AmpioConfigEntry, AmpioData
-from .entity import AmpioEntity, eligible_objects
+from .entity import AmpioEntity, async_turn_on_honoring_pulse, eligible_objects
 
 PARALLEL_UPDATES = 0
 
@@ -128,13 +128,18 @@ class AmpioLight(AmpioEntity, LightEntity):
                 return
             await client.set_color(self._object_id, *rgbw)
             return
+        obj = self._object
         if (
             self._attr_color_mode is ColorMode.BRIGHTNESS
             and (brightness := kwargs.get(ATTR_BRIGHTNESS)) is not None
         ):
-            await client.set_value(self._object_id, brightness)
+            await client.set_value(
+                self._object_id,
+                brightness,
+                pulse_ms=(obj.pulse_ms or None) if obj else None,
+            )
             return
-        await client.turn_on(self._object_id)
+        await async_turn_on_honoring_pulse(client, obj, self._object_id)
 
     @override
     async def async_turn_off(self, **kwargs: Any) -> None:
