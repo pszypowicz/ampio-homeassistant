@@ -169,7 +169,7 @@ async def test_restricted_account_groups_by_module_mac(
     entities = er.async_entries_for_config_entry(
         entity_registry, mock_config_entry.entry_id
     )
-    assert len(entities) == 24
+    assert len(entities) == 25
     # Scenes and the server-owned flag live directly on the hub device
     # regardless of account tier. Sensor and input entities live directly on
     # their module device; every output/thermostat entity sits on its own
@@ -194,14 +194,17 @@ async def test_restricted_account_groups_by_module_mac(
     ]
     # Inputs stay on the module device whatever their domain: the writable
     # flag surfaces as a switch and the bell flag as a button, yet both
-    # remain module properties.
+    # remain module properties. A pulse-time diagnostic is the exception
+    # among sensors: it rides its object's own device.
     direct_domains = {"sensor", "binary_sensor"}
     module_direct_ids = {
         f"{MSERV_MAC}_leaf_0_cb8f_flaga_0_1",
         f"{MSERV_MAC}_leaf_0_cb8f_flaga_0_3",
     }
     for entity in module_entities:
-        if entity.domain in direct_domains or entity.unique_id in module_direct_ids:
+        if (
+            entity.domain in direct_domains and not entity.unique_id.endswith("_pulse")
+        ) or entity.unique_id in module_direct_ids:
             assert entity.device_id == module.id
             continue
         device = device_registry.async_get(entity.device_id)
