@@ -30,7 +30,13 @@ DIAGNOSTICS_SNAPSHOT = {
         "subscribe_failures": {},
     },
     "mac_collisions": [],
-    "last_payloads": {"info": '{"protocol": 1}'},
+    # The raw server reply embeds location facts key-based redaction cannot
+    # reach inside a string; the fixture carries fake ones so the snapshot
+    # proves the whole payload is masked.
+    "last_payloads": {
+        "info": '{"protocol": 1, "local_ip": "192.0.2.1", '
+        '"lat": "0.0", "lon": "0.0", "city": "Example City 1"}'
+    },
 }
 
 
