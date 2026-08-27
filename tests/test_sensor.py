@@ -21,7 +21,12 @@ from syrupy.assertion import SnapshotAssertion
 
 from custom_components.ampio.const import DOMAIN
 from custom_components.ampio.sensor import SENSOR_DESCRIPTIONS
-from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, Platform
+from homeassistant.const import (
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+    EntityCategory,
+    Platform,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
@@ -232,7 +237,7 @@ async def test_unexposable_objects_are_skipped(
     entities = er.async_entries_for_config_entry(
         entity_registry, mock_config_entry.entry_id
     )
-    assert len(entities) == 8
+    assert len(entities) == 9
 
 
 @pytest.mark.parametrize(
@@ -328,3 +333,31 @@ async def test_module_row_cannot_name_device(
     assert device is not None
     assert device.name == MSENS_FALLBACK_NAME
     assert device.model == expected_model
+
+
+async def test_pulse_time_diagnostic(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """The Designer time surfaces as a diagnostic sensor where writes honor it.
+
+    A timed RGBW gets none (set_color has no timed form), a timed cover
+    gets none (czas is the travel time there), and a timeless bell gets
+    none.
+    """
+    for oid in (72, 82):
+        mock_client.objects[oid] = replace(mock_client.objects[oid], pulse_ms=5000)
+    await setup_integration(hass, mock_config_entry)
+
+    entry = entity_registry.async_get("sensor.dzwonek_pulse_time")
+    assert entry is not None
+    assert entry.entity_category is EntityCategory.DIAGNOSTIC
+    state = hass.states.get("sensor.dzwonek_pulse_time")
+    assert state is not None
+    assert float(state.state) == 3.0
+
+    for leaf in ("flaga_0_3", "rgbw_0_2", "rolp_0_2"):
+        unique_id = f"{MSERV_MAC}_leaf_0_cb8f_{leaf}_pulse"
+        assert entity_registry.async_get_entity_id("sensor", DOMAIN, unique_id) is None

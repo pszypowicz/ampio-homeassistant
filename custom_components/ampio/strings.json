@@ -48,6 +48,9 @@
       },
       "pressure_rel": {
         "name": "Relative pressure"
+      },
+      "pulse_time": {
+        "name": "Pulse time"
       }
     },
     "switch": {

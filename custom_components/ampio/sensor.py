@@ -2,7 +2,7 @@
 
 from typing import override
 
-from ampio_mqtt import AmpioObject, SensorKind
+from ampio_mqtt import AmpioObject, OutputKind, SensorKind
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -13,16 +13,21 @@ from homeassistant.components.sensor import (
 from homeassistant.const import (
     LIGHT_LUX,
     PERCENTAGE,
+    EntityCategory,
     UnitOfPressure,
     UnitOfRatio,
     UnitOfSoundPressure,
     UnitOfTemperature,
+    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from .button import is_button
 from .data import AmpioConfigEntry, AmpioData
 from .entity import AmpioEntity, eligible_objects
+from .light import is_light
+from .switch import is_switch
 
 PARALLEL_UPDATES = 0
 
@@ -94,6 +99,36 @@ SENSOR_DESCRIPTIONS: dict[str, SensorEntityDescription] = {
 }
 
 
+# Designer's per-object time, shown where the integration honors it. The
+# M-SERV never applies the time server-side, so this is the length of the
+# pulse a turn-on write sends - the one behavior a user cannot otherwise
+# see from Home Assistant.
+PULSE_TIME_DESCRIPTION = SensorEntityDescription(
+    key="pulse_time",
+    translation_key="pulse_time",
+    device_class=SensorDeviceClass.DURATION,
+    native_unit_of_measurement=UnitOfTime.MILLISECONDS,
+    suggested_unit_of_measurement=UnitOfTime.SECONDS,
+    suggested_display_precision=1,
+    entity_category=EntityCategory.DIAGNOSTIC,
+)
+
+
+def pulse_applies(obj: AmpioObject) -> bool:
+    """Whether the object's turn-on write honors the Designer time.
+
+    The ``czas`` column rides every component type and means other things
+    elsewhere (a cover's travel time), so the diagnostic exists only for
+    the populations whose writes send the pulse. RGBW outputs are
+    excluded: ``set_color`` has no timed form.
+    """
+    if obj.pulse_ms <= 0:
+        return False
+    if is_button(obj) or is_switch(obj):
+        return True
+    return is_light(obj) and not (isinstance(obj.kind, OutputKind) and obj.kind.color)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: AmpioConfigEntry,
@@ -101,8 +136,10 @@ async def async_setup_entry(
 ) -> None:
     """Set up Ampio sensors from the discovery-time object catalogue."""
     data = entry.runtime_data
-    entities: list[AmpioSensor] = []
+    entities: list[SensorEntity] = []
     for obj in eligible_objects(data.client):
+        if pulse_applies(obj):
+            entities.append(AmpioPulseTimeSensor(data, obj))
         if not isinstance(kind := obj.kind, SensorKind):
             continue
         if (description := SENSOR_DESCRIPTIONS.get(kind.key)) is None:
@@ -131,3 +168,26 @@ class AmpioSensor(AmpioEntity, SensorEntity):
         if (obj := self._object) is None:
             return None
         return obj.numeric_value
+
+
+class AmpioPulseTimeSensor(AmpioEntity, SensorEntity):
+    """The Designer pulse length of a button, switch, or light object."""
+
+    entity_description = PULSE_TIME_DESCRIPTION
+
+    def __init__(self, data: AmpioData, obj: AmpioObject) -> None:
+        """Initialize with a suffixed unique id beside the main entity."""
+        super().__init__(data, obj)
+        self._attr_unique_id = f"{self._attr_unique_id}_pulse"
+        # The base class hands a named object's entity the device name;
+        # the diagnostic keeps its translated name beside the main entity.
+        if hasattr(self, "_attr_name"):
+            del self._attr_name
+
+    @property
+    @override
+    def native_value(self) -> int | None:
+        """The configured pulse length, or None once the object is gone."""
+        if (obj := self._object) is None:
+            return None
+        return obj.pulse_ms
