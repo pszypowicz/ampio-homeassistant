@@ -54,4 +54,4 @@ The M-SERV itself guarantees the safety of a standard account. The broker limits
 
 Ampio does not guarantee the stability of the wire surfaces this integration depends on. A server update or a module firmware update can change or remove behavior without notice, and breaking changes by Ampio are a known pattern. The author of an earlier Ampio integration [stopped maintenance for exactly this reason](https://github.com/kstaniek/ampio-hacc/issues/2). If your install works and you are happy with it, stay on your current versions and do not chase the latest ones. If you decide to update anyway, make a full backup first - ideally a full image of the M-SERV's microSD card.
 
-Report bugs and ideas in the [issues](https://github.com/pszypowicz/ampio-homeassistant/issues).
+Report bugs and ideas in the [issues](https://github.com/pszypowicz/ampio-homeassistant/issues). The [debugging guide](docs/debugging.md) shows how to capture diagnostics and debug logs for a report.
