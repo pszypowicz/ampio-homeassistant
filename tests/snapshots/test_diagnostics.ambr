@@ -1,0 +1,37 @@
+# serializer version: 1
+# name: test_config_entry_diagnostics
+  dict({
+    'entry_data': dict({
+      'host': '**REDACTED**',
+      'password': '**REDACTED**',
+      'username': '**REDACTED**',
+    }),
+    'snapshot': dict({
+      'access_tier': 'admin',
+      'auth_failure': None,
+      'available': True,
+      'connection': dict({
+        'last_error': None,
+        'last_message_at': '2026-08-27T06:05:00+00:00',
+        'reconnect_count': 0,
+        'started_at': '2026-08-27T06:00:00+00:00',
+        'subscribe_failures': dict({
+        }),
+      }),
+      'last_payloads': dict({
+        'info': '{"protocol": 1}',
+      }),
+      'mac_collisions': list([
+      ]),
+      'server_info': dict({
+        'device_id': '0011223344556677',
+        'local_ip': '**REDACTED**',
+        'mac': 47846,
+        'mqtt_version': '5.133.11',
+        'server_revision': '409',
+        'server_version': '1865',
+        'user_id': -1,
+      }),
+    }),
+  })
+# ---
