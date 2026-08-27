@@ -21,7 +21,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import AmpioConfigEntry, AmpioData
+from .data import AmpioConfigEntry, AmpioData
 from .entity import AmpioEntity, eligible_objects
 
 PARALLEL_UPDATES = 0
