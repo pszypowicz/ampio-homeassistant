@@ -337,7 +337,7 @@ def mock_client_class() -> Generator[MagicMock]:
         client.access_tier = AccessTier.ADMIN
         client.fetch_scenes.return_value = list(DEFAULT_SCENES)
         client.fetch_rooms.return_value = dict(DEFAULT_ROOMS)
-        client.resolve_locations.return_value = {}
+        client.resolve_records.return_value = {}
 
         # Mirrors the real resolver's documented contract over the seeded
         # catalogue: join by device_id, gated on the leaf-derived mac.

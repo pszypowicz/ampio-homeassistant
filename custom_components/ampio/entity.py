@@ -76,7 +76,8 @@ class AmpioEntity(Entity):
                 identifiers={(DOMAIN, f"{data.prefix}:obj:{obj.stable_key}")},
                 name=obj.name or f"Ampio object {obj.stable_key}",
                 via_device_id=parent_device_id,
-                suggested_area=data.rooms.get(obj.id) or obj.location,
+                suggested_area=data.rooms.get(obj.id)
+                or (obj.record.location if obj.record else None),
             )
             if obj.name:
                 self._attr_name = None
