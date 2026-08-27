@@ -9,6 +9,8 @@ from ampio_mqtt import (
     AuthFailed,
     AvailabilityChanged,
     ConnectionDied,
+    InputKind,
+    SensorKind,
 )
 
 from homeassistant.const import (
@@ -27,8 +29,14 @@ from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN, PLATFORMS
 from .data import AmpioConfigEntry, AmpioData
+from .entity import eligible_objects
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _opt_str(value: object | None) -> str | None:
+    """Stringify a catalogue field, passing None through."""
+    return None if value is None else str(value)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> bool:
@@ -74,8 +82,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
 
     # The hub is built from the server-info reply both account tiers receive;
     # an administrator's M-SERV module row contributes the user-given name.
+    device_registry = dr.async_get(hass)
     mserv = client.mserv
-    hub = dr.async_get(hass).async_get_or_create(
+    hub = device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, prefix)},
         manufacturer="Ampio",
@@ -85,7 +94,45 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
         serial_number=info.device_id,
         configuration_url=f"http://{info.local_ip}" if info.local_ip else None,
     )
-    entry.runtime_data = AmpioData(client, prefix, hub.id)
+
+    # One parent device per module, registered before the platforms load so
+    # every object entity can reference its parent by registry id. Keyed on
+    # the leaf-derived mac both account tiers receive; the admin-only module
+    # catalogue contributes metadata only, so a tier downgrade degrades the
+    # whole device coherently instead of mixing the fallback name with stale
+    # metadata.
+    module_device_ids: dict[int, str] = {}
+    for obj in eligible_objects(client):
+        if obj.is_server_owned or (mac := obj.module_mac) is None:
+            continue
+        if mac in module_device_ids:
+            continue
+        module = client.module_for(obj)
+        device = device_registry.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, f"{prefix}:{mac}")},
+            name=(module.name if module else None) or f"Ampio module 0x{mac:X}",
+            manufacturer="Ampio",
+            via_device_id=hub.id,
+            model=module.model if module else None,
+            sw_version=_opt_str(module.sw_version) if module else None,
+            hw_version=_opt_str(module.hw_version) if module else None,
+            serial_number=_opt_str(module.mac_global) if module else None,
+        )
+        module_device_ids[mac] = device.id
+
+    # The room map only seeds suggested areas at device creation, so a
+    # failed fetch degrades to no suggestions instead of failing setup.
+    rooms: dict[int, str] = {}
+    try:
+        rooms = await client.fetch_rooms()
+    except AmpioConnectionError:
+        _LOGGER.warning(
+            "Could not fetch the Ampio room map; "
+            "new devices register without a suggested area"
+        )
+
+    entry.runtime_data = AmpioData(client, prefix, hub.id, module_device_ids, rooms)
 
     was_unavailable = False
 
@@ -127,3 +174,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
 async def async_unload_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: AmpioConfigEntry, device_entry: dr.DeviceEntry
+) -> bool:
+    """Allow removing devices whose objects the account no longer receives.
+
+    Grant changes and tier downgrades leave devices behind by design; this
+    lets the user prune them while every live device stays protected.
+
+    Only OutputKind and ThermostatKind objects get devices of their own;
+    InputKind and SensorKind objects attach as plain entities and do not need
+    protection.
+    """
+    data = entry.runtime_data
+    live = {data.prefix}
+    for obj in eligible_objects(data.client):
+        if not isinstance(obj.kind, InputKind | SensorKind):
+            live.add(f"{data.prefix}:obj:{obj.stable_key}")
+        if not obj.is_server_owned and (mac := obj.module_mac) is not None:
+            live.add(f"{data.prefix}:{mac}")
+    return not any(
+        domain == DOMAIN and identifier in live
+        for domain, identifier in device_entry.identifiers
+    )

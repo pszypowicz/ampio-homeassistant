@@ -7,8 +7,10 @@ from ampio_mqtt import (
     AmpioClient,
     AmpioObject,
     AvailabilityChanged,
+    InputKind,
     ObjectRemoved,
     ObjectUpdated,
+    SensorKind,
 )
 
 from homeassistant.core import callback
@@ -33,35 +35,6 @@ def eligible_objects(client: AmpioClient) -> Iterator[AmpioObject]:
     )
 
 
-def _opt_str(value: object | None) -> str | None:
-    """Stringify a catalogue field, passing None through."""
-    return None if value is None else str(value)
-
-
-def _device_info(data: AmpioData, obj: AmpioObject) -> DeviceInfo:
-    """Device info for the module owning ``obj``, or the M-SERV hub.
-
-    Keyed on the leaf-derived module mac, which both account tiers receive,
-    so the grouping survives an account-tier switch; the admin-only module
-    catalogue contributes metadata only. Every catalogue-derived field is
-    always passed so a tier downgrade degrades the whole device coherently
-    instead of mixing the fallback name with stale metadata.
-    """
-    if obj.is_server_owned or (mac := obj.module_mac) is None:
-        return DeviceInfo(identifiers={(DOMAIN, data.prefix)})
-    module = data.client.module_for(obj)
-    return DeviceInfo(
-        identifiers={(DOMAIN, f"{data.prefix}:{mac}")},
-        name=(module.name if module else None) or f"Ampio module 0x{mac:X}",
-        manufacturer="Ampio",
-        via_device_id=data.hub_device_id,
-        model=module.model if module else None,
-        sw_version=_opt_str(module.sw_version) if module else None,
-        hw_version=_opt_str(module.hw_version) if module else None,
-        serial_number=_opt_str(module.mac_global) if module else None,
-    )
-
-
 class AmpioEntity(Entity):
     """Entity backed by one Ampio object."""
 
@@ -74,9 +47,38 @@ class AmpioEntity(Entity):
         self._object_id = obj.id
         # ``stable_key`` survives a module swap; the prefix scopes it per server.
         self._attr_unique_id = f"{data.prefix}_{obj.stable_key}"
-        self._attr_device_info = _device_info(data, obj)
-        if obj.name:
-            self._attr_name = obj.name
+        mac = obj.module_mac
+        on_hub = obj.is_server_owned or mac is None
+        if isinstance(obj.kind, InputKind | SensorKind):
+            # Sensors and inputs are properties of the module that carries
+            # them, not deployed devices of their own; the partition is by
+            # tier-independent classification so both account tiers build
+            # the identical device tree.
+            self._attr_device_info = DeviceInfo(
+                identifiers={
+                    (DOMAIN, data.prefix if on_hub else f"{data.prefix}:{mac}")
+                }
+            )
+            if obj.name:
+                self._attr_name = obj.name
+        else:
+            if on_hub:
+                parent_device_id = data.hub_device_id
+            else:
+                # ``on_hub`` is False only when ``mac`` is not None.
+                assert mac is not None
+                parent_device_id = data.module_device_ids.get(mac, data.hub_device_id)
+            # The object device carries the object's name and room. An entity
+            # name of None then takes the device name instead of repeating
+            # it; unnamed objects keep their translated description name.
+            self._attr_device_info = DeviceInfo(
+                identifiers={(DOMAIN, f"{data.prefix}:obj:{obj.stable_key}")},
+                name=obj.name or f"Ampio object {obj.stable_key}",
+                via_device_id=parent_device_id,
+                suggested_area=data.rooms.get(obj.id),
+            )
+            if obj.name:
+                self._attr_name = None
 
     @override
     async def async_added_to_hass(self) -> None:

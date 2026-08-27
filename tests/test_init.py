@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 from ampio_mqtt import (
     AmpioAuthError,
     AmpioConnectionError,
+    AmpioTimeoutError,
     AuthFailed,
     AvailabilityChanged,
     ConnectionDied,
@@ -13,11 +14,16 @@ from ampio_mqtt import (
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.ampio import async_remove_config_entry_device
 from custom_components.ampio.const import DOMAIN
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import (
+    area_registry as ar,
+    device_registry as dr,
+    entity_registry as er,
+)
 
 from . import setup_integration
 from .conftest import MSENS_FALLBACK_NAME, MSENS_IDENTIFIER, MSERV_MAC, USER_INPUT, emit
@@ -157,14 +163,37 @@ async def test_restricted_account_groups_by_module_mac(
     entities = er.async_entries_for_config_entry(
         entity_registry, mock_config_entry.entry_id
     )
-    assert len(entities) == 21
-    # Scenes live on the hub device regardless of account tier; every other
-    # entity in the catalogue is module-bound.
-    module_entities = [entity for entity in entities if entity.domain != "scene"]
+    assert len(entities) == 22
+    # Scenes and the server-owned flag live directly on the hub device
+    # regardless of account tier. Sensor and input entities live directly on
+    # their module device; every output/thermostat entity sits on its own
+    # device, bound to the module through via_device_id.
     scene_entities = [entity for entity in entities if entity.domain == "scene"]
     assert len(scene_entities) == 1
-    assert all(entity.device_id == module.id for entity in module_entities)
     assert all(entity.device_id == hub.id for entity in scene_entities)
+
+    hub_flag_entity_id = entity_registry.async_get_entity_id(
+        "binary_sensor", DOMAIN, f"{MSERV_MAC}_leaf_0_1_flaga_0_9"
+    )
+    assert hub_flag_entity_id is not None
+    hub_flag_entity = entity_registry.async_get(hub_flag_entity_id)
+    assert hub_flag_entity is not None
+    assert hub_flag_entity.device_id == hub.id
+
+    excluded_ids = {entity.entity_id for entity in scene_entities} | {
+        hub_flag_entity_id
+    }
+    module_entities = [
+        entity for entity in entities if entity.entity_id not in excluded_ids
+    ]
+    direct_domains = {"sensor", "binary_sensor"}
+    for entity in module_entities:
+        if entity.domain in direct_domains:
+            assert entity.device_id == module.id
+            continue
+        device = device_registry.async_get(entity.device_id)
+        assert device is not None
+        assert device.via_device_id == module.id
 
 
 async def test_tier_switch_keeps_device_grouping(
@@ -282,3 +311,202 @@ async def test_availability_transitions_log_once_per_edge(
 
     assert caplog.text.count("Connection to the Ampio server lost") == 1
     assert caplog.text.count("Connection to the Ampio server restored") == 1
+
+
+async def test_module_devices_preregistered(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    """Module parent devices exist after setup, with catalogue metadata."""
+    await setup_integration(hass, mock_config_entry)
+
+    hub = device_registry.async_get_device_by_identifier(
+        (DOMAIN, MSERV_MAC), mock_config_entry.entry_id
+    )
+    module_device = device_registry.async_get_device_by_identifier(
+        MSENS_IDENTIFIER, mock_config_entry.entry_id
+    )
+    assert hub is not None
+    assert module_device is not None
+    assert hub.area_id is None
+    assert module_device.area_id is None
+    assert module_device.name == "m-sens salon"
+    assert module_device.via_device_id == hub.id
+    assert mock_config_entry.runtime_data.module_device_ids[52111] == module_device.id
+
+
+async def test_room_fetch_failure_degrades(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A failed room fetch logs one warning and setup still succeeds."""
+    mock_client.fetch_rooms.side_effect = AmpioTimeoutError("no reply")
+    await setup_integration(hass, mock_config_entry)
+
+    assert mock_config_entry.state is ConfigEntryState.LOADED
+    room_map_warnings = [
+        record
+        for record in caplog.records
+        if record.levelname == "WARNING" and "room map" in record.getMessage()
+    ]
+    assert len(room_map_warnings) == 1
+    assert mock_config_entry.runtime_data.rooms == {}
+
+
+async def test_output_objects_get_own_devices(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+    area_registry: ar.AreaRegistry,
+) -> None:
+    """Module-owned output objects get own devices with names, rooms, entities."""
+    await setup_integration(hass, mock_config_entry)
+
+    module_device = device_registry.async_get_device_by_identifier(
+        MSENS_IDENTIFIER, mock_config_entry.entry_id
+    )
+    assert module_device is not None
+
+    # Named object 71 (Taras LED, room Taras).
+    obj_device = device_registry.async_get_device_by_identifier(
+        (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_led_0_1"), mock_config_entry.entry_id
+    )
+    assert obj_device is not None
+    assert obj_device.via_device_id == module_device.id
+    assert obj_device.name == "Taras LED"
+    area = area_registry.async_get_area_by_name("Taras")
+    assert area is not None
+    assert obj_device.area_id == area.id
+    entity_id = entity_registry.async_get_entity_id(
+        "light", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_led_0_1"
+    )
+    assert entity_id is not None
+    entity_entry = entity_registry.async_get(entity_id)
+    assert entity_entry is not None
+    assert entity_entry.device_id == obj_device.id
+
+    # Unnamed object 74 (a relay): fallback device name, translated entity name.
+    unnamed = device_registry.async_get_device_by_identifier(
+        (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_rel_0_4"), mock_config_entry.entry_id
+    )
+    assert unnamed is not None
+    assert unnamed.name == "Ampio object leaf_0_cb8f_rel_0_4"
+    assert unnamed.area_id is None
+
+    # Sensor object 36 (Temperatura) is a property of its module, not a
+    # deployed device of its own, so it gets no device of its own.
+    assert (
+        device_registry.async_get_device_by_identifier(
+            (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_temp_0_1"),
+            mock_config_entry.entry_id,
+        )
+        is None
+    )
+    sensor_entity_id = entity_registry.async_get_entity_id(
+        "sensor", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_temp_0_1"
+    )
+    assert sensor_entity_id is not None
+    sensor_entity = entity_registry.async_get(sensor_entity_id)
+    assert sensor_entity is not None
+    assert sensor_entity.device_id == module_device.id
+
+
+async def test_server_owned_objects_partition(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """Server-owned inputs attach to the hub directly; thermostats keep own devices."""
+    await setup_integration(hass, mock_config_entry)
+
+    hub = device_registry.async_get_device_by_identifier(
+        (DOMAIN, MSERV_MAC), mock_config_entry.entry_id
+    )
+    assert hub is not None
+
+    # Object 121 (server-owned flag, InputKind): entity on the hub, no device.
+    assert (
+        device_registry.async_get_device_by_identifier(
+            (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_1_flaga_0_9"),
+            mock_config_entry.entry_id,
+        )
+        is None
+    )
+    flag_entity_id = entity_registry.async_get_entity_id(
+        "binary_sensor", DOMAIN, f"{MSERV_MAC}_leaf_0_1_flaga_0_9"
+    )
+    assert flag_entity_id is not None
+    flag_entity = entity_registry.async_get(flag_entity_id)
+    assert flag_entity is not None
+    assert flag_entity.device_id == hub.id
+
+    # Object 91 (module-owned thermostat, ThermostatKind): keeps its own device.
+    module_device = device_registry.async_get_device_by_identifier(
+        MSENS_IDENTIFIER, mock_config_entry.entry_id
+    )
+    assert module_device is not None
+    thermostat_device = device_registry.async_get_device_by_identifier(
+        (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_reg_0_1"), mock_config_entry.entry_id
+    )
+    assert thermostat_device is not None
+    assert thermostat_device.via_device_id == module_device.id
+    climate_entity_id = entity_registry.async_get_entity_id(
+        "climate", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_reg_0_1"
+    )
+    assert climate_entity_id is not None
+    climate_entity = entity_registry.async_get(climate_entity_id)
+    assert climate_entity is not None
+    assert climate_entity.device_id == thermostat_device.id
+
+
+async def test_remove_config_entry_device(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    """Only devices with no live backing object may be deleted."""
+    await setup_integration(hass, mock_config_entry)
+
+    hub = device_registry.async_get_device_by_identifier(
+        (DOMAIN, MSERV_MAC), mock_config_entry.entry_id
+    )
+    module_device = device_registry.async_get_device_by_identifier(
+        MSENS_IDENTIFIER, mock_config_entry.entry_id
+    )
+    obj_device = device_registry.async_get_device_by_identifier(
+        (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_led_0_1"), mock_config_entry.entry_id
+    )
+    assert hub is not None
+    assert module_device is not None
+    assert obj_device is not None
+
+    assert not await async_remove_config_entry_device(hass, mock_config_entry, hub)
+    assert not await async_remove_config_entry_device(
+        hass, mock_config_entry, module_device
+    )
+    assert not await async_remove_config_entry_device(
+        hass, mock_config_entry, obj_device
+    )
+
+    # A stale sensor object device (pre-partition leftover) may be deleted
+    # because sensor objects no longer get devices of their own.
+    stale = device_registry.async_get_or_create(
+        config_entry_id=mock_config_entry.entry_id,
+        identifiers={(DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_temp_0_1")},
+        name="stale sensor device",
+        via_device_id=module_device.id,
+    )
+    assert await async_remove_config_entry_device(hass, mock_config_entry, stale)
+
+    # Drop the LED object from the catalogue: its device goes stale.
+    del mock_client.objects[71]
+    assert await async_remove_config_entry_device(hass, mock_config_entry, obj_device)

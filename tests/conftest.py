@@ -111,7 +111,9 @@ def make_object(
 # outlet class. The three cover objects (a
 # plain roleta without feedback, a percent roleta, a lamella blind) feed the
 # cover platform. The thermostat object feeds the climate platform; its value
-# is the running flag.
+# is the running flag. The named flag on module mac 1 (the M-SERV itself) is
+# server-owned, so its child device parents to the hub instead of a module
+# device like every other module-owned object's child.
 DEFAULT_OBJECTS = (
     make_object(
         36,
@@ -236,6 +238,15 @@ DEFAULT_OBJECTS = (
     ),
     make_object(132, "lin_wej", 7, leaf_id="0_cb8f_lin_0_3", funkcja=3, params=16),
     make_object(99, "lin_wej", 2, leaf_id="", funkcja=4),
+    make_object(
+        121,
+        "flaga",
+        0,
+        leaf_id="0_1_flaga_0_9",
+        device_id=1,
+        name="Dom pusty",
+        value="0",
+    ),
 )
 
 # The default module catalogue an administrator account receives.
@@ -274,6 +285,11 @@ DEFAULT_SCENES = (
     AmpioScene(id=5, name="Wieczór", active=True, object_ids=frozenset({71, 72})),
     AmpioScene(id=6, name="Nieaktywna", active=False),
 )
+
+# The room map the mocked fetch returns: a named sensor, a light, a cover,
+# and the server-owned flag get rooms; every other object stays roomless on
+# purpose.
+DEFAULT_ROOMS = {36: "Salon", 71: "Taras", 81: "Sypialnia", 121: "Techniczne"}
 
 
 def emit(client: MagicMock, event: Any) -> None:
@@ -318,6 +334,7 @@ def mock_client_class() -> Generator[MagicMock]:
         client.server_info = SERVER_INFO
         client.mserv = client.modules[1]
         client.fetch_scenes.return_value = list(DEFAULT_SCENES)
+        client.fetch_rooms.return_value = dict(DEFAULT_ROOMS)
 
         # Mirrors the real resolver's documented contract over the seeded
         # catalogue: join by device_id, gated on the leaf-derived mac.
