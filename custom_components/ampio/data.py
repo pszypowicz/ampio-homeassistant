@@ -20,6 +20,11 @@ class AmpioData:
     module_device_ids: dict[int, str] = field(default_factory=dict)
     # Object id -> Ampio app room name, fetched once per setup.
     rooms: dict[int, str] = field(default_factory=dict)
+    # Catalogue-column Matter tags, captured before the description sweep
+    # refines the objects. The platform partition reads these and never the
+    # sweep-refined field: the sweep answers the admin login only, and an
+    # entity's platform must build identically on both account tiers.
+    matter_tags: dict[int, int | None] = field(default_factory=dict)
 
 
 type AmpioConfigEntry = ConfigEntry[AmpioData]

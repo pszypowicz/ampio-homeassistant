@@ -43,7 +43,7 @@ def test_input_kind_vocabulary_is_mapped_or_excluded() -> None:
         obj = make_object(1, key, 0, leaf_id="0_1_x_0_1")
         assert isinstance(obj.kind, InputKind)
         if obj.kind.switchable:
-            assert is_switch(obj)
+            assert is_switch(obj, None)
             assert key not in BINARY_SENSOR_DESCRIPTIONS
         else:
             assert key in BINARY_SENSOR_DESCRIPTIONS

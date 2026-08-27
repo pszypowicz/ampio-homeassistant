@@ -29,13 +29,17 @@ LIGHT_MATTER_TYPES = frozenset({0x0100, 0x0101, 0x010C, 0x010D})
 _DEFAULT_RGBW = (0, 0, 0, 255)
 
 
-def is_light(obj: AmpioObject) -> bool:
-    """Whether the object belongs to the light platform."""
+def is_light(obj: AmpioObject, matter_tag: int | None) -> bool:
+    """Whether the object belongs to the light platform.
+
+    ``matter_tag`` is the catalogue-column tag captured before the
+    description sweep - the tier-independent classification source.
+    """
     if not isinstance(kind := obj.kind, OutputKind):
         return False
     if kind.color or kind.dimmable:
         return True
-    return kind.key == "relay" and obj.matter_device_type in LIGHT_MATTER_TYPES
+    return kind.key == "relay" and matter_tag in LIGHT_MATTER_TYPES
 
 
 async def async_setup_entry(
@@ -46,7 +50,9 @@ async def async_setup_entry(
     """Set up Ampio lights from the discovery-time object catalogue."""
     data = entry.runtime_data
     async_add_entities(
-        AmpioLight(data, obj) for obj in eligible_objects(data.client) if is_light(obj)
+        AmpioLight(data, obj)
+        for obj in eligible_objects(data.client)
+        if is_light(obj, data.matter_tags.get(obj.id))
     )
 
 

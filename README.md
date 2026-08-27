@@ -40,6 +40,8 @@ Requires Home Assistant 2026.8.0 or newer. `ampio-mqtt` is installed automatical
 
 Devices appear as a hub, then one device per Ampio module, then one device per Ampio object, named as in the Ampio app. Objects assigned to a room in the Ampio app are suggested into the matching Home Assistant area on first setup, and objects without an app room fall back to their Designer location on admin accounts; you own the areas afterwards. Sensor and input objects, flags included, attach to their module device directly.
 
+If a relay tagged as a light in Designer surfaces as a switch, see [docs/designer-quirks.md](docs/designer-quirks.md).
+
 ## Relationship to home-assistant/core
 
 This integration is submitted to `home-assistant/core` ([PR #179548](https://github.com/home-assistant/core/pull/179548)). This repository tracks that PR and adds the remaining platforms ahead of the merge, so Ampio users can run the integration today and field feedback can strengthen the upstream review. After the PR merges, the platforms staged here follow as core PRs.

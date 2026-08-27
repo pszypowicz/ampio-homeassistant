@@ -21,19 +21,20 @@ PARALLEL_UPDATES = 0
 PLUG_MATTER_TYPES = frozenset({0x010A, 0x010B})
 
 
-def is_switch(obj: AmpioObject) -> bool:
+def is_switch(obj: AmpioObject, matter_tag: int | None) -> bool:
     """Whether the object belongs to the switch platform.
 
-    Two populations land here. A relay whose Matter tag is not in
-    ``LIGHT_MATTER_TYPES`` - the complement of the light platform's relay
-    rule. And any input kind that declares itself switchable: the writable
-    flags, a promised target of the client's switch verbs.
+    Two populations land here. A relay whose catalogue-column Matter tag
+    is not in ``LIGHT_MATTER_TYPES`` - the complement of the light
+    platform's relay rule, on the same tier-independent source. And any
+    input kind that declares itself switchable: the writable flags, a
+    promised target of the client's switch verbs.
     """
     if isinstance(kind := obj.kind, InputKind):
         return kind.switchable
     if not isinstance(kind, OutputKind):
         return False
-    return kind.key == "relay" and obj.matter_device_type not in LIGHT_MATTER_TYPES
+    return kind.key == "relay" and matter_tag not in LIGHT_MATTER_TYPES
 
 
 async def async_setup_entry(
@@ -46,7 +47,7 @@ async def async_setup_entry(
     async_add_entities(
         AmpioSwitch(data, obj)
         for obj in eligible_objects(data.client)
-        if is_switch(obj)
+        if is_switch(obj, data.matter_tags.get(obj.id))
     )
 
 
@@ -63,7 +64,7 @@ class AmpioSwitch(AmpioEntity, SwitchEntity):
         else:
             self._attr_device_class = (
                 SwitchDeviceClass.OUTLET
-                if obj.matter_device_type in PLUG_MATTER_TYPES
+                if data.matter_tags.get(obj.id) in PLUG_MATTER_TYPES
                 else SwitchDeviceClass.SWITCH
             )
 
