@@ -147,6 +147,27 @@ DEFAULT_OBJECTS = (
         name="Podlewanie",
         value="1",
     ),
+    # The two bell-marked objects (params bit 15): a named relay and an
+    # unnamed flag, the button platform's populations.
+    make_object(
+        149,
+        "flaga",
+        0,
+        leaf_id="0_cb8f_flaga_0_3",
+        funkcja=12,
+        value="0",
+        params=1 << 15,
+    ),
+    make_object(
+        150,
+        "przekaznik",
+        0,
+        leaf_id="0_cb8f_rel_0_6",
+        funkcja=13,
+        name="Dzwonek",
+        value="0",
+        params=1 << 15,
+    ),
     make_object(62, "detekcja", 0, leaf_id="0_cb8f_det_0_2", funkcja=2, value="0"),
     make_object(
         146,

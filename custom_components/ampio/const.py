@@ -8,6 +8,7 @@ DOMAIN: Final = "ampio"
 
 PLATFORMS: Final = [
     Platform.BINARY_SENSOR,
+    Platform.BUTTON,
     Platform.CLIMATE,
     Platform.COVER,
     Platform.LIGHT,

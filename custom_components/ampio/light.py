@@ -35,8 +35,11 @@ def is_light(obj: AmpioObject) -> bool:
 
     ``matter_device_type`` is the catalogue-column tag - the
     tier-independent classification source. The admin-only record tag
-    (``record.matter_device_type``) never feeds the partition.
+    (``record.matter_device_type``) never feeds the partition. A
+    bell-marked relay belongs to the button platform whatever its tag.
     """
+    if obj.bell:
+        return False
     if not isinstance(kind := obj.kind, OutputKind):
         return False
     if kind.color or kind.dimmable:

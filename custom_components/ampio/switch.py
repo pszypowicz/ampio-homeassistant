@@ -28,8 +28,11 @@ def is_switch(obj: AmpioObject) -> bool:
     is not in ``LIGHT_MATTER_TYPES`` - the complement of the light
     platform's relay rule, on the same tier-independent source. And any
     input kind that declares itself switchable: the writable flags, a
-    promised target of the client's switch verbs.
+    promised target of the client's switch verbs. Bell-marked objects
+    belong to the button platform in both populations.
     """
+    if obj.bell:
+        return False
     if isinstance(kind := obj.kind, InputKind):
         return kind.switchable
     if not isinstance(kind, OutputKind):
