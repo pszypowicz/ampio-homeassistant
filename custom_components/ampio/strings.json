@@ -61,6 +61,9 @@
     "invalid_auth": {
       "message": "The Ampio server rejected the stored credentials."
     },
+    "read_only_object": {
+      "message": "This object is marked read-only in Ampio Designer, and the server drops every write to it."
+    },
     "unexpected_device": {
       "message": "The Ampio server at the configured address is not the one this entry was set up with."
     }

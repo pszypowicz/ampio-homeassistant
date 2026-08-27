@@ -22,6 +22,7 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
@@ -138,3 +139,26 @@ async def test_push_echo_toggles_state(
     await hass.async_block_till_done()
 
     assert hass.states.get(PLAIN_ENTITY_ID).state == STATE_OFF
+
+
+async def test_read_only_object_rejects_writes(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A Designer read-only object raises instead of sending a doomed write.
+
+    The M-SERV drops such writes silently on both account tiers, so the
+    entity rejects them up front and keeps its platform.
+    """
+    obj = mock_client.objects[61]
+    # Designer's read-only checkbox is params bit 6; ``read_only`` derives.
+    mock_client.objects[61] = replace(obj, params=obj.params | (1 << 6))
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            SWITCH_DOMAIN,
+            SERVICE_TURN_OFF,
+            {ATTR_ENTITY_ID: FLAG_ENTITY_ID},
+            blocking=True,
+        )
+    mock_client.turn_off.assert_not_called()
