@@ -366,18 +366,18 @@ async def test_room_fetch_failure_degrades(
     assert mock_config_entry.runtime_data.rooms == {}
 
 
-async def test_admin_resolves_designer_descriptions(
+async def test_sweep_never_moves_an_entity(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
     entity_registry: er.EntityRegistry,
 ) -> None:
-    """The description sweep runs before the platforms enumerate.
+    """A record-borne Matter tag decorates; it never changes the partition.
 
-    Object 74 is an untagged relay in the fixture catalogue; the sweep
-    delivers its Lighting tag the way resolve_locations() folds a CAN
-    record over the catalogue's lagging type column, so the relay must
-    surface as a light, not a switch.
+    The description records answer the admin login only, and an entity's
+    platform must build identically on both account tiers. Object 74 is a
+    relay with an empty catalogue column; a Lighting tag the sweep folds
+    over it must leave the relay on the switch platform.
     """
 
     def _resolve() -> dict[int, str]:
@@ -392,13 +392,13 @@ async def test_admin_resolves_designer_descriptions(
     mock_client.resolve_locations.assert_awaited_once_with()
     assert (
         entity_registry.async_get_entity_id(
-            "light", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_rel_0_4"
+            "switch", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_rel_0_4"
         )
         is not None
     )
     assert (
         entity_registry.async_get_entity_id(
-            "switch", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_rel_0_4"
+            "light", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_rel_0_4"
         )
         is None
     )

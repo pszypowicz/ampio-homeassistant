@@ -134,13 +134,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
             "new devices register without a suggested area"
         )
 
-    # The Designer description records refine each relay's Matter tag (the
-    # catalogue's type column lags the CAN-resident record) and fill each
-    # object's Designer location, the fallback area source. The records
-    # answer the admin login only, and a failed sweep degrades to the
-    # catalogue data. Record answers travel the CAN bus and need several
-    # seconds on a large install, so the sweep keeps the library's default
-    # timeout; a tighter cap drops answers that were still in flight.
+    # The classification source for the platform partition: the
+    # catalogue-column Matter tags, captured before the description sweep
+    # refines them. The sweep is admin-only, and anything that decides an
+    # entity's platform must build identically on both account tiers, so
+    # the sweep's data never feeds the partition (docs/designer-quirks.md).
+    matter_tags = {obj.id: obj.matter_device_type for obj in client.objects.values()}
+
+    # The Designer description records fill each object's Designer
+    # location, the fallback area source - decoration, applied only at
+    # device creation. The records answer the admin login only, and a
+    # failed sweep degrades to the catalogue data. Record answers travel
+    # the CAN bus and need several seconds on a large install, so the
+    # sweep keeps the library's default timeout; a tighter cap drops
+    # answers that were still in flight.
     if client.access_tier is AccessTier.ADMIN:
         try:
             await client.resolve_locations()
@@ -151,7 +158,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
                 "without Designer-location areas"
             )
 
-    entry.runtime_data = AmpioData(client, prefix, hub.id, module_device_ids, rooms)
+    entry.runtime_data = AmpioData(
+        client, prefix, hub.id, module_device_ids, rooms, matter_tags
+    )
 
     was_unavailable = False
 
