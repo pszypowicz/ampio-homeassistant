@@ -12,6 +12,7 @@ from ampio_mqtt import (
     AuthFailed,
     AvailabilityChanged,
     ConnectionDied,
+    DesignerRecord,
 )
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -149,7 +150,7 @@ async def test_restricted_account_groups_by_module_mac(
     await setup_integration(hass, mock_config_entry)
     assert mock_config_entry.state is ConfigEntryState.LOADED
     # The description records answer the admin login only.
-    mock_client.resolve_locations.assert_not_called()
+    mock_client.resolve_records.assert_not_called()
 
     hub = device_registry.async_get_device_by_identifier(
         (DOMAIN, MSERV_MAC), mock_config_entry.entry_id
@@ -375,20 +376,21 @@ async def test_sweep_never_moves_an_entity(
 
     The description records answer the admin login only, and an entity's
     platform must build identically on both account tiers. Object 74 is a
-    relay with an empty catalogue column; a Lighting tag the sweep folds
-    over it must leave the relay on the switch platform.
+    relay with an empty catalogue column; a Lighting tag in the record
+    bundle the sweep fills must leave the relay on the switch platform.
     """
 
-    def _resolve() -> dict[int, str]:
+    def _resolve() -> dict[int, DesignerRecord]:
         obj = mock_client.objects[74]
-        mock_client.objects[74] = replace(obj, matter_device_type=0x0100)
+        record = DesignerRecord(matter_device_type=0x0100)
+        mock_client.objects[74] = replace(obj, record=record)
         return {}
 
-    mock_client.resolve_locations.side_effect = _resolve
+    mock_client.resolve_records.side_effect = _resolve
 
     await setup_integration(hass, mock_config_entry)
 
-    mock_client.resolve_locations.assert_awaited_once_with()
+    mock_client.resolve_records.assert_awaited_once_with()
     assert (
         entity_registry.async_get_entity_id(
             "switch", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_rel_0_4"
@@ -410,7 +412,7 @@ async def test_resolve_failure_degrades(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A failed description sweep logs one warning and setup still succeeds."""
-    mock_client.resolve_locations.side_effect = AmpioTimeoutError("no reply")
+    mock_client.resolve_records.side_effect = AmpioTimeoutError("no reply")
     await setup_integration(hass, mock_config_entry)
 
     assert mock_config_entry.state is ConfigEntryState.LOADED
@@ -432,14 +434,14 @@ async def test_designer_location_fills_missing_room(
 ) -> None:
     """The app room wins; the Designer location covers roomless objects."""
 
-    def _resolve() -> dict[int, str]:
+    def _resolve() -> dict[int, DesignerRecord]:
         for oid, location in ((81, "Elsewhere"), (82, "Garaz")):
             mock_client.objects[oid] = replace(
-                mock_client.objects[oid], location=location
+                mock_client.objects[oid], record=DesignerRecord(location=location)
             )
         return {}
 
-    mock_client.resolve_locations.side_effect = _resolve
+    mock_client.resolve_records.side_effect = _resolve
 
     await setup_integration(hass, mock_config_entry)
 

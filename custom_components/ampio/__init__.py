@@ -134,33 +134,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
             "new devices register without a suggested area"
         )
 
-    # The classification source for the platform partition: the
-    # catalogue-column Matter tags, captured before the description sweep
-    # refines them. The sweep is admin-only, and anything that decides an
-    # entity's platform must build identically on both account tiers, so
-    # the sweep's data never feeds the partition (docs/designer-quirks.md).
-    matter_tags = {obj.id: obj.matter_device_type for obj in client.objects.values()}
-
-    # The Designer description records fill each object's Designer
-    # location, the fallback area source - decoration, applied only at
-    # device creation. The records answer the admin login only, and a
-    # failed sweep degrades to the catalogue data. Record answers travel
-    # the CAN bus and need several seconds on a large install, so the
-    # sweep keeps the library's default timeout; a tighter cap drops
-    # answers that were still in flight.
+    # The description sweep fills each object's admin-guarded record
+    # bundle; the integration reads only ``record.location``, the fallback
+    # area source - decoration, applied only at device creation. The
+    # platform partition reads ``matter_device_type``, the catalogue
+    # column both tiers receive, which the sweep never touches
+    # (docs/designer-quirks.md). Record answers travel the CAN bus and
+    # need several seconds on a large install, so the sweep keeps the
+    # library's default timeout; a tighter cap drops answers that were
+    # still in flight.
     if client.access_tier is AccessTier.ADMIN:
         try:
-            await client.resolve_locations()
+            await client.resolve_records()
         except AmpioConnectionError, AmpioTimeoutError:
             _LOGGER.warning(
                 "Could not resolve the Designer descriptions; "
-                "relays classify from the catalogue and devices register "
-                "without Designer-location areas"
+                "devices register without Designer-location areas"
             )
 
-    entry.runtime_data = AmpioData(
-        client, prefix, hub.id, module_device_ids, rooms, matter_tags
-    )
+    entry.runtime_data = AmpioData(client, prefix, hub.id, module_device_ids, rooms)
 
     was_unavailable = False
 
