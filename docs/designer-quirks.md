@@ -6,10 +6,11 @@ The device-type tag on an output ("Description in device" -> for example "Lighti
 
 Tags saved with older Ampio tooling exist only in the CAN record, and the catalogue column stayed empty. A relay in that state shows its Lighting tag in Designer, yet Home Assistant surfaces it as a switch.
 
-The fix is one save per output, in the current web Designer: open the output's "Description in device" panel and save it again. Designer then rewrites the CAN record and fills the catalogue column in the same save. Verified behavior on a real install:
+The fix, in the current web Designer: touch every affected output individually - select a different device type and switch it back to Lighting, so Designer registers an edit - then save once. One save covers all the outputs you touched. Verified behavior on a real install, and confirmed in the Designer web bundle:
 
-- Every output needs its own save. A save on one output does not sync its neighbors, however correct they look in the Designer UI.
-- Designer only saves when something changed, so flip a field back and forth when needed. A Lokalizacja change counts, and the tag rides along with it.
+- Designer tracks changes per module and per category (a `descriptions` dirty flag on the device), and the save re-sends a dirty module's whole description table over the CAN bus.
+- The catalogue column, however, updates only for the outputs you actually edited in the UI. An untouched neighbor keeps its stale column even though its record just went over the wire again - which is why every output needs its own flip, however correct it looks in Designer.
+- Designer registers an edit only on a real change, so flip the value away and back. A Lokalizacja change counts too, and the tag rides along with it.
 
 ## The stability contract
 
