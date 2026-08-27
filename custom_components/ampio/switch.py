@@ -11,7 +11,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import DOMAIN
 from .data import AmpioConfigEntry, AmpioData
-from .entity import AmpioEntity, eligible_objects
+from .entity import AmpioEntity, async_turn_on_honoring_pulse, eligible_objects
 from .light import LIGHT_MATTER_TYPES
 
 PARALLEL_UPDATES = 0
@@ -94,9 +94,11 @@ class AmpioSwitch(AmpioEntity, SwitchEntity):
 
     @override
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn the object on."""
+        """Turn the object on, timed when Designer configures a pulse."""
         self._check_writable()
-        await self._data.client.turn_on(self._object_id)
+        await async_turn_on_honoring_pulse(
+            self._data.client, self._object, self._object_id
+        )
 
     @override
     async def async_turn_off(self, **kwargs: Any) -> None:

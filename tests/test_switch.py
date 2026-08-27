@@ -141,6 +141,36 @@ async def test_push_echo_toggles_state(
     assert hass.states.get(PLAIN_ENTITY_ID).state == STATE_OFF
 
 
+async def test_timed_relay_pulses_on_turn_on(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A configured Designer time turns the on write into a timed pulse.
+
+    The M-SERV never applies the time server-side, so the integration
+    sends it, as the Ampio app does. The off write stays plain.
+    """
+    obj = mock_client.objects[74]
+    mock_client.objects[74] = replace(obj, pulse_ms=90000)
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        SWITCH_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: PLAIN_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.set_value.assert_awaited_once_with(74, 255, pulse_ms=90000)
+    mock_client.turn_on.assert_not_called()
+
+    await hass.services.async_call(
+        SWITCH_DOMAIN,
+        SERVICE_TURN_OFF,
+        {ATTR_ENTITY_ID: PLAIN_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.turn_off.assert_awaited_once_with(74)
+
+
 async def test_read_only_object_rejects_writes(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:

@@ -81,6 +81,7 @@ def make_object(
     matter_device_type: int | None = None,
     tilt_position: int | None = None,
     thermostat: ThermostatState | None = None,
+    pulse_ms: int = 0,
 ) -> AmpioObject:
     """Build a classified object the way discovery would."""
     return AmpioObject(
@@ -96,6 +97,7 @@ def make_object(
         matter_device_type=matter_device_type,
         tilt_position=tilt_position,
         thermostat=thermostat,
+        pulse_ms=pulse_ms,
     )
 
 
@@ -167,6 +169,7 @@ DEFAULT_OBJECTS = (
         name="Dzwonek",
         value="0",
         params=1 << 15,
+        pulse_ms=3000,
     ),
     make_object(62, "detekcja", 0, leaf_id="0_cb8f_det_0_2", funkcja=2, value="0"),
     make_object(

@@ -48,7 +48,7 @@ async def test_all_entities(
 async def test_press_maps_to_turn_on(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """A press sends the plain on verb; the module owns the release."""
+    """A press pulses for the configured time, or latches without one."""
     await setup_integration(hass, mock_config_entry)
 
     await hass.services.async_call(
@@ -57,9 +57,9 @@ async def test_press_maps_to_turn_on(
         {ATTR_ENTITY_ID: RELAY_ENTITY_ID},
         blocking=True,
     )
-    mock_client.turn_on.assert_awaited_once_with(150)
+    mock_client.set_value.assert_awaited_once_with(150, 255, pulse_ms=3000)
+    mock_client.turn_on.assert_not_called()
 
-    mock_client.turn_on.reset_mock()
     await hass.services.async_call(
         BUTTON_DOMAIN,
         SERVICE_PRESS,
