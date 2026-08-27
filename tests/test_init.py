@@ -1,9 +1,11 @@
 """Tests for the Ampio integration setup and teardown."""
 
+from dataclasses import replace
 import logging
 from unittest.mock import MagicMock
 
 from ampio_mqtt import (
+    AccessTier,
     AmpioAuthError,
     AmpioConnectionError,
     AmpioTimeoutError,
@@ -142,9 +144,12 @@ async def test_restricted_account_groups_by_module_mac(
     """
     mock_client.modules = {}
     mock_client.mserv = None
+    mock_client.access_tier = AccessTier.RESTRICTED
 
     await setup_integration(hass, mock_config_entry)
     assert mock_config_entry.state is ConfigEntryState.LOADED
+    # The description records answer the admin login only.
+    mock_client.resolve_locations.assert_not_called()
 
     hub = device_registry.async_get_device_by_identifier(
         (DOMAIN, MSERV_MAC), mock_config_entry.entry_id
@@ -355,6 +360,101 @@ async def test_room_fetch_failure_degrades(
     ]
     assert len(room_map_warnings) == 1
     assert mock_config_entry.runtime_data.rooms == {}
+
+
+async def test_admin_resolves_designer_descriptions(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """The description sweep runs before the platforms enumerate.
+
+    Object 74 is an untagged relay in the fixture catalogue; the sweep
+    delivers its Lighting tag the way resolve_locations() folds a CAN
+    record over the catalogue's lagging type column, so the relay must
+    surface as a light, not a switch.
+    """
+
+    def _resolve(timeout: float) -> dict[int, str]:
+        obj = mock_client.objects[74]
+        mock_client.objects[74] = replace(obj, matter_device_type=0x0100)
+        return {}
+
+    mock_client.resolve_locations.side_effect = _resolve
+
+    await setup_integration(hass, mock_config_entry)
+
+    mock_client.resolve_locations.assert_awaited_once_with(timeout=5.0)
+    assert (
+        entity_registry.async_get_entity_id(
+            "light", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_rel_0_4"
+        )
+        is not None
+    )
+    assert (
+        entity_registry.async_get_entity_id(
+            "switch", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_rel_0_4"
+        )
+        is None
+    )
+
+
+async def test_resolve_failure_degrades(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A failed description sweep logs one warning and setup still succeeds."""
+    mock_client.resolve_locations.side_effect = AmpioTimeoutError("no reply")
+    await setup_integration(hass, mock_config_entry)
+
+    assert mock_config_entry.state is ConfigEntryState.LOADED
+    warnings = [
+        record
+        for record in caplog.records
+        if record.levelname == "WARNING"
+        and "Designer descriptions" in record.getMessage()
+    ]
+    assert len(warnings) == 1
+
+
+async def test_designer_location_fills_missing_room(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    area_registry: ar.AreaRegistry,
+) -> None:
+    """The app room wins; the Designer location covers roomless objects."""
+
+    def _resolve(timeout: float) -> dict[int, str]:
+        for oid, location in ((81, "Elsewhere"), (82, "Garaz")):
+            mock_client.objects[oid] = replace(
+                mock_client.objects[oid], location=location
+            )
+        return {}
+
+    mock_client.resolve_locations.side_effect = _resolve
+
+    await setup_integration(hass, mock_config_entry)
+
+    roomed = device_registry.async_get_device_by_identifier(
+        (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_rol_0_1"), mock_config_entry.entry_id
+    )
+    assert roomed is not None
+    sypialnia = area_registry.async_get_area_by_name("Sypialnia")
+    assert sypialnia is not None
+    assert roomed.area_id == sypialnia.id
+
+    filled = device_registry.async_get_device_by_identifier(
+        (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_rolp_0_2"), mock_config_entry.entry_id
+    )
+    assert filled is not None
+    garaz = area_registry.async_get_area_by_name("Garaz")
+    assert garaz is not None
+    assert filled.area_id == garaz.id
 
 
 async def test_output_objects_get_own_devices(

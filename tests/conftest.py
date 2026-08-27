@@ -11,6 +11,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from ampio_mqtt import (
+    AccessTier,
     AmpioModule,
     AmpioObject,
     AmpioScene,
@@ -333,8 +334,10 @@ def mock_client_class() -> Generator[MagicMock]:
         client.modules = {module.id: module for module in DEFAULT_MODULES}
         client.server_info = SERVER_INFO
         client.mserv = client.modules[1]
+        client.access_tier = AccessTier.ADMIN
         client.fetch_scenes.return_value = list(DEFAULT_SCENES)
         client.fetch_rooms.return_value = dict(DEFAULT_ROOMS)
+        client.resolve_locations.return_value = {}
 
         # Mirrors the real resolver's documented contract over the seeded
         # catalogue: join by device_id, gated on the leaf-derived mac.

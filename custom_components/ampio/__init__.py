@@ -3,9 +3,11 @@
 import logging
 
 from ampio_mqtt import (
+    AccessTier,
     AmpioAuthError,
     AmpioClient,
     AmpioConnectionError,
+    AmpioTimeoutError,
     AuthFailed,
     AvailabilityChanged,
     ConnectionDied,
@@ -131,6 +133,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
             "Could not fetch the Ampio room map; "
             "new devices register without a suggested area"
         )
+
+    # The Designer description records refine each relay's Matter tag (the
+    # catalogue's type column lags the CAN-resident record) and fill each
+    # object's Designer location, the fallback area source. The records
+    # answer the admin login only, and a failed sweep degrades to the
+    # catalogue data. A short timeout bounds setup: a silent module makes
+    # the sweep wait out the full budget, and offline modules are normal.
+    if client.access_tier is AccessTier.ADMIN:
+        try:
+            await client.resolve_locations(timeout=5.0)
+        except AmpioConnectionError, AmpioTimeoutError:
+            _LOGGER.warning(
+                "Could not resolve the Designer descriptions; "
+                "relays classify from the catalogue and devices register "
+                "without Designer-location areas"
+            )
 
     entry.runtime_data = AmpioData(client, prefix, hub.id, module_device_ids, rooms)
 

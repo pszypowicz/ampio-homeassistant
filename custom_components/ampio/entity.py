@@ -68,14 +68,15 @@ class AmpioEntity(Entity):
                 # ``on_hub`` is False only when ``mac`` is not None.
                 assert mac is not None
                 parent_device_id = data.module_device_ids.get(mac, data.hub_device_id)
-            # The object device carries the object's name and room. An entity
+            # The object device carries the object's name and area: the app
+            # room first, the Designer location as the fallback. An entity
             # name of None then takes the device name instead of repeating
             # it; unnamed objects keep their translated description name.
             self._attr_device_info = DeviceInfo(
                 identifiers={(DOMAIN, f"{data.prefix}:obj:{obj.stable_key}")},
                 name=obj.name or f"Ampio object {obj.stable_key}",
                 via_device_id=parent_device_id,
-                suggested_area=data.rooms.get(obj.id),
+                suggested_area=data.rooms.get(obj.id) or obj.location,
             )
             if obj.name:
                 self._attr_name = None
