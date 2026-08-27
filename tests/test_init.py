@@ -1,9 +1,11 @@
 """Tests for the Ampio integration setup and teardown."""
 
+from dataclasses import replace
 import logging
 from unittest.mock import MagicMock
 
 from ampio_mqtt import (
+    AccessTier,
     AmpioAuthError,
     AmpioConnectionError,
     AmpioTimeoutError,
@@ -142,9 +144,12 @@ async def test_restricted_account_groups_by_module_mac(
     """
     mock_client.modules = {}
     mock_client.mserv = None
+    mock_client.access_tier = AccessTier.RESTRICTED
 
     await setup_integration(hass, mock_config_entry)
     assert mock_config_entry.state is ConfigEntryState.LOADED
+    # The description records answer the admin login only.
+    mock_client.resolve_locations.assert_not_called()
 
     hub = device_registry.async_get_device_by_identifier(
         (DOMAIN, MSERV_MAC), mock_config_entry.entry_id
@@ -167,13 +172,13 @@ async def test_restricted_account_groups_by_module_mac(
     # Scenes and the server-owned flag live directly on the hub device
     # regardless of account tier. Sensor and input entities live directly on
     # their module device; every output/thermostat entity sits on its own
-    # child device, bound to the module through parent_device_id.
+    # device, bound to the module through via_device_id.
     scene_entities = [entity for entity in entities if entity.domain == "scene"]
     assert len(scene_entities) == 1
     assert all(entity.device_id == hub.id for entity in scene_entities)
 
     hub_flag_entity_id = entity_registry.async_get_entity_id(
-        "binary_sensor", DOMAIN, f"{MSERV_MAC}_leaf_0_1_flaga_0_9"
+        "switch", DOMAIN, f"{MSERV_MAC}_leaf_0_1_flaga_0_9"
     )
     assert hub_flag_entity_id is not None
     hub_flag_entity = entity_registry.async_get(hub_flag_entity_id)
@@ -186,9 +191,12 @@ async def test_restricted_account_groups_by_module_mac(
     module_entities = [
         entity for entity in entities if entity.entity_id not in excluded_ids
     ]
+    # Inputs stay on the module device whatever their domain: the writable
+    # flag surfaces as a switch yet remains a module property.
     direct_domains = {"sensor", "binary_sensor"}
+    module_direct_ids = {f"{MSERV_MAC}_leaf_0_cb8f_flaga_0_1"}
     for entity in module_entities:
-        if entity.domain in direct_domains:
+        if entity.domain in direct_domains or entity.unique_id in module_direct_ids:
             assert entity.device_id == module.id
             continue
         device = device_registry.async_get(entity.device_id)
@@ -358,7 +366,102 @@ async def test_room_fetch_failure_degrades(
     assert mock_config_entry.runtime_data.rooms == {}
 
 
-async def test_output_objects_become_child_devices(
+async def test_admin_resolves_designer_descriptions(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """The description sweep runs before the platforms enumerate.
+
+    Object 74 is an untagged relay in the fixture catalogue; the sweep
+    delivers its Lighting tag the way resolve_locations() folds a CAN
+    record over the catalogue's lagging type column, so the relay must
+    surface as a light, not a switch.
+    """
+
+    def _resolve() -> dict[int, str]:
+        obj = mock_client.objects[74]
+        mock_client.objects[74] = replace(obj, matter_device_type=0x0100)
+        return {}
+
+    mock_client.resolve_locations.side_effect = _resolve
+
+    await setup_integration(hass, mock_config_entry)
+
+    mock_client.resolve_locations.assert_awaited_once_with()
+    assert (
+        entity_registry.async_get_entity_id(
+            "light", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_rel_0_4"
+        )
+        is not None
+    )
+    assert (
+        entity_registry.async_get_entity_id(
+            "switch", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_rel_0_4"
+        )
+        is None
+    )
+
+
+async def test_resolve_failure_degrades(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A failed description sweep logs one warning and setup still succeeds."""
+    mock_client.resolve_locations.side_effect = AmpioTimeoutError("no reply")
+    await setup_integration(hass, mock_config_entry)
+
+    assert mock_config_entry.state is ConfigEntryState.LOADED
+    warnings = [
+        record
+        for record in caplog.records
+        if record.levelname == "WARNING"
+        and "Designer descriptions" in record.getMessage()
+    ]
+    assert len(warnings) == 1
+
+
+async def test_designer_location_fills_missing_room(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    area_registry: ar.AreaRegistry,
+) -> None:
+    """The app room wins; the Designer location covers roomless objects."""
+
+    def _resolve() -> dict[int, str]:
+        for oid, location in ((81, "Elsewhere"), (82, "Garaz")):
+            mock_client.objects[oid] = replace(
+                mock_client.objects[oid], location=location
+            )
+        return {}
+
+    mock_client.resolve_locations.side_effect = _resolve
+
+    await setup_integration(hass, mock_config_entry)
+
+    roomed = device_registry.async_get_child_device_by_identifier(
+        (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_rol_0_1"), mock_config_entry.entry_id
+    )
+    assert roomed is not None
+    sypialnia = area_registry.async_get_area_by_name("Sypialnia")
+    assert sypialnia is not None
+    assert roomed.area_id == sypialnia.id
+
+    filled = device_registry.async_get_child_device_by_identifier(
+        (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_rolp_0_2"), mock_config_entry.entry_id
+    )
+    assert filled is not None
+    garaz = area_registry.async_get_area_by_name("Garaz")
+    assert garaz is not None
+    assert filled.area_id == garaz.id
+
+
+async def test_output_objects_get_own_devices(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
@@ -366,7 +469,7 @@ async def test_output_objects_become_child_devices(
     entity_registry: er.EntityRegistry,
     area_registry: ar.AreaRegistry,
 ) -> None:
-    """Module-owned output objects get child devices with names, rooms, entities."""
+    """Module-owned output objects get own devices with names, rooms, entities."""
     await setup_integration(hass, mock_config_entry)
 
     module_device = device_registry.async_get_device_by_identifier(
@@ -375,22 +478,22 @@ async def test_output_objects_become_child_devices(
     assert module_device is not None
 
     # Named object 71 (Taras LED, room Taras).
-    child = device_registry.async_get_child_device_by_identifier(
+    obj_device = device_registry.async_get_child_device_by_identifier(
         (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_led_0_1"), mock_config_entry.entry_id
     )
-    assert child is not None
-    assert child.parent_device_id == module_device.id
-    assert child.name == "Taras LED"
+    assert obj_device is not None
+    assert obj_device.parent_device_id == module_device.id
+    assert obj_device.name == "Taras LED"
     area = area_registry.async_get_area_by_name("Taras")
     assert area is not None
-    assert child.area_id == area.id
+    assert obj_device.area_id == area.id
     entity_id = entity_registry.async_get_entity_id(
         "light", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_led_0_1"
     )
     assert entity_id is not None
     entity_entry = entity_registry.async_get(entity_id)
     assert entity_entry is not None
-    assert entity_entry.device_id == child.id
+    assert entity_entry.device_id == obj_device.id
 
     # Unnamed object 74 (a relay): fallback device name, translated entity name.
     unnamed = device_registry.async_get_child_device_by_identifier(
@@ -401,7 +504,7 @@ async def test_output_objects_become_child_devices(
     assert unnamed.area_id is None
 
     # Sensor object 36 (Temperatura) is a property of its module, not a
-    # deployed device of its own, so it gets no child device.
+    # deployed device of its own, so it gets no device of its own.
     assert (
         device_registry.async_get_child_device_by_identifier(
             (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_temp_0_1"),
@@ -425,7 +528,7 @@ async def test_server_owned_objects_partition(
     device_registry: dr.DeviceRegistry,
     entity_registry: er.EntityRegistry,
 ) -> None:
-    """Server-owned inputs attach to the hub directly; module thermostats keep children."""
+    """Server-owned inputs attach to the hub directly; thermostats keep own devices."""
     await setup_integration(hass, mock_config_entry)
 
     hub = device_registry.async_get_device_by_identifier(
@@ -433,7 +536,7 @@ async def test_server_owned_objects_partition(
     )
     assert hub is not None
 
-    # Object 121 (server-owned flag, InputKind): entity on the hub, no child.
+    # Object 121 (server-owned flag, InputKind): entity on the hub, no device.
     assert (
         device_registry.async_get_child_device_by_identifier(
             (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_1_flaga_0_9"),
@@ -442,30 +545,30 @@ async def test_server_owned_objects_partition(
         is None
     )
     flag_entity_id = entity_registry.async_get_entity_id(
-        "binary_sensor", DOMAIN, f"{MSERV_MAC}_leaf_0_1_flaga_0_9"
+        "switch", DOMAIN, f"{MSERV_MAC}_leaf_0_1_flaga_0_9"
     )
     assert flag_entity_id is not None
     flag_entity = entity_registry.async_get(flag_entity_id)
     assert flag_entity is not None
     assert flag_entity.device_id == hub.id
 
-    # Object 91 (module-owned thermostat, ThermostatKind): keeps its child device.
+    # Object 91 (module-owned thermostat, ThermostatKind): keeps its own device.
     module_device = device_registry.async_get_device_by_identifier(
         MSENS_IDENTIFIER, mock_config_entry.entry_id
     )
     assert module_device is not None
-    thermostat_child = device_registry.async_get_child_device_by_identifier(
+    thermostat_device = device_registry.async_get_child_device_by_identifier(
         (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_reg_0_1"), mock_config_entry.entry_id
     )
-    assert thermostat_child is not None
-    assert thermostat_child.parent_device_id == module_device.id
+    assert thermostat_device is not None
+    assert thermostat_device.parent_device_id == module_device.id
     climate_entity_id = entity_registry.async_get_entity_id(
         "climate", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_reg_0_1"
     )
     assert climate_entity_id is not None
     climate_entity = entity_registry.async_get(climate_entity_id)
     assert climate_entity is not None
-    assert climate_entity.device_id == thermostat_child.id
+    assert climate_entity.device_id == thermostat_device.id
 
 
 async def test_remove_config_entry_device(
@@ -483,29 +586,31 @@ async def test_remove_config_entry_device(
     module_device = device_registry.async_get_device_by_identifier(
         MSENS_IDENTIFIER, mock_config_entry.entry_id
     )
-    child = device_registry.async_get_child_device_by_identifier(
+    obj_device = device_registry.async_get_child_device_by_identifier(
         (DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_led_0_1"), mock_config_entry.entry_id
     )
     assert hub is not None
     assert module_device is not None
-    assert child is not None
+    assert obj_device is not None
 
     assert not await async_remove_config_entry_device(hass, mock_config_entry, hub)
     assert not await async_remove_config_entry_device(
         hass, mock_config_entry, module_device
     )
-    assert not await async_remove_config_entry_device(hass, mock_config_entry, child)
+    assert not await async_remove_config_entry_device(
+        hass, mock_config_entry, obj_device
+    )
 
-    # Stale sensor child device (pre-partition leftover) may be deleted
-    # because sensor objects no longer get child devices.
+    # A stale sensor object device (pre-partition leftover) may be deleted
+    # because sensor objects no longer get devices of their own.
     stale = device_registry.async_get_or_create_child(
         config_entry_id=mock_config_entry.entry_id,
         identifiers={(DOMAIN, f"{MSERV_MAC}:obj:leaf_0_cb8f_temp_0_1")},
-        name="stale sensor child",
+        name="stale sensor device",
         parent_device_id=module_device.id,
     )
     assert await async_remove_config_entry_device(hass, mock_config_entry, stale)
 
-    # Drop the LED object from the catalogue: its child device goes stale.
+    # Drop the LED object from the catalogue: its device goes stale.
     del mock_client.objects[71]
-    assert await async_remove_config_entry_device(hass, mock_config_entry, child)
+    assert await async_remove_config_entry_device(hass, mock_config_entry, obj_device)

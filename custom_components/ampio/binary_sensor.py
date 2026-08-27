@@ -17,15 +17,12 @@ from .entity import AmpioEntity, eligible_objects
 
 PARALLEL_UPDATES = 0
 
-# Descriptions for the input kinds the library can classify, keyed by
-# ``InputKind.key``. Objects classified into any other kind are not exposed.
+# Descriptions for the read-only input kinds, keyed by ``InputKind.key``.
+# Switchable inputs (the writable flags) belong to the switch platform;
+# objects classified into any other kind are not exposed.
 BINARY_SENSOR_DESCRIPTIONS: dict[str, BinarySensorEntityDescription] = {
     description.key: description
     for description in (
-        BinarySensorEntityDescription(
-            key="flaga",
-            translation_key="flag",
-        ),
         BinarySensorEntityDescription(
             key="detekcja",
             device_class=BinarySensorDeviceClass.MOTION,
