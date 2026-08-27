@@ -48,6 +48,4 @@ The per-field status LEDs on M-DOT touch panels appear as switch entities. Comma
 
 This integration is submitted to `home-assistant/core` ([PR #179548](https://github.com/home-assistant/core/pull/179548)). This repository tracks that PR and adds the remaining platforms ahead of the merge, so Ampio users can run the integration today and field feedback can strengthen the upstream review. After the PR merges, the platforms staged here follow as core PRs.
 
-The default branch works with Home Assistant 2026.8 out of the box: all seven platforms, the per-object device tree, panel status LED control, and config-entry diagnostics. One staged change remains open: [PR #20](https://github.com/pszypowicz/ampio-homeassistant/pull/20) switches the per-object devices to Home Assistant's native sub devices. It requires Home Assistant 2026.9, so it waits for that release and its test toolchain. The device tree stays the same, and the registry converts the existing devices in place on upgrade. After that change ships in a release, the upstream core PR gets refreshed to match.
-
 Report bugs and ideas in the [issues](https://github.com/pszypowicz/ampio-homeassistant/issues).
