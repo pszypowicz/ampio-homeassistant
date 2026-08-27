@@ -100,3 +100,53 @@
     'state': 'on',
   })
 # ---
+# name: test_all_entities[binary_sensor.m_sens_salon_przycisk_kino-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': None,
+    'config_entry_id': <ANY>,
+    'config_subentry_id': <ANY>,
+    'device_class': None,
+    'device_id': <ANY>,
+    'disabled_by': None,
+    'domain': 'binary_sensor',
+    'entity_category': None,
+    'entity_id': 'binary_sensor.m_sens_salon_przycisk_kino',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': 'Przycisk kino',
+    'options': dict({
+    }),
+    'original_device_class': None,
+    'original_icon': None,
+    'original_name': 'Przycisk kino',
+    'platform': 'ampio',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': 0,
+    'translation_key': 'input',
+    'unique_id': '47846_leaf_0_cb8f_wej_0_9',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_all_entities[binary_sensor.m_sens_salon_przycisk_kino-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'm-sens salon Przycisk kino',
+    }),
+    'context': <ANY>,
+    'entity_id': 'binary_sensor.m_sens_salon_przycisk_kino',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'off',
+  })
+# ---
