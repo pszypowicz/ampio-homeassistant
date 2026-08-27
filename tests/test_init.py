@@ -379,7 +379,7 @@ async def test_admin_resolves_designer_descriptions(
     surface as a light, not a switch.
     """
 
-    def _resolve(timeout: float) -> dict[int, str]:
+    def _resolve() -> dict[int, str]:
         obj = mock_client.objects[74]
         mock_client.objects[74] = replace(obj, matter_device_type=0x0100)
         return {}
@@ -388,7 +388,7 @@ async def test_admin_resolves_designer_descriptions(
 
     await setup_integration(hass, mock_config_entry)
 
-    mock_client.resolve_locations.assert_awaited_once_with(timeout=5.0)
+    mock_client.resolve_locations.assert_awaited_once_with()
     assert (
         entity_registry.async_get_entity_id(
             "light", DOMAIN, f"{MSERV_MAC}_leaf_0_cb8f_rel_0_4"
@@ -432,7 +432,7 @@ async def test_designer_location_fills_missing_room(
 ) -> None:
     """The app room wins; the Designer location covers roomless objects."""
 
-    def _resolve(timeout: float) -> dict[int, str]:
+    def _resolve() -> dict[int, str]:
         for oid, location in ((81, "Elsewhere"), (82, "Garaz")):
             mock_client.objects[oid] = replace(
                 mock_client.objects[oid], location=location

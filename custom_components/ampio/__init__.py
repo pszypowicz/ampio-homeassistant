@@ -138,11 +138,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     # catalogue's type column lags the CAN-resident record) and fill each
     # object's Designer location, the fallback area source. The records
     # answer the admin login only, and a failed sweep degrades to the
-    # catalogue data. A short timeout bounds setup: a silent module makes
-    # the sweep wait out the full budget, and offline modules are normal.
+    # catalogue data. Record answers travel the CAN bus and need several
+    # seconds on a large install, so the sweep keeps the library's default
+    # timeout; a tighter cap drops answers that were still in flight.
     if client.access_tier is AccessTier.ADMIN:
         try:
-            await client.resolve_locations(timeout=5.0)
+            await client.resolve_locations()
         except AmpioConnectionError, AmpioTimeoutError:
             _LOGGER.warning(
                 "Could not resolve the Designer descriptions; "
