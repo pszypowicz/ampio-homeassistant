@@ -37,9 +37,9 @@ from homeassistant.helpers import entity_registry as er
 from . import setup_integration
 from .conftest import emit
 
-PLAIN_ENTITY_ID = "cover.m_sens_salon_roleta_sypialnia"
-POSITION_ENTITY_ID = "cover.m_sens_salon_roleta_kuchnia"
-TILT_ENTITY_ID = "cover.m_sens_salon_zaluzja_goscinny"
+PLAIN_ENTITY_ID = "cover.sypialnia_roleta_sypialnia"
+POSITION_ENTITY_ID = "cover.roleta_kuchnia"
+TILT_ENTITY_ID = "cover.zaluzja_goscinny"
 
 
 @pytest.fixture(autouse=True)
