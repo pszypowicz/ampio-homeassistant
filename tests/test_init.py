@@ -169,7 +169,7 @@ async def test_restricted_account_groups_by_module_mac(
     entities = er.async_entries_for_config_entry(
         entity_registry, mock_config_entry.entry_id
     )
-    assert len(entities) == 22
+    assert len(entities) == 24
     # Scenes and the server-owned flag live directly on the hub device
     # regardless of account tier. Sensor and input entities live directly on
     # their module device; every output/thermostat entity sits on its own
@@ -193,9 +193,13 @@ async def test_restricted_account_groups_by_module_mac(
         entity for entity in entities if entity.entity_id not in excluded_ids
     ]
     # Inputs stay on the module device whatever their domain: the writable
-    # flag surfaces as a switch yet remains a module property.
+    # flag surfaces as a switch and the bell flag as a button, yet both
+    # remain module properties.
     direct_domains = {"sensor", "binary_sensor"}
-    module_direct_ids = {f"{MSERV_MAC}_leaf_0_cb8f_flaga_0_1"}
+    module_direct_ids = {
+        f"{MSERV_MAC}_leaf_0_cb8f_flaga_0_1",
+        f"{MSERV_MAC}_leaf_0_cb8f_flaga_0_3",
+    }
     for entity in module_entities:
         if entity.domain in direct_domains or entity.unique_id in module_direct_ids:
             assert entity.device_id == module.id
