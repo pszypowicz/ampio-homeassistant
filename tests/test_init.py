@@ -178,7 +178,7 @@ async def test_restricted_account_groups_by_module_mac(
     assert all(entity.device_id == hub.id for entity in scene_entities)
 
     hub_flag_entity_id = entity_registry.async_get_entity_id(
-        "binary_sensor", DOMAIN, f"{MSERV_MAC}_leaf_0_1_flaga_0_9"
+        "switch", DOMAIN, f"{MSERV_MAC}_leaf_0_1_flaga_0_9"
     )
     assert hub_flag_entity_id is not None
     hub_flag_entity = entity_registry.async_get(hub_flag_entity_id)
@@ -191,9 +191,12 @@ async def test_restricted_account_groups_by_module_mac(
     module_entities = [
         entity for entity in entities if entity.entity_id not in excluded_ids
     ]
+    # Inputs stay on the module device whatever their domain: the writable
+    # flag surfaces as a switch yet remains a module property.
     direct_domains = {"sensor", "binary_sensor"}
+    module_direct_ids = {f"{MSERV_MAC}_leaf_0_cb8f_flaga_0_1"}
     for entity in module_entities:
-        if entity.domain in direct_domains:
+        if entity.domain in direct_domains or entity.unique_id in module_direct_ids:
             assert entity.device_id == module.id
             continue
         device = device_registry.async_get(entity.device_id)
@@ -541,7 +544,7 @@ async def test_server_owned_objects_partition(
         is None
     )
     flag_entity_id = entity_registry.async_get_entity_id(
-        "binary_sensor", DOMAIN, f"{MSERV_MAC}_leaf_0_1_flaga_0_9"
+        "switch", DOMAIN, f"{MSERV_MAC}_leaf_0_1_flaga_0_9"
     )
     assert flag_entity_id is not None
     flag_entity = entity_registry.async_get(flag_entity_id)

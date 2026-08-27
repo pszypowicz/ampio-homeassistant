@@ -27,9 +27,6 @@
     },
     "entity": {
         "binary_sensor": {
-            "flag": {
-                "name": "Flag"
-            },
             "input": {
                 "name": "Input"
             }
@@ -46,6 +43,11 @@
             },
             "pressure_rel": {
                 "name": "Relative pressure"
+            }
+        },
+        "switch": {
+            "flag": {
+                "name": "Flag"
             }
         }
     },

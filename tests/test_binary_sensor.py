@@ -4,7 +4,7 @@ from collections.abc import Generator
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
-from ampio_mqtt import INPUT_KIND_KEYS, ObjectRemoved, ObjectUpdated
+from ampio_mqtt import INPUT_KIND_KEYS, InputKind, ObjectRemoved, ObjectUpdated
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -13,14 +13,14 @@ from pytest_homeassistant_custom_component.common import (
 from syrupy.assertion import SnapshotAssertion
 
 from custom_components.ampio.binary_sensor import BINARY_SENSOR_DESCRIPTIONS
+from custom_components.ampio.switch import is_switch
 from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import emit
+from .conftest import emit, make_object
 
-FLAG_ENTITY_ID = "binary_sensor.m_sens_salon_podlewanie"
 MOTION_ENTITY_ID = "binary_sensor.m_sens_salon_motion"
 WEJ_ENTITY_ID = "binary_sensor.m_sens_salon_przycisk_kino"
 
@@ -35,10 +35,18 @@ def binary_sensor_only() -> Generator[None]:
 def test_input_kind_vocabulary_is_mapped_or_excluded() -> None:
     """A library upgrade that adds an input kind forces a mapping decision.
 
+    Switchable inputs (the writable flags) belong to the switch platform.
     ``symulacja`` is the M-SERV's presence-simulation system object and is
     deliberately not exposed as an entity.
     """
-    assert INPUT_KIND_KEYS - {"symulacja"} == BINARY_SENSOR_DESCRIPTIONS.keys()
+    for key in sorted(INPUT_KIND_KEYS - {"symulacja"}):
+        obj = make_object(1, key, 0, leaf_id="0_1_x_0_1")
+        assert isinstance(obj.kind, InputKind)
+        if obj.kind.switchable:
+            assert is_switch(obj)
+            assert key not in BINARY_SENSOR_DESCRIPTIONS
+        else:
+            assert key in BINARY_SENSOR_DESCRIPTIONS
 
 
 @pytest.mark.usefixtures("mock_client")
@@ -51,21 +59,6 @@ async def test_all_entities(
     """Snapshot every entity's registry entry and state."""
     await setup_integration(hass, mock_config_entry)
     await snapshot_platform(hass, entity_registry, snapshot, mock_config_entry.entry_id)
-
-
-async def test_push_update_toggles_state(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
-) -> None:
-    """A pushed input update flips the entity between on and off."""
-    await setup_integration(hass, mock_config_entry)
-    assert hass.states.get(FLAG_ENTITY_ID).state == STATE_ON
-
-    obj = replace(mock_client.objects[61], value="0")
-    mock_client.objects[61] = obj
-    emit(mock_client, ObjectUpdated(object=obj))
-    await hass.async_block_till_done()
-
-    assert hass.states.get(FLAG_ENTITY_ID).state == STATE_OFF
 
 
 async def test_wej_push_update_toggles_state(
