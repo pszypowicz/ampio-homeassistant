@@ -1,6 +1,5 @@
 """The Ampio integration."""
 
-from dataclasses import dataclass
 import logging
 
 from ampio_mqtt import (
@@ -12,7 +11,6 @@ from ampio_mqtt import (
     ConnectionDied,
 )
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_HOST,
     CONF_PASSWORD,
@@ -28,21 +26,9 @@ from homeassistant.exceptions import (
 from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN, PLATFORMS
+from .data import AmpioConfigEntry, AmpioData
 
 _LOGGER = logging.getLogger(__name__)
-
-type AmpioConfigEntry = ConfigEntry[AmpioData]
-
-
-@dataclass
-class AmpioData:
-    """Runtime data for one Ampio server."""
-
-    client: AmpioClient
-    # The server's identity key; scopes unique_ids and device identifiers so
-    # two servers on one Home Assistant instance never collide.
-    prefix: str
-    hub_device_id: str
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> bool:

@@ -15,8 +15,8 @@ from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 
-from . import AmpioData
 from .const import DOMAIN
+from .data import AmpioData
 
 
 def eligible_objects(client: AmpioClient) -> Iterator[AmpioObject]:
