@@ -9,5 +9,5 @@
   "loggers": ["ampio_mqtt"],
   "quality_scale": "bronze",
   "requirements": ["ampio-mqtt==0.36.1"],
-  "version": "0.0.5"
+  "version": "0.0.6"
 }
