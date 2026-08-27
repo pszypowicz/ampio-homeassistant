@@ -103,11 +103,12 @@ def make_object(
 # unit, precision, and display name. The hidden phantom mirrors a real M-SENS
 # where adding a CO2 object in Designer leaves an unnamed stub sharing the
 # leafId behind; the ghost is a removed-but-still-returned row with no leafId.
-# The two input objects (a named flag, an unnamed motion detection) feed the
-# binary_sensor platform the same way. The four output objects (a named
-# dimmer, an rgbw, a Matter-tagged relay light, an untagged relay for the
-# switch platform) feed the light and switch platforms, plus a plug-tagged
-# relay for the switch platform's outlet class. The three cover objects (a
+# The three input objects (a named flag, an unnamed motion detection, a
+# named wired-button input) feed the binary_sensor platform the same way.
+# The four output objects (a named dimmer, an rgbw, a Matter-tagged relay
+# light, an untagged relay for the switch platform) feed the light and
+# switch platforms, plus a plug-tagged relay for the switch platform's
+# outlet class. The three cover objects (a
 # plain roleta without feedback, a percent roleta, a lamella blind) feed the
 # cover platform. The thermostat object feeds the climate platform; its value
 # is the running flag.
@@ -144,6 +145,14 @@ DEFAULT_OBJECTS = (
         value="1",
     ),
     make_object(62, "detekcja", 0, leaf_id="0_cb8f_det_0_2", funkcja=2, value="0"),
+    make_object(
+        146,
+        "wej",
+        15,
+        leaf_id="0_cb8f_wej_0_9",
+        name="Przycisk kino",
+        value="0",
+    ),
     make_object(
         71,
         "led",

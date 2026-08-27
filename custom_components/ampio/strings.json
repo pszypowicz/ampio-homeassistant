@@ -29,6 +29,9 @@
     "binary_sensor": {
       "flag": {
         "name": "Flag"
+      },
+      "input": {
+        "name": "Input"
       }
     },
     "sensor": {

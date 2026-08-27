@@ -157,7 +157,7 @@ async def test_restricted_account_groups_by_module_mac(
     entities = er.async_entries_for_config_entry(
         entity_registry, mock_config_entry.entry_id
     )
-    assert len(entities) == 20
+    assert len(entities) == 21
     # Scenes live on the hub device regardless of account tier; every other
     # entity in the catalogue is module-bound.
     module_entities = [entity for entity in entities if entity.domain != "scene"]
