@@ -40,6 +40,10 @@ Requires Home Assistant 2026.9.0 or newer. `ampio-mqtt` is installed automatical
 
 Devices appear as a hub, then one device per Ampio module, then one device per Ampio object, named as in the Ampio app. Objects assigned to a room in the Ampio app are suggested into the matching Home Assistant area on first setup; you own the areas afterwards.
 
+### Panel status LEDs
+
+The per-field status LEDs on M-DOT touch panels appear as switch entities. Commands reach them only when the integration signs in with an admin account. To make an LED controllable, create its app object in Ampio Designer and leave the LED out of Designer logic. An LED bound to a Designer condition accepts the command, but the module's own logic re-asserts it within seconds.
+
 ## Relationship to home-assistant/core
 
 This integration is submitted to `home-assistant/core` ([PR #179548](https://github.com/home-assistant/core/pull/179548)). This repository tracks that PR and adds the remaining platforms ahead of the merge, so Ampio users can run the integration today and field feedback can strengthen the upstream review. After the PR merges, the platforms staged here follow as core PRs.
