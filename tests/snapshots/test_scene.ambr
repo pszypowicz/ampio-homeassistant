@@ -1,5 +1,5 @@
 # serializer version: 1
-# name: test_all_entities[scene.mserv_wieczor-entry]
+# name: test_all_entities[scene.m_serv_wieczor-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -13,7 +13,7 @@
     'disabled_by': None,
     'domain': 'scene',
     'entity_category': None,
-    'entity_id': 'scene.mserv_wieczor',
+    'entity_id': 'scene.m_serv_wieczor',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -36,13 +36,13 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[scene.mserv_wieczor-state]
+# name: test_all_entities[scene.m_serv_wieczor-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'MSERV Wieczór',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'M-SERV Wieczór',
     }),
     'context': <ANY>,
-    'entity_id': 'scene.mserv_wieczor',
+    'entity_id': 'scene.m_serv_wieczor',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,

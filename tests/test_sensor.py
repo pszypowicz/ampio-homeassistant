@@ -32,16 +32,17 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from . import setup_integration
 from .conftest import (
-    MSENS_FALLBACK_NAME,
+    MSENS_DEVICE_NAME,
     MSENS_IDENTIFIER,
+    MSENS_SLUG,
     MSERV_MAC,
     emit,
     make_object,
 )
 
-TEMPERATURE_ENTITY_ID = "sensor.m_sens_salon_temperatura"
-HUMIDITY_ENTITY_ID = "sensor.m_sens_salon_wilgotnosc"
-CO2_ENTITY_ID = "sensor.m_sens_salon_co2"
+TEMPERATURE_ENTITY_ID = f"sensor.{MSENS_SLUG}_temperatura"
+HUMIDITY_ENTITY_ID = f"sensor.{MSENS_SLUG}_wilgotnosc"
+CO2_ENTITY_ID = f"sensor.{MSENS_SLUG}_co2"
 
 
 @pytest.fixture(autouse=True)
@@ -237,7 +238,7 @@ async def test_unexposable_objects_are_skipped(
     entities = er.async_entries_for_config_entry(
         entity_registry, mock_config_entry.entry_id
     )
-    assert len(entities) == 9
+    assert len(entities) == 10
 
 
 @pytest.mark.parametrize(
@@ -267,7 +268,7 @@ async def test_hub_anchored_objects(
     )
     assert hub is not None
     entity_id = entity_registry.async_get_entity_id(
-        Platform.SENSOR, DOMAIN, f"{MSERV_MAC}_leaf_{leaf_id}"
+        Platform.SENSOR, DOMAIN, f"{MSERV_MAC}_obj_500"
     )
     assert entity_id is not None
     entity_entry = entity_registry.async_get(entity_id)
@@ -296,7 +297,7 @@ async def test_module_without_catalogue_row_gets_bare_device(
     assert device.name == "Ampio module 0xDEAD"
     assert device.model is None
     entity_id = entity_registry.async_get_entity_id(
-        Platform.SENSOR, DOMAIN, f"{MSERV_MAC}_leaf_0_dead_temp_0_1"
+        Platform.SENSOR, DOMAIN, f"{MSERV_MAC}_obj_500"
     )
     assert entity_id is not None
     entity_entry = entity_registry.async_get(entity_id)
@@ -322,7 +323,7 @@ async def test_module_row_cannot_name_device(
     changes: dict[str, int | None],
     expected_model: str | None,
 ) -> None:
-    """A catalogue row that cannot label the device leaves the mac-derived name."""
+    """The catalogue row decorates the model; the name stays mac-derived."""
     mock_client.modules[17] = replace(mock_client.modules[17], **changes)
 
     await setup_integration(hass, mock_config_entry)
@@ -331,7 +332,7 @@ async def test_module_row_cannot_name_device(
         MSENS_IDENTIFIER, mock_config_entry.entry_id
     )
     assert device is not None
-    assert device.name == MSENS_FALLBACK_NAME
+    assert device.name == MSENS_DEVICE_NAME
     assert device.model == expected_model
 
 
@@ -351,13 +352,13 @@ async def test_pulse_time_diagnostic(
         mock_client.objects[oid] = replace(mock_client.objects[oid], pulse_ms=5000)
     await setup_integration(hass, mock_config_entry)
 
-    entry = entity_registry.async_get("sensor.dzwonek_pulse_time")
+    entry = entity_registry.async_get(f"sensor.{MSENS_SLUG}_pulse_time")
     assert entry is not None
     assert entry.entity_category is EntityCategory.DIAGNOSTIC
-    state = hass.states.get("sensor.dzwonek_pulse_time")
+    state = hass.states.get(f"sensor.{MSENS_SLUG}_pulse_time")
     assert state is not None
     assert float(state.state) == 3.0
 
-    for leaf in ("flaga_0_3", "rgbw_0_2", "rolp_0_2"):
-        unique_id = f"{MSERV_MAC}_leaf_0_cb8f_{leaf}_pulse"
+    for object_id in (149, 72, 82):
+        unique_id = f"{MSERV_MAC}_obj_{object_id}_pulse"
         assert entity_registry.async_get_entity_id("sensor", DOMAIN, unique_id) is None

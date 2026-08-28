@@ -1,5 +1,5 @@
 # serializer version: 1
-# name: test_all_entities[cover.roleta_kuchnia-entry]
+# name: test_all_entities[cover.ampio_module_0xcb8f_roleta_kuchnia-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -13,7 +13,7 @@
     'disabled_by': None,
     'domain': 'cover',
     'entity_category': None,
-    'entity_id': 'cover.roleta_kuchnia',
+    'entity_id': 'cover.ampio_module_0xcb8f_roleta_kuchnia',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -21,39 +21,39 @@
     'labels': set({
     }),
     'name': None,
-    'object_id_base': None,
+    'object_id_base': 'Roleta Kuchnia',
     'options': dict({
     }),
     'original_device_class': <CoverDeviceClass.SHUTTER: 'shutter'>,
     'original_icon': None,
-    'original_name': None,
+    'original_name': 'Roleta Kuchnia',
     'platform': 'ampio',
     'previous_unique_id': None,
     'suggested_object_id': None,
     'supported_features': <CoverEntityFeature: 15>,
     'translation_key': None,
-    'unique_id': '47846_leaf_0_cb8f_rolp_0_2',
+    'unique_id': '47846_obj_82',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[cover.roleta_kuchnia-state]
+# name: test_all_entities[cover.ampio_module_0xcb8f_roleta_kuchnia-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <CoverEntityStateAttribute.CURRENT_POSITION: 'current_position'>: 35,
       <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'shutter',
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Roleta Kuchnia',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Ampio module 0xCB8F Roleta Kuchnia',
       <CoverEntityStateAttribute.IS_CLOSED: 'is_closed'>: False,
       <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <CoverEntityFeature: 15>,
     }),
     'context': <ANY>,
-    'entity_id': 'cover.roleta_kuchnia',
+    'entity_id': 'cover.ampio_module_0xcb8f_roleta_kuchnia',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'open',
   })
 # ---
-# name: test_all_entities[cover.sypialnia_roleta_sypialnia-entry]
+# name: test_all_entities[cover.ampio_module_0xcb8f_roleta_sypialnia-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -67,7 +67,7 @@
     'disabled_by': None,
     'domain': 'cover',
     'entity_category': None,
-    'entity_id': 'cover.sypialnia_roleta_sypialnia',
+    'entity_id': 'cover.ampio_module_0xcb8f_roleta_sypialnia',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -75,38 +75,38 @@
     'labels': set({
     }),
     'name': None,
-    'object_id_base': None,
+    'object_id_base': 'Roleta Sypialnia',
     'options': dict({
     }),
     'original_device_class': <CoverDeviceClass.SHUTTER: 'shutter'>,
     'original_icon': None,
-    'original_name': None,
+    'original_name': 'Roleta Sypialnia',
     'platform': 'ampio',
     'previous_unique_id': None,
     'suggested_object_id': None,
     'supported_features': <CoverEntityFeature: 11>,
     'translation_key': None,
-    'unique_id': '47846_leaf_0_cb8f_rol_0_1',
+    'unique_id': '47846_obj_81',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[cover.sypialnia_roleta_sypialnia-state]
+# name: test_all_entities[cover.ampio_module_0xcb8f_roleta_sypialnia-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'shutter',
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Roleta Sypialnia',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Ampio module 0xCB8F Roleta Sypialnia',
       <CoverEntityStateAttribute.IS_CLOSED: 'is_closed'>: None,
       <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <CoverEntityFeature: 11>,
     }),
     'context': <ANY>,
-    'entity_id': 'cover.sypialnia_roleta_sypialnia',
+    'entity_id': 'cover.ampio_module_0xcb8f_roleta_sypialnia',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'unknown',
   })
 # ---
-# name: test_all_entities[cover.zaluzja_goscinny-entry]
+# name: test_all_entities[cover.ampio_module_0xcb8f_zaluzja_goscinny-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -120,7 +120,7 @@
     'disabled_by': None,
     'domain': 'cover',
     'entity_category': None,
-    'entity_id': 'cover.zaluzja_goscinny',
+    'entity_id': 'cover.ampio_module_0xcb8f_zaluzja_goscinny',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -128,33 +128,33 @@
     'labels': set({
     }),
     'name': None,
-    'object_id_base': None,
+    'object_id_base': 'Zaluzja Goscinny',
     'options': dict({
     }),
     'original_device_class': <CoverDeviceClass.BLIND: 'blind'>,
     'original_icon': None,
-    'original_name': None,
+    'original_name': 'Zaluzja Goscinny',
     'platform': 'ampio',
     'previous_unique_id': None,
     'suggested_object_id': None,
     'supported_features': <CoverEntityFeature: 255>,
     'translation_key': None,
-    'unique_id': '47846_leaf_0_cb8f_roll_0_3',
+    'unique_id': '47846_obj_83',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[cover.zaluzja_goscinny-state]
+# name: test_all_entities[cover.ampio_module_0xcb8f_zaluzja_goscinny-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <CoverEntityStateAttribute.CURRENT_POSITION: 'current_position'>: 70,
       <CoverEntityStateAttribute.CURRENT_TILT_POSITION: 'current_tilt_position'>: 40,
       <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'blind',
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Zaluzja Goscinny',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Ampio module 0xCB8F Zaluzja Goscinny',
       <CoverEntityStateAttribute.IS_CLOSED: 'is_closed'>: False,
       <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <CoverEntityFeature: 255>,
     }),
     'context': <ANY>,
-    'entity_id': 'cover.zaluzja_goscinny',
+    'entity_id': 'cover.ampio_module_0xcb8f_zaluzja_goscinny',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,

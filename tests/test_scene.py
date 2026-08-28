@@ -19,7 +19,7 @@ from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
 
-SCENE_ENTITY_ID = "scene.mserv_wieczor"
+SCENE_ENTITY_ID = "scene.m_serv_wieczor"
 
 
 @pytest.fixture(autouse=True)

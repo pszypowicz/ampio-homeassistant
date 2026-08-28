@@ -39,7 +39,11 @@ Requires Home Assistant 2026.8.0 or newer. `ampio-mqtt` is installed automatical
 2. In Home Assistant, go to Settings -> Devices & Services -> Add Integration -> Ampio.
 3. Enter the M-SERV host and that user's MQTT credentials.
 
-Devices appear as a hub, then one device per Ampio module, then one device per Ampio object, named as in the Ampio app. Objects assigned to a room in the Ampio app are suggested into the matching Home Assistant area on first setup, and objects without an app room fall back to their Designer location on admin accounts; you own the areas afterwards. Sensor and input objects, flags included, attach to their module device directly.
+Devices appear as a hub for the M-SERV and one device per Ampio module, named `Ampio module 0x<MAC>`. Every entity attaches to the module that carries its object, or to the hub for the M-SERV's own objects. Entities are named as in the Ampio app.
+
+Rename the devices and assign the areas to suit yourself. The integration never sets an area and never renames a device, because Home Assistant builds an entity id from the area and the device name, and a name that changed with your Ampio account tier would break the automations that use the id.
+
+One physical output can carry several objects in Ampio Designer. Each object gets its own entity.
 
 If a relay tagged as a light in Designer surfaces as a switch, see [docs/designer-quirks.md](docs/designer-quirks.md).
 

@@ -1,0 +1,19 @@
+# The exact core toolchain every gate runs against, locally and in CI.
+#
+# Bump these deliberately. Nothing resolves them for you, so a Home Assistant
+# release never changes a build on its own.
+#
+# The two lines move together. The plugin pins one exact Home Assistant
+# release, so a mismatched pair cannot install. To move to a newer core, find
+# the plugin release that pins it and change both.
+#
+# The plugin cannot be left unpinned. Its newest release tracks the next core
+# beta, and an exact pre-release pin inside a dependency overrides pip's
+# refusal to install pre-releases.
+#
+# ampio-mqtt is deliberately absent. It is pinned in
+# custom_components/ampio/manifest.json, which is what HACS and Home Assistant
+# core install, and the gates read it from there so the tested version is
+# always the shipped version.
+homeassistant==2026.8.3
+pytest-homeassistant-custom-component==0.13.357
