@@ -176,9 +176,8 @@ class AmpioPulseTimeSensor(AmpioEntity, SensorEntity):
     entity_description = PULSE_TIME_DESCRIPTION
 
     def __init__(self, data: AmpioData, obj: AmpioObject) -> None:
-        """Initialize with a suffixed unique id beside the main entity."""
-        super().__init__(data, obj)
-        self._attr_unique_id = f"{self._attr_unique_id}_pulse"
+        """Initialize with a suffixed key beside the main entity."""
+        super().__init__(data, obj, key_suffix="_pulse")
         # The base class names a named object's entity after the object;
         # the diagnostic keeps its translated name beside the main entity.
         if hasattr(self, "_attr_name"):

@@ -33,15 +33,23 @@ Manual steps:
 
 Requires Home Assistant 2026.8.0 or newer. `ampio-mqtt` is installed automatically.
 
+### Updating
+
+Every `0.0.x` release is beta. None of them carries a migration, so an update can change device names, entity ids, or the entity set with no upgrade path.
+
+If an update leaves you with missing entities, duplicated entities, or entities that stay unavailable, remove the integration and add it again. That is the supported first step, not a last resort. Your Ampio configuration is untouched by it, because the M-SERV holds it. What you lose is the Home Assistant side: the device names you set, the areas you assigned, and any automation that names an entity id which the new version mints differently.
+
+Before you update, write down the entity ids your automations use. After you add the integration again, check them.
+
 ## Configuration
 
 1. In the Ampio app, create a dedicated Home Assistant user and grant it the devices you want in Home Assistant.
 2. In Home Assistant, go to Settings -> Devices & Services -> Add Integration -> Ampio.
 3. Enter the M-SERV host and that user's MQTT credentials.
 
-Devices appear as a hub for the M-SERV and one device per Ampio module, named `Ampio module 0x<MAC>`. Every entity attaches to the module that carries its object, or to the hub for the M-SERV's own objects. Entities are named as in the Ampio app.
+Devices appear as a hub for the M-SERV and one device per Ampio module. A module takes the name you gave it in Ampio Designer, or `Ampio module 0x<MAC>` when your account is not an administrator one. Every entity attaches to the module that carries its object, or to the hub for the M-SERV's own objects. Entities are named as in the Ampio app.
 
-Rename the devices and assign the areas to suit yourself. The integration never sets an area and never renames a device, because Home Assistant builds an entity id from the area and the device name, and a name that changed with your Ampio account tier would break the automations that use the id.
+Rename the devices and assign the areas to suit yourself. Nothing you do there moves an entity id. Home Assistant normally builds an id from the area and the device name, but an Ampio entity carries its own: `<domain>.ampio_<server mac>_obj_<object id>`, the same string as its unique id. The ids are not pretty, and they never change. Your automations keep working through a rename, an area move, and an Ampio account tier change alike.
 
 One physical output can carry several objects in Ampio Designer. Each object gets its own entity.
 

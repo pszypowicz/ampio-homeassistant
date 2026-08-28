@@ -32,17 +32,17 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from . import setup_integration
 from .conftest import (
-    MSENS_DEVICE_NAME,
     MSENS_IDENTIFIER,
-    MSENS_SLUG,
+    MSENS_MAC_NAME,
     MSERV_MAC,
     emit,
     make_object,
+    pinned_id,
 )
 
-TEMPERATURE_ENTITY_ID = f"sensor.{MSENS_SLUG}_temperatura"
-HUMIDITY_ENTITY_ID = f"sensor.{MSENS_SLUG}_wilgotnosc"
-CO2_ENTITY_ID = f"sensor.{MSENS_SLUG}_co2"
+TEMPERATURE_ENTITY_ID = pinned_id("sensor", 36)
+HUMIDITY_ENTITY_ID = pinned_id("sensor", 37)
+CO2_ENTITY_ID = pinned_id("sensor", 43)
 
 
 @pytest.fixture(autouse=True)
@@ -326,7 +326,7 @@ async def test_module_without_catalogue_row_gets_bare_device(
         pytest.param({"mac": 99999}, None, id="disagreeing-mac"),
     ],
 )
-async def test_module_row_cannot_name_device(
+async def test_module_name_falls_back_to_mac(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
@@ -334,7 +334,7 @@ async def test_module_row_cannot_name_device(
     changes: dict[str, int | None],
     expected_model: str | None,
 ) -> None:
-    """The catalogue row decorates the model; the name stays mac-derived."""
+    """A row that names nothing leaves the device on its mac-derived name."""
     mock_client.modules[17] = replace(mock_client.modules[17], **changes)
 
     await setup_integration(hass, mock_config_entry)
@@ -343,7 +343,7 @@ async def test_module_row_cannot_name_device(
         MSENS_IDENTIFIER, mock_config_entry.entry_id
     )
     assert device is not None
-    assert device.name == MSENS_DEVICE_NAME
+    assert device.name == MSENS_MAC_NAME
     assert device.model == expected_model
 
 
@@ -363,10 +363,10 @@ async def test_pulse_time_diagnostic(
         mock_client.objects[oid] = replace(mock_client.objects[oid], pulse_ms=5000)
     await setup_integration(hass, mock_config_entry)
 
-    entry = entity_registry.async_get(f"sensor.{MSENS_SLUG}_pulse_time")
+    entry = entity_registry.async_get(pinned_id("sensor", 150, "_pulse"))
     assert entry is not None
     assert entry.entity_category is EntityCategory.DIAGNOSTIC
-    state = hass.states.get(f"sensor.{MSENS_SLUG}_pulse_time")
+    state = hass.states.get(pinned_id("sensor", 150, "_pulse"))
     assert state is not None
     assert float(state.state) == 3.0
 

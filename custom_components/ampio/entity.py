@@ -1,5 +1,6 @@
 """Base entity for the Ampio integration."""
 
+import asyncio
 from collections.abc import Iterator
 from typing import override
 
@@ -11,9 +12,10 @@ from ampio_mqtt import (
     ObjectUpdated,
 )
 
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity_platform import EntityPlatform
 
 from .const import DOMAIN
 from .data import AmpioData
@@ -56,19 +58,27 @@ class AmpioEntity(Entity):
     _attr_has_entity_name = True
     _attr_should_poll = False
 
-    def __init__(self, data: AmpioData, obj: AmpioObject) -> None:
-        """Initialize from the discovery-time object snapshot."""
+    def __init__(
+        self, data: AmpioData, obj: AmpioObject, *, key_suffix: str = ""
+    ) -> None:
+        """Initialize from the discovery-time object snapshot.
+
+        ``key_suffix`` separates a second entity built from one object, and
+        it lands in the unique id and the entity id alike, because the two
+        are the same string.
+        """
         self._data = data
         self._object_id = obj.id
         # Designer exposes one physical output as several objects, and every
         # such view repeats the ``leaf_id`` that ``leaf_key`` is built
         # from. ``object_key`` identifies the row instead, so each view
         # keeps its own entity. The prefix scopes it per server.
-        self._attr_unique_id = f"{data.prefix}_{obj.object_key}"
+        self._key = f"{data.prefix}_{obj.object_key}{key_suffix}"
+        self._attr_unique_id = self._key
         # An object is a channel of the module that carries it, not a
-        # deployed device of its own. Both the parent and its name derive
-        # from the leaf-embedded mac, which every account tier receives, so
-        # the tree and the entity ids it mints are identical on both tiers.
+        # deployed device of its own. The parent derives from the
+        # leaf-embedded mac, which every account tier receives, so the tree
+        # is identical on both tiers.
         mac = obj.module_mac
         on_hub = obj.is_server_owned or mac is None
         self._attr_device_info = DeviceInfo(
@@ -78,6 +88,29 @@ class AmpioEntity(Entity):
         # the user gave the object in the Ampio app.
         if obj.opis_menu:
             self._attr_name = obj.opis_menu
+
+    @override
+    def add_to_platform_start(
+        self,
+        hass: HomeAssistant,
+        platform: EntityPlatform,
+        parallel_updates: asyncio.Semaphore | None,
+    ) -> None:
+        """Pin the entity id, so that no name composes one.
+
+        Home Assistant builds an entity id from the area name, the device
+        name, and the entity name, once, at first registration. An entity
+        that carries an ``entity_id`` into the add is exempt: the platform
+        stores the object part as the registry's ``suggested_object_id``,
+        and the composition then skips every name part. The module device
+        is therefore free to take its administrator-tier name, which the
+        restricted tier is not served, without moving an id.
+
+        The pinned id is the unique id with the domain in front, so the two
+        identities are one string and cannot drift apart.
+        """
+        super().add_to_platform_start(hass, platform, parallel_updates)
+        self.entity_id = f"{platform.domain}.ampio_{self._key}"
 
     @override
     async def async_added_to_hass(self) -> None:

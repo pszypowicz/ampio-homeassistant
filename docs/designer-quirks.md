@@ -14,4 +14,8 @@ The fix, in the current web Designer: touch every affected output individually -
 
 ## The stability contract
 
-Ampio accounts upgrade and downgrade between the admin login and app-created users. The integration therefore derives everything that defines an entity's platform, the device topology, or an entity id from data the restricted tier receives. That includes the device names: a module is always `Ampio module 0x<MAC>` and the hub is always `M-SERV`, because Home Assistant builds an entity id from the device name. Admin-only surfaces - the module catalogue and the Designer description records - only decorate the model, the firmware and hardware versions, and the serial number, none of which reaches an entity id. Whichever account you configure, and however its tier changes later, the entity set, the device tree, and the entity ids stay the same.
+Ampio accounts upgrade and downgrade between the admin login and app-created users. The integration therefore derives everything that defines an entity's platform or the device topology from data the restricted tier receives.
+
+Entity ids are exempt from that rule, because the integration writes them itself. Home Assistant normally builds an entity id from the area name, the device name, and the entity name. An Ampio entity carries its own id instead, `<domain>.ampio_<server mac>_obj_<object id>`, which is the same string as its unique id. No name reaches it. Rename a device, move it to another area, or switch the account tier, and every id holds still.
+
+That frees the device name. A module takes the name you gave it in Ampio Designer where the admin-only module catalogue answers, and falls back to `Ampio module 0x<MAC>` on a restricted account. The hub is always `M-SERV`. The catalogue also decorates the model, the firmware and hardware versions, and the serial number. All of those follow the account tier, so a tier change renames a device in the interface and moves nothing else.

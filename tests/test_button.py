@@ -19,10 +19,10 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import MSENS_SLUG, MSERV_MAC
+from .conftest import MSERV_MAC, pinned_id
 
-RELAY_ENTITY_ID = f"button.{MSENS_SLUG}_dzwonek"
-FLAG_ENTITY_ID = f"button.{MSENS_SLUG}_bell"
+RELAY_ENTITY_ID = pinned_id("button", 150)
+FLAG_ENTITY_ID = pinned_id("button", 149)
 
 
 @pytest.fixture
