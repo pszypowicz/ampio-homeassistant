@@ -26,11 +26,11 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import emit
+from .conftest import MSENS_SLUG, emit
 
-PLAIN_ENTITY_ID = "switch.ampio_object_leaf_0_cb8f_rel_0_4"
-OUTLET_ENTITY_ID = "switch.gniazdo_taras"
-FLAG_ENTITY_ID = "switch.m_sens_salon_podlewanie"
+PLAIN_ENTITY_ID = f"switch.{MSENS_SLUG}"
+OUTLET_ENTITY_ID = f"switch.{MSENS_SLUG}_gniazdo_taras"
+FLAG_ENTITY_ID = f"switch.{MSENS_SLUG}_podlewanie"
 
 
 @pytest.fixture(autouse=True)

@@ -1,6 +1,6 @@
 """Runtime data for the Ampio integration."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from ampio_mqtt import AmpioClient
 
@@ -15,11 +15,6 @@ class AmpioData:
     # The server's identity key; scopes unique_ids and device identifiers so
     # two servers on one Home Assistant instance never collide.
     prefix: str
-    hub_device_id: str
-    # Registry ids of the pre-registered module parent devices, by module mac.
-    module_device_ids: dict[int, str] = field(default_factory=dict)
-    # Object id -> Ampio app room name, fetched once per setup.
-    rooms: dict[int, str] = field(default_factory=dict)
 
 
 type AmpioConfigEntry = ConfigEntry[AmpioData]

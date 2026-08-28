@@ -29,11 +29,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import emit
+from .conftest import MSENS_SLUG, emit
 
-DIMMER_ENTITY_ID = "light.taras_taras_led"
-RGBW_ENTITY_ID = "light.salon_rgbw"
-RELAY_ENTITY_ID = "light.kinkiet"
+DIMMER_ENTITY_ID = f"light.{MSENS_SLUG}_taras_led"
+RGBW_ENTITY_ID = f"light.{MSENS_SLUG}_salon_rgbw"
+RELAY_ENTITY_ID = f"light.{MSENS_SLUG}_kinkiet"
 
 
 @pytest.fixture(autouse=True)

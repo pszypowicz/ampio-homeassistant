@@ -47,7 +47,10 @@ def snapshot(snapshot: SnapshotAssertion) -> SnapshotAssertion:
 
 MSERV_MAC = "47846"
 MSENS_IDENTIFIER = (DOMAIN, f"{MSERV_MAC}:52111")
-MSENS_FALLBACK_NAME = "Ampio module 0xCB8F"
+# The module device carries the leaf-embedded mac as its name on both
+# account tiers, and Home Assistant mints the entity id from that name.
+MSENS_DEVICE_NAME = "Ampio module 0xCB8F"
+MSENS_SLUG = "ampio_module_0xcb8f"
 
 USER_INPUT = {
     CONF_HOST: "ampio.test",
@@ -162,6 +165,20 @@ DEFAULT_OBJECTS = (
     ),
     make_object(
         150,
+        "przekaznik",
+        0,
+        leaf_id="0_cb8f_rel_0_6",
+        funkcja=13,
+        name="Dzwonek",
+        value="0",
+        params=1 << 15,
+        pulse_ms=3000,
+    ),
+    # A second Designer view of the output the previous object drives.
+    # Designer lets one output carry several views, and every view repeats
+    # the leafId, so this pair differs in the database id alone.
+    make_object(
+        151,
         "przekaznik",
         0,
         leaf_id="0_cb8f_rel_0_6",

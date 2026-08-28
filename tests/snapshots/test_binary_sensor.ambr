@@ -1,5 +1,5 @@
 # serializer version: 1
-# name: test_all_entities[binary_sensor.m_sens_salon_motion-entry]
+# name: test_all_entities[binary_sensor.ampio_module_0xcb8f_motion-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -13,7 +13,7 @@
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': None,
-    'entity_id': 'binary_sensor.m_sens_salon_motion',
+    'entity_id': 'binary_sensor.ampio_module_0xcb8f_motion',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -32,25 +32,25 @@
     'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': None,
-    'unique_id': '47846_leaf_0_cb8f_det_0_2',
+    'unique_id': '47846_obj_62',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[binary_sensor.m_sens_salon_motion-state]
+# name: test_all_entities[binary_sensor.ampio_module_0xcb8f_motion-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'motion',
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'm-sens salon Motion',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Ampio module 0xCB8F Motion',
     }),
     'context': <ANY>,
-    'entity_id': 'binary_sensor.m_sens_salon_motion',
+    'entity_id': 'binary_sensor.ampio_module_0xcb8f_motion',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'off',
   })
 # ---
-# name: test_all_entities[binary_sensor.m_sens_salon_przycisk_kino-entry]
+# name: test_all_entities[binary_sensor.ampio_module_0xcb8f_przycisk_kino-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -64,7 +64,7 @@
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': None,
-    'entity_id': 'binary_sensor.m_sens_salon_przycisk_kino',
+    'entity_id': 'binary_sensor.ampio_module_0xcb8f_przycisk_kino',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -83,17 +83,17 @@
     'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'input',
-    'unique_id': '47846_leaf_0_cb8f_wej_0_9',
+    'unique_id': '47846_obj_146',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[binary_sensor.m_sens_salon_przycisk_kino-state]
+# name: test_all_entities[binary_sensor.ampio_module_0xcb8f_przycisk_kino-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'm-sens salon Przycisk kino',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Ampio module 0xCB8F Przycisk kino',
     }),
     'context': <ANY>,
-    'entity_id': 'binary_sensor.m_sens_salon_przycisk_kino',
+    'entity_id': 'binary_sensor.ampio_module_0xcb8f_przycisk_kino',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,

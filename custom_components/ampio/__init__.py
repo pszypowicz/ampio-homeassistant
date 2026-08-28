@@ -11,8 +11,6 @@ from ampio_mqtt import (
     AuthFailed,
     AvailabilityChanged,
     ConnectionDied,
-    InputKind,
-    SensorKind,
 )
 
 from homeassistant.const import (
@@ -82,38 +80,42 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
             translation_domain=DOMAIN, translation_key="unexpected_device"
         )
 
-    # The hub is built from the server-info reply both account tiers receive;
-    # an administrator's M-SERV module row contributes the user-given name.
+    # The hub is built from the server-info reply both account tiers receive.
+    # Its name is a constant: Home Assistant mints an entity id from the name
+    # of the device the entity sits on, and the M-SERV's own catalogue row is
+    # admin-only, so a name taken from it would give a restricted account a
+    # different entity id for the same object. The row decorates the model.
     device_registry = dr.async_get(hass)
     mserv = client.mserv
     hub = device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, prefix)},
         manufacturer="Ampio",
-        name=mserv.name if mserv and mserv.name else "M-SERV",
+        name="M-SERV",
         model=mserv.model if mserv and mserv.model else "M-SERV",
         sw_version=info.server_version,
         serial_number=info.device_id,
         configuration_url=f"http://{info.local_ip}" if info.local_ip else None,
     )
 
-    # One parent device per module, registered before the platforms load so
-    # every object entity can reference its parent by registry id. Keyed on
-    # the leaf-derived mac both account tiers receive; the admin-only module
-    # catalogue contributes metadata only, so a tier downgrade degrades the
-    # whole device coherently instead of mixing the fallback name with stale
-    # metadata.
-    module_device_ids: dict[int, str] = {}
+    # One device per module, registered before the platforms load. Both the
+    # identifier and the name derive from the leaf-embedded mac that every
+    # account tier receives, for the reason the hub name gives above: the
+    # module catalogue is admin-only, and a device name mints entity ids.
+    # The catalogue decorates the model, the versions, and the serial, so a
+    # tier change enriches or clears those and never moves an entity.
+    seen_macs: set[int] = set()
     for obj in eligible_objects(client):
         if obj.is_server_owned or (mac := obj.module_mac) is None:
             continue
-        if mac in module_device_ids:
+        if mac in seen_macs:
             continue
+        seen_macs.add(mac)
         module = client.module_for(obj)
-        device = device_registry.async_get_or_create(
+        device_registry.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, f"{prefix}:{mac}")},
-            name=(module.name if module else None) or f"Ampio module 0x{mac:X}",
+            name=f"Ampio module 0x{mac:X}",
             manufacturer="Ampio",
             via_device_id=hub.id,
             model=module.model if module else None,
@@ -121,38 +123,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
             hw_version=_opt_str(module.hw_version) if module else None,
             serial_number=_opt_str(module.mac_global) if module else None,
         )
-        module_device_ids[mac] = device.id
 
-    # The room map only seeds suggested areas at device creation, so a
-    # failed fetch degrades to no suggestions instead of failing setup.
-    rooms: dict[int, str] = {}
+    # The room map is fetched for the diagnostics download alone: the reply
+    # lands in the library's ``diagnostics_snapshot()``. Nothing in the
+    # entity or device path reads it, so a failure costs diagnostic detail
+    # and must not fail setup.
     try:
-        rooms = await client.fetch_rooms()
+        await client.fetch_rooms()
     except AmpioConnectionError:
         _LOGGER.warning(
-            "Could not fetch the Ampio room map; "
-            "new devices register without a suggested area"
+            "Could not fetch the Ampio room map; the diagnostics download omits it"
         )
 
-    # The description sweep fills each object's admin-guarded record
-    # bundle; the integration reads only ``record.location``, the fallback
-    # area source - decoration, applied only at device creation. The
-    # platform partition reads ``matter_device_type``, the catalogue
-    # column both tiers receive, which the sweep never touches
-    # (docs/designer-quirks.md). Record answers travel the CAN bus and
-    # need several seconds on a large install, so the sweep keeps the
-    # library's default timeout; a tighter cap drops answers that were
-    # still in flight.
+    # The description sweep fills each object's admin-guarded record bundle,
+    # for the diagnostics download in the same way. The platform partition
+    # reads ``matter_device_type``, the catalogue column both tiers receive,
+    # which the sweep never touches (docs/designer-quirks.md). Record answers
+    # travel the CAN bus and need several seconds on a large install, so the
+    # sweep keeps the library's default timeout; a tighter cap drops answers
+    # that were still in flight.
     if client.access_tier is AccessTier.ADMIN:
         try:
             await client.resolve_records()
         except AmpioConnectionError, AmpioTimeoutError:
             _LOGGER.warning(
                 "Could not resolve the Designer descriptions; "
-                "devices register without Designer-location areas"
+                "the diagnostics download omits them"
             )
 
-    entry.runtime_data = AmpioData(client, prefix, hub.id, module_device_ids, rooms)
+    entry.runtime_data = AmpioData(client, prefix)
 
     was_unavailable = False
 
@@ -202,17 +201,13 @@ async def async_remove_config_entry_device(
     """Allow removing devices whose objects the account no longer receives.
 
     Grant changes and tier downgrades leave devices behind by design; this
-    lets the user prune them while every live device stays protected.
-
-    Only OutputKind and ThermostatKind objects get devices of their own;
-    InputKind and SensorKind objects attach as plain entities and do not need
-    protection.
+    lets the user prune them while every live device stays protected. A
+    device left by an earlier topology matches nothing live and is therefore
+    deletable, which is how the per-object devices are pruned.
     """
     data = entry.runtime_data
     live = {data.prefix}
     for obj in eligible_objects(data.client):
-        if not isinstance(obj.kind, InputKind | SensorKind):
-            live.add(f"{data.prefix}:obj:{obj.stable_key}")
         if not obj.is_server_owned and (mac := obj.module_mac) is not None:
             live.add(f"{data.prefix}:{mac}")
     return not any(

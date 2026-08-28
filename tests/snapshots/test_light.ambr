@@ -1,5 +1,5 @@
 # serializer version: 1
-# name: test_all_entities[light.kinkiet-entry]
+# name: test_all_entities[light.ampio_module_0xcb8f_kinkiet-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -17,7 +17,7 @@
     'disabled_by': None,
     'domain': 'light',
     'entity_category': None,
-    'entity_id': 'light.kinkiet',
+    'entity_id': 'light.ampio_module_0xcb8f_kinkiet',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -25,40 +25,40 @@
     'labels': set({
     }),
     'name': None,
-    'object_id_base': None,
+    'object_id_base': 'Kinkiet',
     'options': dict({
     }),
     'original_device_class': None,
     'original_icon': None,
-    'original_name': None,
+    'original_name': 'Kinkiet',
     'platform': 'ampio',
     'previous_unique_id': None,
     'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': None,
-    'unique_id': '47846_leaf_0_cb8f_rel_0_3',
+    'unique_id': '47846_obj_73',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[light.kinkiet-state]
+# name: test_all_entities[light.ampio_module_0xcb8f_kinkiet-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <LightEntityStateAttribute.COLOR_MODE: 'color_mode'>: None,
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Kinkiet',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Ampio module 0xCB8F Kinkiet',
       <LightEntityCapabilityAttribute.SUPPORTED_COLOR_MODES: 'supported_color_modes'>: list([
         <ColorMode.ONOFF: 'onoff'>,
       ]),
       <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <LightEntityFeature: 0>,
     }),
     'context': <ANY>,
-    'entity_id': 'light.kinkiet',
+    'entity_id': 'light.ampio_module_0xcb8f_kinkiet',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'off',
   })
 # ---
-# name: test_all_entities[light.salon_rgbw-entry]
+# name: test_all_entities[light.ampio_module_0xcb8f_salon_rgbw-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -76,7 +76,7 @@
     'disabled_by': None,
     'domain': 'light',
     'entity_category': None,
-    'entity_id': 'light.salon_rgbw',
+    'entity_id': 'light.ampio_module_0xcb8f_salon_rgbw',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -84,27 +84,27 @@
     'labels': set({
     }),
     'name': None,
-    'object_id_base': None,
+    'object_id_base': 'Salon RGBW',
     'options': dict({
     }),
     'original_device_class': None,
     'original_icon': None,
-    'original_name': None,
+    'original_name': 'Salon RGBW',
     'platform': 'ampio',
     'previous_unique_id': None,
     'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': None,
-    'unique_id': '47846_leaf_0_cb8f_rgbw_0_2',
+    'unique_id': '47846_obj_72',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[light.salon_rgbw-state]
+# name: test_all_entities[light.ampio_module_0xcb8f_salon_rgbw-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <LightEntityStateAttribute.BRIGHTNESS: 'brightness'>: 240,
       <LightEntityStateAttribute.COLOR_MODE: 'color_mode'>: <ColorMode.RGBW: 'rgbw'>,
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Salon RGBW',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Ampio module 0xCB8F Salon RGBW',
       <LightEntityStateAttribute.HS_COLOR: 'hs_color'>: tuple(
         209.565,
         28.75,
@@ -130,14 +130,14 @@
       ),
     }),
     'context': <ANY>,
-    'entity_id': 'light.salon_rgbw',
+    'entity_id': 'light.ampio_module_0xcb8f_salon_rgbw',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'on',
   })
 # ---
-# name: test_all_entities[light.taras_taras_led-entry]
+# name: test_all_entities[light.ampio_module_0xcb8f_taras_led-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -155,7 +155,7 @@
     'disabled_by': None,
     'domain': 'light',
     'entity_category': None,
-    'entity_id': 'light.taras_taras_led',
+    'entity_id': 'light.ampio_module_0xcb8f_taras_led',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -163,34 +163,34 @@
     'labels': set({
     }),
     'name': None,
-    'object_id_base': None,
+    'object_id_base': 'Taras LED',
     'options': dict({
     }),
     'original_device_class': None,
     'original_icon': None,
-    'original_name': None,
+    'original_name': 'Taras LED',
     'platform': 'ampio',
     'previous_unique_id': None,
     'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': None,
-    'unique_id': '47846_leaf_0_cb8f_led_0_1',
+    'unique_id': '47846_obj_71',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[light.taras_taras_led-state]
+# name: test_all_entities[light.ampio_module_0xcb8f_taras_led-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <LightEntityStateAttribute.BRIGHTNESS: 'brightness'>: 128,
       <LightEntityStateAttribute.COLOR_MODE: 'color_mode'>: <ColorMode.BRIGHTNESS: 'brightness'>,
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Taras LED',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Ampio module 0xCB8F Taras LED',
       <LightEntityCapabilityAttribute.SUPPORTED_COLOR_MODES: 'supported_color_modes'>: list([
         <ColorMode.BRIGHTNESS: 'brightness'>,
       ]),
       <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <LightEntityFeature: 0>,
     }),
     'context': <ANY>,
-    'entity_id': 'light.taras_taras_led',
+    'entity_id': 'light.ampio_module_0xcb8f_taras_led',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
