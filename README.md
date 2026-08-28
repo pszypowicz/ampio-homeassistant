@@ -49,7 +49,9 @@ If a relay tagged as a light in Designer surfaces as a switch, see [docs/designe
 
 ## Relationship to home-assistant/core
 
-This integration is submitted to `home-assistant/core` ([PR #179548](https://github.com/home-assistant/core/pull/179548)). This repository tracks that PR and adds the remaining platforms ahead of the merge, so Ampio users can run the integration today and field feedback can strengthen the upstream review. After the PR merges, the platforms staged here follow as core PRs.
+An earlier form of this integration is submitted to `home-assistant/core` as [PR #179548](https://github.com/home-assistant/core/pull/179548). That submission is still open, and getting Ampio into Home Assistant itself remains the goal.
+
+This repository is where the integration is developed, and it now leads that pull request rather than mirroring it. Install it through HACS to run Ampio today. Field reports from real installs are what will eventually make the upstream version worth merging.
 
 ## Disclaimer
 
