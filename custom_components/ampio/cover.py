@@ -78,7 +78,7 @@ class AmpioCover(AmpioEntity, CoverEntity):
         """Slat angle percent; the library populates it only for tilt-capable covers."""
         if (obj := self._object) is None:
             return None
-        return obj.tilt_position
+        return obj.lammel
 
     @property
     @override
@@ -91,43 +91,41 @@ class AmpioCover(AmpioEntity, CoverEntity):
     @override
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Drive the cover fully open."""
-        await self._data.client.open_cover(self._object_id)
+        await self._data.client.open(self._object_id)
 
     @override
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Drive the cover fully closed."""
-        await self._data.client.close_cover(self._object_id)
+        await self._data.client.close(self._object_id)
 
     @override
     async def async_stop_cover(self, **kwargs: Any) -> None:
         """Halt travel wherever the cover is."""
-        await self._data.client.stop_cover(self._object_id)
+        await self._data.client.stop(self._object_id)
 
     @override
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Drive the cover to the requested percent."""
-        await self._data.client.set_cover_position(
-            self._object_id, kwargs[ATTR_POSITION]
-        )
+        await self._data.client.set_roller_pos(self._object_id, kwargs[ATTR_POSITION])
 
     @override
     async def async_set_cover_tilt_position(self, **kwargs: Any) -> None:
         """Set the slat angle to the requested percent."""
-        await self._data.client.set_cover_tilt(
+        await self._data.client.set_roller_lamella(
             self._object_id, kwargs[ATTR_TILT_POSITION]
         )
 
     @override
     async def async_open_cover_tilt(self, **kwargs: Any) -> None:
         """Open the slats fully."""
-        await self._data.client.set_cover_tilt(self._object_id, 100)
+        await self._data.client.set_roller_lamella(self._object_id, 100)
 
     @override
     async def async_close_cover_tilt(self, **kwargs: Any) -> None:
         """Close the slats fully."""
-        await self._data.client.set_cover_tilt(self._object_id, 0)
+        await self._data.client.set_roller_lamella(self._object_id, 0)
 
     @override
     async def async_stop_cover_tilt(self, **kwargs: Any) -> None:
         """Halt slat rotation; the stop verb halts either axis."""
-        await self._data.client.stop_cover(self._object_id)
+        await self._data.client.stop(self._object_id)

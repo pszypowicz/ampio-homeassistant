@@ -87,7 +87,7 @@ class AmpioClimate(AmpioEntity, ClimateEntity):
         """The measured temperature from the readback."""
         if (thermostat := self._thermostat) is None:
             return None
-        return thermostat.measured_temperature
+        return thermostat.measure_temp
 
     @property
     @override
@@ -95,7 +95,7 @@ class AmpioClimate(AmpioEntity, ClimateEntity):
         """The setpoint from the readback."""
         if (thermostat := self._thermostat) is None:
             return None
-        return thermostat.target_temperature
+        return thermostat.set_temperature
 
     @property
     @override

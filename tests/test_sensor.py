@@ -5,7 +5,7 @@ from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
 from ampio_mqtt import (
-    OPEN_SENSOR_KEY_PREFIXES,
+    SENSOR_KIND_KEY_PREFIXES,
     SENSOR_KIND_KEYS,
     AmpioObject,
     AvailabilityChanged,
@@ -56,7 +56,7 @@ async def _push_value(
     hass: HomeAssistant, client: MagicMock, oid: int, value: str
 ) -> None:
     """Replace the object's value in the store and push the update event."""
-    obj = replace(client.objects[oid], value=value)
+    obj = replace(client.objects[oid], state=value)
     client.objects[oid] = obj
     emit(client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
@@ -69,7 +69,7 @@ def test_sensor_kind_vocabulary_is_mapped_or_excluded() -> None:
     deliberately not exposed; a new key or prefix forces a mapping decision.
     """
     assert SENSOR_KIND_KEYS - {"value"} == SENSOR_DESCRIPTIONS.keys()
-    assert set(OPEN_SENSOR_KEY_PREFIXES) == {"analog_", "value_"}
+    assert set(SENSOR_KIND_KEY_PREFIXES) == {"analog_", "value_"}
 
 
 @pytest.mark.usefixtures("mock_client")
@@ -187,7 +187,13 @@ async def test_broker_availability_flips_entities(
     [
         pytest.param(
             make_object(
-                200, "lin_wej", 1, leaf_id="", funkcja=5, name="Ghost", value="55.0"
+                200,
+                "lin_wej",
+                1,
+                leaf_id="",
+                funkcja=5,
+                opis_menu="Ghost",
+                state="55.0",
             ),
             id="ghost-without-leaf",
         ),
@@ -204,8 +210,8 @@ async def test_broker_availability_flips_entities(
                 9,
                 leaf_id="0_cb8f_lin_0_10",
                 funkcja=7,
-                name="Status",
-                value="42.0",
+                opis_menu="Status",
+                state="42.0",
             ),
             id="kind-without-description",
         ),
@@ -216,8 +222,8 @@ async def test_broker_availability_flips_entities(
                 0,
                 leaf_id="0_cb8f_prz_0_1",
                 funkcja=8,
-                name="Relay",
-                value="1",
+                opis_menu="Relay",
+                state="1",
             ),
             id="not-a-sensor",
         ),
@@ -258,7 +264,7 @@ async def test_hub_anchored_objects(
 ) -> None:
     """The M-SERV's own objects and unresolvable leafs attach to the hub."""
     mock_client.objects[500] = make_object(
-        500, "temp", 1, leaf_id=leaf_id, funkcja=5, name="Hub sensor"
+        500, "temp", 1, leaf_id=leaf_id, funkcja=5, opis_menu="Hub sensor"
     )
 
     await setup_integration(hass, mock_config_entry)
@@ -285,7 +291,12 @@ async def test_module_without_catalogue_row_gets_bare_device(
 ) -> None:
     """A leaf-derived mac with no module row still keys its own device."""
     mock_client.objects[500] = make_object(
-        500, "temp", 1, leaf_id="0_dead_temp_0_1", device_id=99, name="Dangling"
+        500,
+        "temp",
+        1,
+        leaf_id="0_dead_temp_0_1",
+        id_urzadzenia=99,
+        opis_menu="Dangling",
     )
 
     await setup_integration(hass, mock_config_entry)
@@ -308,7 +319,7 @@ async def test_module_without_catalogue_row_gets_bare_device(
 @pytest.mark.parametrize(
     ("changes", "expected_model"),
     [
-        pytest.param({"name": None}, "M-SENS", id="nameless-module"),
+        pytest.param({"nazwa_urzadzenia": None}, "M-SENS", id="nameless-module"),
         # The device_id join key is volatile across resyncs; the leaf-derived
         # mac is authoritative, so a disagreeing row must not misattribute
         # another module's metadata to this device.
@@ -344,7 +355,7 @@ async def test_pulse_time_diagnostic(
 ) -> None:
     """The Designer time surfaces as a diagnostic sensor where writes honor it.
 
-    A timed RGBW gets none (set_color has no timed form), a timed cover
+    A timed RGBW gets none (set_colors has no timed form), a timed cover
     gets none (czas is the travel time there), and a timeless bell gets
     none.
     """

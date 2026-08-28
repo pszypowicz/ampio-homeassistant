@@ -51,7 +51,7 @@ class AmpioSceneEntity(Scene):
         """
         self._data = data
         self._scene_id = scene.id
-        self._attr_name = scene.name
+        self._attr_name = scene.scene_name
         self._attr_unique_id = f"{data.prefix}_scene_{scene.id}"
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, data.prefix)})
 

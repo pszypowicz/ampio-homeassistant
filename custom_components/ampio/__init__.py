@@ -46,19 +46,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
         entry.data[CONF_USERNAME],
         entry.data[CONF_PASSWORD],
     )
-    entry.async_on_unload(client.stop)
+    entry.async_on_unload(client.disconnect)
 
     # Home Assistant does not unload entries when it stops, so without this the
     # connection dies by task cancellation and is reported as a lost connection.
-    async def _async_stop_client(event: Event) -> None:
-        await client.stop()
+    async def _async_disconnect_client(event: Event) -> None:
+        await client.disconnect()
 
     entry.async_on_unload(
-        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _async_stop_client)
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _async_disconnect_client)
     )
 
     try:
-        discovered = await client.start()
+        discovered = await client.connect()
     except AmpioAuthError as err:
         raise ConfigEntryAuthFailed(
             translation_domain=DOMAIN, translation_key="invalid_auth"
@@ -72,7 +72,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
         raise ConfigEntryNotReady(
             translation_domain=DOMAIN, translation_key="discovery_timeout"
         )
-    prefix = info.key
+    prefix = info.server_key
     # A different M-SERV answering at the stored host must fail setup instead
     # of silently re-keying every unique_id and device under its prefix.
     if prefix != entry.unique_id:
@@ -119,8 +119,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
             manufacturer="Ampio",
             via_device_id=hub.id,
             model=module.model if module else None,
-            sw_version=_opt_str(module.sw_version) if module else None,
-            hw_version=_opt_str(module.hw_version) if module else None,
+            sw_version=_opt_str(module.wersja_softu) if module else None,
+            hw_version=_opt_str(module.wersja_pcb) if module else None,
             serial_number=_opt_str(module.mac_global) if module else None,
         )
 

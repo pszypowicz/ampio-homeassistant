@@ -126,7 +126,7 @@ class AmpioLight(AmpioEntity, LightEntity):
             if not any(rgbw):
                 await self.async_turn_off()
                 return
-            await client.set_color(self._object_id, *rgbw)
+            await client.set_colors(self._object_id, *rgbw)
             return
         obj = self._object
         if (

@@ -43,7 +43,7 @@ async def test_setup_and_unload(
     await hass.async_block_till_done()
 
     assert mock_config_entry.state is ConfigEntryState.NOT_LOADED
-    mock_client.stop.assert_awaited_once()
+    mock_client.disconnect.assert_awaited_once()
 
 
 async def test_shutdown_stops_client(
@@ -60,7 +60,7 @@ async def test_shutdown_stops_client(
     hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
     await hass.async_block_till_done()
 
-    mock_client.stop.assert_awaited_once()
+    mock_client.disconnect.assert_awaited_once()
 
 
 @pytest.mark.parametrize(
@@ -86,12 +86,12 @@ async def test_setup_failure_stops_client(
     expected_state: ConfigEntryState,
 ) -> None:
     """A failed start maps to the right entry state and stops the client."""
-    mock_client.start.side_effect = [start_result]
+    mock_client.connect.side_effect = [start_result]
 
     await setup_integration(hass, mock_config_entry)
 
     assert mock_config_entry.state is expected_state
-    mock_client.stop.assert_awaited_once()
+    mock_client.disconnect.assert_awaited_once()
 
 
 @pytest.mark.usefixtures("mock_client")
@@ -263,7 +263,7 @@ async def test_runtime_auth_failure_reloads_into_auth_error(
     ConfigEntryAuthFailed and lands the entry in SETUP_ERROR.
     """
     await setup_integration(hass, mock_config_entry)
-    mock_client.start.side_effect = AmpioAuthError("credentials changed")
+    mock_client.connect.side_effect = AmpioAuthError("credentials changed")
 
     emit(mock_client, AuthFailed(reason="not authorized"))
     await hass.async_block_till_done()
@@ -283,7 +283,7 @@ async def test_connection_died_reloads_and_recovers(
     await hass.async_block_till_done()
 
     assert mock_config_entry.state is ConfigEntryState.LOADED
-    assert mock_client.start.await_count == 2
+    assert mock_client.connect.await_count == 2
 
 
 async def test_availability_transitions_log_once_per_edge(
