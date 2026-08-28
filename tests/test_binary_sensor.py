@@ -68,7 +68,7 @@ async def test_wej_push_update_toggles_state(
     await setup_integration(hass, mock_config_entry)
     assert hass.states.get(WEJ_ENTITY_ID).state == STATE_OFF
 
-    obj = replace(mock_client.objects[146], value="1")
+    obj = replace(mock_client.objects[146], state="1")
     mock_client.objects[146] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
@@ -82,7 +82,7 @@ async def test_nonzero_values_read_as_on(
     """The per-object form pushes "255" for on; it must read as on."""
     await setup_integration(hass, mock_config_entry)
 
-    obj = replace(mock_client.objects[62], value="255")
+    obj = replace(mock_client.objects[62], state="255")
     mock_client.objects[62] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()

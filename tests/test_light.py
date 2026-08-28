@@ -173,7 +173,7 @@ async def test_rgbw_color_and_brightness_scale(
         },
         blocking=True,
     )
-    mock_client.set_color.assert_awaited_once_with(72, 20, 40, 80, 160)
+    mock_client.set_colors.assert_awaited_once_with(72, 20, 40, 80, 160)
 
 
 async def test_rgbw_turn_on_from_dark_defaults_to_white(
@@ -182,7 +182,7 @@ async def test_rgbw_turn_on_from_dark_defaults_to_white(
     """Turning an all-zero rgbw on without arguments raises the white channel."""
     await setup_integration(hass, mock_config_entry)
 
-    obj = replace(mock_client.objects[72], value="0")
+    obj = replace(mock_client.objects[72], state="0")
     mock_client.objects[72] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
@@ -193,7 +193,7 @@ async def test_rgbw_turn_on_from_dark_defaults_to_white(
         {ATTR_ENTITY_ID: RGBW_ENTITY_ID},
         blocking=True,
     )
-    mock_client.set_color.assert_awaited_once_with(72, 0, 0, 0, 255)
+    mock_client.set_colors.assert_awaited_once_with(72, 0, 0, 0, 255)
 
 
 async def test_rgbw_explicit_zero_color_turns_off(
@@ -202,7 +202,7 @@ async def test_rgbw_explicit_zero_color_turns_off(
     """An explicit all-zero color is a request for darkness and routes to off."""
     await setup_integration(hass, mock_config_entry)
 
-    obj = replace(mock_client.objects[72], value="0")
+    obj = replace(mock_client.objects[72], state="0")
     mock_client.objects[72] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
@@ -218,7 +218,7 @@ async def test_rgbw_explicit_zero_color_turns_off(
         blocking=True,
     )
     mock_client.turn_off.assert_awaited_once_with(72)
-    mock_client.set_color.assert_not_awaited()
+    mock_client.set_colors.assert_not_awaited()
 
 
 async def test_rgbw_turn_off_uses_turn_off(
@@ -242,7 +242,7 @@ async def test_push_echo_updates_brightness(
     """A pushed dimmer echo updates state and brightness."""
     await setup_integration(hass, mock_config_entry)
 
-    obj = replace(mock_client.objects[71], value="255")
+    obj = replace(mock_client.objects[71], state="255")
     mock_client.objects[71] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()

@@ -76,29 +76,29 @@ def make_object(
     interpretacja: int,
     *,
     leaf_id: str,
-    device_id: int | None = 17,
+    id_urzadzenia: int | None = 17,
     funkcja: int = 1,
-    name: str | None = None,
-    value: str | None = None,
+    opis_menu: str | None = None,
+    state: str | None = None,
     params: int = 0,
     matter_device_type: int | None = None,
-    tilt_position: int | None = None,
+    lammel: int | None = None,
     thermostat: ThermostatState | None = None,
     pulse_ms: int = 0,
 ) -> AmpioObject:
     """Build a classified object the way discovery would."""
     return AmpioObject(
         id=oid,
-        device_id=device_id,
+        id_urzadzenia=id_urzadzenia,
         typ_komponentu=typ,
-        name=name,
+        opis_menu=opis_menu,
         interpretacja=interpretacja,
         funkcja=funkcja,
         leaf_id=leaf_id,
         params=params,
-        value=value,
+        state=state,
         matter_device_type=matter_device_type,
-        tilt_position=tilt_position,
+        lammel=lammel,
         thermostat=thermostat,
         pulse_ms=pulse_ms,
     )
@@ -126,8 +126,8 @@ DEFAULT_OBJECTS = (
         "temp",
         1,
         leaf_id="0_cb8f_temp_0_1",
-        name="Temperatura",
-        value="24.4",
+        opis_menu="Temperatura",
+        state="24.4",
     ),
     make_object(
         37,
@@ -135,22 +135,22 @@ DEFAULT_OBJECTS = (
         1,
         leaf_id="0_cb8f_lin_0_2",
         funkcja=2,
-        name="Wilgotność",
-        value="42.000000",
+        opis_menu="Wilgotność",
+        state="42.000000",
     ),
-    make_object(43, "lin_wej", 7, leaf_id="0_cb8f_lin_0_3", funkcja=3, value="900.5"),
-    make_object(44, "lin_wej", 2, leaf_id="0_cb8f_lin_0_4", funkcja=5, value="1013.2"),
-    make_object(45, "lin_wej", 6, leaf_id="0_cb8f_lin_0_5", funkcja=6, value="1019.7"),
-    make_object(46, "lin_wej", 3, leaf_id="0_cb8f_lin_0_6", funkcja=7, value="38.5"),
-    make_object(47, "lin_wej", 4, leaf_id="0_cb8f_lin_0_7", funkcja=8, value="742"),
-    make_object(48, "lin_wej", 5, leaf_id="0_cb8f_lin_0_8", funkcja=9, value="23"),
+    make_object(43, "lin_wej", 7, leaf_id="0_cb8f_lin_0_3", funkcja=3, state="900.5"),
+    make_object(44, "lin_wej", 2, leaf_id="0_cb8f_lin_0_4", funkcja=5, state="1013.2"),
+    make_object(45, "lin_wej", 6, leaf_id="0_cb8f_lin_0_5", funkcja=6, state="1019.7"),
+    make_object(46, "lin_wej", 3, leaf_id="0_cb8f_lin_0_6", funkcja=7, state="38.5"),
+    make_object(47, "lin_wej", 4, leaf_id="0_cb8f_lin_0_7", funkcja=8, state="742"),
+    make_object(48, "lin_wej", 5, leaf_id="0_cb8f_lin_0_8", funkcja=9, state="23"),
     make_object(
         61,
         "flaga",
         0,
         leaf_id="0_cb8f_flaga_0_1",
-        name="Podlewanie",
-        value="1",
+        opis_menu="Podlewanie",
+        state="1",
     ),
     # The two bell-marked objects (params bit 15): a named relay and an
     # unnamed flag, the button platform's populations.
@@ -160,7 +160,7 @@ DEFAULT_OBJECTS = (
         0,
         leaf_id="0_cb8f_flaga_0_3",
         funkcja=12,
-        value="0",
+        state="0",
         params=1 << 15,
     ),
     make_object(
@@ -169,8 +169,8 @@ DEFAULT_OBJECTS = (
         0,
         leaf_id="0_cb8f_rel_0_6",
         funkcja=13,
-        name="Dzwonek",
-        value="0",
+        opis_menu="Dzwonek",
+        state="0",
         params=1 << 15,
         pulse_ms=3000,
     ),
@@ -183,19 +183,19 @@ DEFAULT_OBJECTS = (
         0,
         leaf_id="0_cb8f_rel_0_6",
         funkcja=13,
-        name="Dzwonek",
-        value="0",
+        opis_menu="Dzwonek",
+        state="0",
         params=1 << 15,
         pulse_ms=3000,
     ),
-    make_object(62, "detekcja", 0, leaf_id="0_cb8f_det_0_2", funkcja=2, value="0"),
+    make_object(62, "detekcja", 0, leaf_id="0_cb8f_det_0_2", funkcja=2, state="0"),
     make_object(
         146,
         "wej",
         15,
         leaf_id="0_cb8f_wej_0_9",
-        name="Przycisk kino",
-        value="0",
+        opis_menu="Przycisk kino",
+        state="0",
     ),
     make_object(
         71,
@@ -203,8 +203,8 @@ DEFAULT_OBJECTS = (
         0,
         leaf_id="0_cb8f_led_0_1",
         funkcja=3,
-        name="Taras LED",
-        value="128",
+        opis_menu="Taras LED",
+        state="128",
     ),
     make_object(
         72,
@@ -212,8 +212,8 @@ DEFAULT_OBJECTS = (
         0,
         leaf_id="0_cb8f_rgbw_0_2",
         funkcja=4,
-        name="Salon RGBW",
-        value=str(60 | 120 << 8 | 180 << 16 | 240 << 24),
+        opis_menu="Salon RGBW",
+        state=str(60 | 120 << 8 | 180 << 16 | 240 << 24),
     ),
     make_object(
         73,
@@ -221,19 +221,19 @@ DEFAULT_OBJECTS = (
         0,
         leaf_id="0_cb8f_rel_0_3",
         funkcja=5,
-        name="Kinkiet",
-        value="0",
+        opis_menu="Kinkiet",
+        state="0",
         matter_device_type=0x0100,
     ),
-    make_object(74, "przekaznik", 0, leaf_id="0_cb8f_rel_0_4", funkcja=6, value="1"),
+    make_object(74, "przekaznik", 0, leaf_id="0_cb8f_rel_0_4", funkcja=6, state="1"),
     make_object(
         75,
         "przekaznik",
         0,
         leaf_id="0_cb8f_rel_0_5",
         funkcja=10,
-        name="Gniazdo Taras",
-        value="0",
+        opis_menu="Gniazdo Taras",
+        state="0",
         matter_device_type=0x010A,
     ),
     make_object(
@@ -242,7 +242,7 @@ DEFAULT_OBJECTS = (
         0,
         leaf_id="0_cb8f_rol_0_1",
         funkcja=7,
-        name="Roleta Sypialnia",
+        opis_menu="Roleta Sypialnia",
     ),
     make_object(
         82,
@@ -250,8 +250,8 @@ DEFAULT_OBJECTS = (
         0,
         leaf_id="0_cb8f_rolp_0_2",
         funkcja=8,
-        name="Roleta Kuchnia",
-        value="35",
+        opis_menu="Roleta Kuchnia",
+        state="35",
     ),
     make_object(
         83,
@@ -259,9 +259,9 @@ DEFAULT_OBJECTS = (
         0,
         leaf_id="0_cb8f_roll_0_3",
         funkcja=9,
-        name="Zaluzja Goscinny",
-        value="70",
-        tilt_position=40,
+        opis_menu="Zaluzja Goscinny",
+        state="70",
+        lammel=40,
     ),
     make_object(
         91,
@@ -269,11 +269,11 @@ DEFAULT_OBJECTS = (
         0,
         leaf_id="0_cb8f_reg_0_1",
         funkcja=11,
-        name="Termostat Salon",
-        value="1",
+        opis_menu="Termostat Salon",
+        state="1",
         thermostat=ThermostatState(
-            measured_temperature=21.8,
-            target_temperature=22.5,
+            measure_temp=21.8,
+            set_temperature=22.5,
             mode="S",
             cooling=False,
         ),
@@ -285,9 +285,9 @@ DEFAULT_OBJECTS = (
         "flaga",
         0,
         leaf_id="0_1_flaga_0_9",
-        device_id=1,
-        name="Dom pusty",
-        value="0",
+        id_urzadzenia=1,
+        opis_menu="Dom pusty",
+        state="0",
     ),
 )
 
@@ -297,35 +297,35 @@ DEFAULT_MODULES = (
         id=17,
         mac=52111,
         mac_global=152111,
-        name="m-sens salon",
-        type=44,
-        sw_version=63,
-        hw_version=7,
+        nazwa_urzadzenia="m-sens salon",
+        typ_urzadzenia=44,
+        wersja_softu=63,
+        wersja_pcb=7,
     ),
     AmpioModule(
         id=3,
         mac=48770,
-        name="MREL 3",
-        type=4,
-        sw_version=11000,
-        hw_version=2,
+        nazwa_urzadzenia="MREL 3",
+        typ_urzadzenia=4,
+        wersja_softu=11000,
+        wersja_pcb=2,
     ),
     AmpioModule(
         id=1,
         mac=1,
         mac_global=47846,
-        name="MSERV",
-        type=10,
-        sw_version=11639,
-        hw_version=7,
+        nazwa_urzadzenia="MSERV",
+        typ_urzadzenia=10,
+        wersja_softu=11639,
+        wersja_pcb=7,
     ),
 )
 
 # The scene catalogue the mocked fetch returns: one enabled scene the
 # platform exposes and one disabled scene it must skip.
 DEFAULT_SCENES = (
-    AmpioScene(id=5, name="Wieczór", active=True, object_ids=frozenset({71, 72})),
-    AmpioScene(id=6, name="Nieaktywna", active=False),
+    AmpioScene(id=5, scene_name="Wieczór", active=True, object_ids=frozenset({71, 72})),
+    AmpioScene(id=6, scene_name="Nieaktywna", active=False),
 )
 
 # The room map the mocked fetch returns: a named sensor, a light, a cover,
@@ -367,9 +367,9 @@ def mock_client_class() -> Generator[MagicMock]:
         patch("custom_components.ampio.AmpioClient", autospec=True) as client_class,
         patch("custom_components.ampio.config_flow.AmpioClient", new=client_class),
     ):
-        client_class.test_connection.return_value = SERVER_INFO
+        client_class.check_connection.return_value = SERVER_INFO
         client = client_class.return_value
-        client.start.return_value = True
+        client.connect.return_value = True
         client.available = True
         client.objects = {obj.id: obj for obj in DEFAULT_OBJECTS}
         client.modules = {module.id: module for module in DEFAULT_MODULES}
@@ -383,9 +383,9 @@ def mock_client_class() -> Generator[MagicMock]:
         # Mirrors the real resolver's documented contract over the seeded
         # catalogue: join by device_id, gated on the leaf-derived mac.
         def module_for(obj: AmpioObject) -> AmpioModule | None:
-            if obj.device_id is None:
+            if obj.id_urzadzenia is None:
                 return None
-            module = client.modules.get(obj.device_id)
+            module = client.modules.get(obj.id_urzadzenia)
             if module is None or module.mac is None or module.mac != obj.module_mac:
                 return None
             return module

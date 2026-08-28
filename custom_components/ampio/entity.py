@@ -24,13 +24,13 @@ def eligible_objects(client: AmpioClient) -> Iterator[AmpioObject]:
 
     ``visible`` is the M-SERV's own predicate for what the user still sees
     in Ampio Designer; ghost rows that survived removal fail it. The
-    ``stable_key`` test then holds back the system objects, which the
+    ``leaf_key`` test then holds back the system objects, which the
     M-SERV exposes without a ``leaf_id`` and which no platform covers.
     """
     return (
         obj
         for obj in client.objects.values()
-        if obj.visible and obj.stable_key is not None
+        if obj.visible and obj.leaf_key is not None
     )
 
 
@@ -61,10 +61,10 @@ class AmpioEntity(Entity):
         self._data = data
         self._object_id = obj.id
         # Designer exposes one physical output as several objects, and every
-        # such view repeats the ``leaf_id`` that ``stable_key`` is built
-        # from. ``unique_key`` identifies the row instead, so each view keeps
-        # its own entity. The prefix scopes it per server.
-        self._attr_unique_id = f"{data.prefix}_{obj.unique_key}"
+        # such view repeats the ``leaf_id`` that ``leaf_key`` is built
+        # from. ``object_key`` identifies the row instead, so each view
+        # keeps its own entity. The prefix scopes it per server.
+        self._attr_unique_id = f"{data.prefix}_{obj.object_key}"
         # An object is a channel of the module that carries it, not a
         # deployed device of its own. Both the parent and its name derive
         # from the leaf-embedded mac, which every account tier receives, so
@@ -74,8 +74,10 @@ class AmpioEntity(Entity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, data.prefix if on_hub else f"{data.prefix}:{mac}")}
         )
-        if obj.name:
-            self._attr_name = obj.name
+        # ``opis_menu`` is the Designer menu description, which is the name
+        # the user gave the object in the Ampio app.
+        if obj.opis_menu:
+            self._attr_name = obj.opis_menu
 
     @override
     async def async_added_to_hass(self) -> None:

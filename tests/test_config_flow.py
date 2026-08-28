@@ -69,7 +69,7 @@ async def test_user_flow_errors_and_recovers(
     expected_error: str,
 ) -> None:
     """Each error shape stays on the user form; a valid retry creates the entry."""
-    mock_client_class.test_connection.side_effect = side_effect
+    mock_client_class.check_connection.side_effect = side_effect
 
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_USER}
@@ -86,7 +86,7 @@ async def test_user_flow_errors_and_recovers(
         == USER_INPUT[CONF_HOST]
     )
 
-    mock_client_class.test_connection.side_effect = None
+    mock_client_class.check_connection.side_effect = None
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], USER_INPUT
     )

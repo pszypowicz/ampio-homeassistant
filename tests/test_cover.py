@@ -73,7 +73,7 @@ async def test_travel_services_map_to_verbs(
         {ATTR_ENTITY_ID: POSITION_ENTITY_ID},
         blocking=True,
     )
-    mock_client.open_cover.assert_awaited_once_with(82)
+    mock_client.open.assert_awaited_once_with(82)
 
     await hass.services.async_call(
         COVER_DOMAIN,
@@ -81,7 +81,7 @@ async def test_travel_services_map_to_verbs(
         {ATTR_ENTITY_ID: POSITION_ENTITY_ID},
         blocking=True,
     )
-    mock_client.close_cover.assert_awaited_once_with(82)
+    mock_client.close.assert_awaited_once_with(82)
 
     await hass.services.async_call(
         COVER_DOMAIN,
@@ -89,7 +89,7 @@ async def test_travel_services_map_to_verbs(
         {ATTR_ENTITY_ID: POSITION_ENTITY_ID},
         blocking=True,
     )
-    mock_client.stop_cover.assert_awaited_once_with(82)
+    mock_client.stop.assert_awaited_once_with(82)
 
 
 async def test_set_position_maps_to_percent(
@@ -104,7 +104,7 @@ async def test_set_position_maps_to_percent(
         {ATTR_ENTITY_ID: POSITION_ENTITY_ID, ATTR_POSITION: 60},
         blocking=True,
     )
-    mock_client.set_cover_position.assert_awaited_once_with(82, 60)
+    mock_client.set_roller_pos.assert_awaited_once_with(82, 60)
 
 
 async def test_tilt_services_map_to_lamella(
@@ -119,8 +119,8 @@ async def test_tilt_services_map_to_lamella(
         {ATTR_ENTITY_ID: TILT_ENTITY_ID, ATTR_TILT_POSITION: 25},
         blocking=True,
     )
-    mock_client.set_cover_tilt.assert_awaited_once_with(83, 25)
-    mock_client.set_cover_tilt.reset_mock()
+    mock_client.set_roller_lamella.assert_awaited_once_with(83, 25)
+    mock_client.set_roller_lamella.reset_mock()
 
     await hass.services.async_call(
         COVER_DOMAIN,
@@ -128,8 +128,8 @@ async def test_tilt_services_map_to_lamella(
         {ATTR_ENTITY_ID: TILT_ENTITY_ID},
         blocking=True,
     )
-    mock_client.set_cover_tilt.assert_awaited_once_with(83, 100)
-    mock_client.set_cover_tilt.reset_mock()
+    mock_client.set_roller_lamella.assert_awaited_once_with(83, 100)
+    mock_client.set_roller_lamella.reset_mock()
 
     await hass.services.async_call(
         COVER_DOMAIN,
@@ -137,7 +137,7 @@ async def test_tilt_services_map_to_lamella(
         {ATTR_ENTITY_ID: TILT_ENTITY_ID},
         blocking=True,
     )
-    mock_client.set_cover_tilt.assert_awaited_once_with(83, 0)
+    mock_client.set_roller_lamella.assert_awaited_once_with(83, 0)
 
 
 async def test_stop_tilt_maps_to_stop(
@@ -152,7 +152,7 @@ async def test_stop_tilt_maps_to_stop(
         {ATTR_ENTITY_ID: TILT_ENTITY_ID},
         blocking=True,
     )
-    mock_client.stop_cover.assert_awaited_once_with(83)
+    mock_client.stop.assert_awaited_once_with(83)
 
 
 async def test_push_echo_updates_position(
@@ -161,7 +161,7 @@ async def test_push_echo_updates_position(
     """A pushed travel echo updates the reported position."""
     await setup_integration(hass, mock_config_entry)
 
-    obj = replace(mock_client.objects[82], value="80")
+    obj = replace(mock_client.objects[82], state="80")
     mock_client.objects[82] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
@@ -176,7 +176,7 @@ async def test_zero_position_reads_closed(
     """Position zero means fully closed."""
     await setup_integration(hass, mock_config_entry)
 
-    obj = replace(mock_client.objects[82], value="0")
+    obj = replace(mock_client.objects[82], state="0")
     mock_client.objects[82] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()

@@ -33,7 +33,7 @@ class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             try:
-                info = await AmpioClient.test_connection(
+                info = await AmpioClient.check_connection(
                     user_input[CONF_HOST],
                     user_input[CONF_USERNAME],
                     user_input[CONF_PASSWORD],
@@ -46,7 +46,7 @@ class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
-                await self.async_set_unique_id(info.key)
+                await self.async_set_unique_id(info.server_key)
                 self._abort_if_unique_id_configured(updates=user_input)
                 return self.async_create_entry(
                     title=user_input[CONF_HOST], data=user_input

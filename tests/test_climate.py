@@ -79,7 +79,7 @@ async def test_set_temperature_waits_for_the_echo(
     mock_client.set_temperature.assert_awaited_once_with(91, 21.5)
     assert hass.states.get(THERMOSTAT_ENTITY_ID).attributes[ATTR_TEMPERATURE] == 22.5
 
-    await _push_thermostat(hass, mock_client, target_temperature=21.5)
+    await _push_thermostat(hass, mock_client, set_temperature=21.5)
     assert hass.states.get(THERMOSTAT_ENTITY_ID).attributes[ATTR_TEMPERATURE] == 21.5
 
 
@@ -109,7 +109,7 @@ async def test_action_follows_running_and_cooling_flags(
     state = hass.states.get(THERMOSTAT_ENTITY_ID)
     assert state.attributes[ATTR_HVAC_ACTION] == HVACAction.HEATING
 
-    obj = replace(mock_client.objects[91], value="0")
+    obj = replace(mock_client.objects[91], state="0")
     mock_client.objects[91] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
@@ -120,7 +120,7 @@ async def test_action_follows_running_and_cooling_flags(
 
     obj = replace(
         mock_client.objects[91],
-        value="1",
+        state="1",
         thermostat=replace(mock_client.objects[91].thermostat, cooling=True),
     )
     mock_client.objects[91] = obj

@@ -118,7 +118,7 @@ async def test_flag_push_update_toggles_state(
     await setup_integration(hass, mock_config_entry)
     assert hass.states.get(FLAG_ENTITY_ID).state == STATE_ON
 
-    obj = replace(mock_client.objects[61], value="0")
+    obj = replace(mock_client.objects[61], state="0")
     mock_client.objects[61] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
@@ -133,7 +133,7 @@ async def test_push_echo_toggles_state(
     await setup_integration(hass, mock_config_entry)
     assert hass.states.get(PLAIN_ENTITY_ID).state == STATE_ON
 
-    obj = replace(mock_client.objects[74], value="0")
+    obj = replace(mock_client.objects[74], state="0")
     mock_client.objects[74] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
