@@ -35,11 +35,13 @@ Requires Home Assistant 2026.8.0 or newer. `ampio-mqtt` is installed automatical
 
 ### Updating
 
-Every `0.0.x` release is beta. None of them carries a migration, so an update can change device names, entity ids, or the entity set with no upgrade path.
+Every `0.0.x` release is beta. None of them carries a migration, so an update can change device names or the entity set with no upgrade path.
 
-If an update leaves you with missing entities, duplicated entities, or entities that stay unavailable, remove the integration and add it again. That is the supported first step, not a last resort. Your Ampio configuration is untouched by it, because the M-SERV holds it. What you lose is the Home Assistant side: the device names you set, the areas you assigned, and any automation that names an entity id which the new version mints differently.
+Your existing entity ids survive an update. Home Assistant mints an entity id once, at first registration, and keeps it after that. Your automations keep working.
 
-Before you update, write down the entity ids your automations use. After you add the integration again, check them.
+If an update leaves you with missing entities, duplicated entities, or entities that stay unavailable, remove the integration and add it again. That is the supported first step, not a last resort. Your Ampio configuration is untouched, because the M-SERV holds it. Home Assistant also remembers a removed entity for 30 days, so a re-add restores your entity ids, your renames, and your areas.
+
+That memory has one consequence. An install created before version 0.0.12 keeps its old entity ids for good, even through a remove and a re-add. The ids work, and nothing forces you to change them. To move such an install onto the current scheme you have to delete its records from the entity registry by hand, with Home Assistant stopped. Back the registry up first, and expect to repoint every automation afterwards.
 
 ## Configuration
 
