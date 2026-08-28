@@ -26,11 +26,11 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import MSENS_SLUG, emit
+from .conftest import emit, pinned_id
 
-PLAIN_ENTITY_ID = f"switch.{MSENS_SLUG}"
-OUTLET_ENTITY_ID = f"switch.{MSENS_SLUG}_gniazdo_taras"
-FLAG_ENTITY_ID = f"switch.{MSENS_SLUG}_podlewanie"
+PLAIN_ENTITY_ID = pinned_id("switch", 74)
+OUTLET_ENTITY_ID = pinned_id("switch", 75)
+FLAG_ENTITY_ID = pinned_id("switch", 61)
 
 
 @pytest.fixture(autouse=True)

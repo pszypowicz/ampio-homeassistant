@@ -7,6 +7,7 @@ from ampio_mqtt import (
     AmpioAuthError,
     AmpioClient,
     AmpioConnectionError,
+    AmpioModule,
     AmpioTimeoutError,
     AuthFailed,
     AvailabilityChanged,
@@ -37,6 +38,43 @@ _LOGGER = logging.getLogger(__name__)
 def _opt_str(value: object | None) -> str | None:
     """Stringify a catalogue field, passing None through."""
     return None if value is None else str(value)
+
+
+def _module_name(module: AmpioModule | None, mac: int) -> str:
+    """Name a module device: the installer's own name, or the mac.
+
+    ``nazwa_urzadzenia`` is the name the installer gave the module in Ampio
+    Designer, and the module catalogue that carries it answers the
+    administrator login alone. A restricted account is served the mac form
+    instead, so this name follows the account tier. Nothing depends on it:
+    ``AmpioEntity`` pins the entity id, so a name that changes on a tier
+    switch renames the device in the interface and moves no id.
+    """
+    if module is not None and module.nazwa_urzadzenia:
+        return module.nazwa_urzadzenia
+    return f"Ampio module 0x{mac:X}"
+
+
+async def _async_sweep_records(client: AmpioClient) -> None:
+    """Fill the admin-guarded record bundles, and log what the pass covered.
+
+    The M-SERV answers one module at a time, so the pass runs as long as the
+    install is large. Its result feeds the diagnostics download alone, and a
+    module that stays silent costs that module's descriptions.
+    """
+    try:
+        sweep = await client.resolve_records()
+    except AmpioConnectionError, AmpioTimeoutError:
+        _LOGGER.warning(
+            "Could not resolve the Designer descriptions; "
+            "the diagnostics download omits them"
+        )
+        return
+    _LOGGER.debug(
+        "The Designer description sweep read %d modules and %d stayed silent",
+        len(sweep.answered_macs),
+        len(sweep.silent_macs),
+    )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> bool:
@@ -81,10 +119,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
         )
 
     # The hub is built from the server-info reply both account tiers receive.
-    # Its name is a constant: Home Assistant mints an entity id from the name
-    # of the device the entity sits on, and the M-SERV's own catalogue row is
-    # admin-only, so a name taken from it would give a restricted account a
-    # different entity id for the same object. The row decorates the model.
+    # Its name is the product name, because one M-SERV runs one install and
+    # its catalogue row names it no better. The row decorates the model.
     device_registry = dr.async_get(hass)
     mserv = client.mserv
     hub = device_registry.async_get_or_create(
@@ -98,12 +134,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
         configuration_url=f"http://{info.local_ip}" if info.local_ip else None,
     )
 
-    # One device per module, registered before the platforms load. Both the
-    # identifier and the name derive from the leaf-embedded mac that every
-    # account tier receives, for the reason the hub name gives above: the
-    # module catalogue is admin-only, and a device name mints entity ids.
-    # The catalogue decorates the model, the versions, and the serial, so a
-    # tier change enriches or clears those and never moves an entity.
+    # One device per module, registered before the platforms load. The
+    # identifier derives from the leaf-embedded mac that every account tier
+    # receives, so the tree holds still across a tier change. The name comes
+    # from the admin catalogue where that answers, and the catalogue also
+    # decorates the model, the versions, and the serial. All of those follow
+    # the tier, and none of them reaches an entity id.
     seen_macs: set[int] = set()
     for obj in eligible_objects(client):
         if obj.is_server_owned or (mac := obj.module_mac) is None:
@@ -115,7 +151,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
         device_registry.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, f"{prefix}:{mac}")},
-            name=f"Ampio module 0x{mac:X}",
+            name=_module_name(module, mac),
             manufacturer="Ampio",
             via_device_id=hub.id,
             model=module.model if module else None,
@@ -136,20 +172,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
         )
 
     # The description sweep fills each object's admin-guarded record bundle,
-    # for the diagnostics download in the same way. The platform partition
-    # reads ``matter_device_type``, the catalogue column both tiers receive,
-    # which the sweep never touches (docs/designer-quirks.md). Record answers
-    # travel the CAN bus and need several seconds on a large install, so the
-    # sweep keeps the library's default timeout; a tighter cap drops answers
-    # that were still in flight.
+    # for the diagnostics download in the same way. It runs in the
+    # background, because the M-SERV answers the requests one module at a
+    # time and the pass therefore takes as long as the install is large.
+    # Nothing waits on it: the platform partition reads
+    # ``matter_device_type``, the catalogue column both tiers receive, which
+    # the sweep never touches (docs/designer-quirks.md), and a record that
+    # lands after an entity does reaches no id and no platform choice.
     if client.access_tier is AccessTier.ADMIN:
-        try:
-            await client.resolve_records()
-        except AmpioConnectionError, AmpioTimeoutError:
-            _LOGGER.warning(
-                "Could not resolve the Designer descriptions; "
-                "the diagnostics download omits them"
-            )
+        entry.async_create_background_task(
+            hass, _async_sweep_records(client), "ampio_resolve_records"
+        )
 
     entry.runtime_data = AmpioData(client, prefix)
 

@@ -1,5 +1,5 @@
 # serializer version: 1
-# name: test_all_entities[binary_sensor.ampio_module_0xcb8f_motion-entry]
+# name: test_all_entities[binary_sensor.ampio_47846_obj_146-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -13,7 +13,7 @@
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': None,
-    'entity_id': 'binary_sensor.ampio_module_0xcb8f_motion',
+    'entity_id': 'binary_sensor.ampio_47846_obj_146',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -21,58 +21,7 @@
     'labels': set({
     }),
     'name': None,
-    'object_id_base': 'Motion',
-    'options': dict({
-    }),
-    'original_device_class': <BinarySensorDeviceClass.MOTION: 'motion'>,
-    'original_icon': None,
-    'original_name': 'Motion',
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
-    'supported_features': 0,
-    'translation_key': None,
-    'unique_id': '47846_obj_62',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[binary_sensor.ampio_module_0xcb8f_motion-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'motion',
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Ampio module 0xCB8F Motion',
-    }),
-    'context': <ANY>,
-    'entity_id': 'binary_sensor.ampio_module_0xcb8f_motion',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'off',
-  })
-# ---
-# name: test_all_entities[binary_sensor.ampio_module_0xcb8f_przycisk_kino-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': None,
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'binary_sensor',
-    'entity_category': None,
-    'entity_id': 'binary_sensor.ampio_module_0xcb8f_przycisk_kino',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': 'Przycisk kino',
+    'object_id_base': None,
     'options': dict({
     }),
     'original_device_class': None,
@@ -80,20 +29,71 @@
     'original_name': 'Przycisk kino',
     'platform': 'ampio',
     'previous_unique_id': None,
-    'suggested_object_id': None,
+    'suggested_object_id': 'ampio_47846_obj_146',
     'supported_features': 0,
     'translation_key': 'input',
     'unique_id': '47846_obj_146',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[binary_sensor.ampio_module_0xcb8f_przycisk_kino-state]
+# name: test_all_entities[binary_sensor.ampio_47846_obj_146-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Ampio module 0xCB8F Przycisk kino',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'm-sens salon Przycisk kino',
     }),
     'context': <ANY>,
-    'entity_id': 'binary_sensor.ampio_module_0xcb8f_przycisk_kino',
+    'entity_id': 'binary_sensor.ampio_47846_obj_146',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'off',
+  })
+# ---
+# name: test_all_entities[binary_sensor.ampio_47846_obj_62-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': None,
+    'config_entry_id': <ANY>,
+    'config_subentry_id': <ANY>,
+    'device_class': None,
+    'device_id': <ANY>,
+    'disabled_by': None,
+    'domain': 'binary_sensor',
+    'entity_category': None,
+    'entity_id': 'binary_sensor.ampio_47846_obj_62',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': None,
+    'options': dict({
+    }),
+    'original_device_class': <BinarySensorDeviceClass.MOTION: 'motion'>,
+    'original_icon': None,
+    'original_name': 'Motion',
+    'platform': 'ampio',
+    'previous_unique_id': None,
+    'suggested_object_id': 'ampio_47846_obj_62',
+    'supported_features': 0,
+    'translation_key': None,
+    'unique_id': '47846_obj_62',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_all_entities[binary_sensor.ampio_47846_obj_62-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'motion',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'm-sens salon Motion',
+    }),
+    'context': <ANY>,
+    'entity_id': 'binary_sensor.ampio_47846_obj_62',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,

@@ -19,10 +19,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import MSENS_SLUG, emit, make_object
+from .conftest import emit, make_object, pinned_id
 
-MOTION_ENTITY_ID = f"binary_sensor.{MSENS_SLUG}_motion"
-WEJ_ENTITY_ID = f"binary_sensor.{MSENS_SLUG}_przycisk_kino"
+MOTION_ENTITY_ID = pinned_id("binary_sensor", 62)
+WEJ_ENTITY_ID = pinned_id("binary_sensor", 146)
 
 
 @pytest.fixture(autouse=True)

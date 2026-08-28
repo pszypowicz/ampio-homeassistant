@@ -35,11 +35,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import MSENS_SLUG, emit
+from .conftest import emit, pinned_id
 
-PLAIN_ENTITY_ID = f"cover.{MSENS_SLUG}_roleta_sypialnia"
-POSITION_ENTITY_ID = f"cover.{MSENS_SLUG}_roleta_kuchnia"
-TILT_ENTITY_ID = f"cover.{MSENS_SLUG}_zaluzja_goscinny"
+PLAIN_ENTITY_ID = pinned_id("cover", 81)
+POSITION_ENTITY_ID = pinned_id("cover", 82)
+TILT_ENTITY_ID = pinned_id("cover", 83)
 
 
 @pytest.fixture(autouse=True)

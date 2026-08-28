@@ -16,6 +16,7 @@ from ampio_mqtt import (
     AmpioObject,
     AmpioScene,
     AmpioServerInfo,
+    RecordSweep,
     ThermostatState,
 )
 import pytest
@@ -47,10 +48,25 @@ def snapshot(snapshot: SnapshotAssertion) -> SnapshotAssertion:
 
 MSERV_MAC = "47846"
 MSENS_IDENTIFIER = (DOMAIN, f"{MSERV_MAC}:52111")
-# The module device carries the leaf-embedded mac as its name on both
-# account tiers, and Home Assistant mints the entity id from that name.
-MSENS_DEVICE_NAME = "Ampio module 0xCB8F"
-MSENS_SLUG = "ampio_module_0xcb8f"
+# The module device is named from the admin-only module catalogue, and it
+# falls back to the leaf-embedded mac that both account tiers receive.
+MSENS_DEVICE_NAME = "m-sens salon"
+MSENS_MAC_NAME = "Ampio module 0xCB8F"
+
+
+def pinned_id(domain: str, oid: int, suffix: str = "") -> str:
+    """The pinned entity id of an object's entity in ``domain``.
+
+    The integration carries this id into the add, so no device name and no
+    area name compose it. It is the unique id with the domain in front.
+    """
+    return f"{domain}.ampio_{MSERV_MAC}_obj_{oid}{suffix}"
+
+
+# A sweep that read every module and joined nothing.
+EMPTY_SWEEP = RecordSweep(
+    records={}, answered_macs=frozenset(), silent_macs=frozenset()
+)
 
 USER_INPUT = {
     CONF_HOST: "ampio.test",
@@ -378,7 +394,7 @@ def mock_client_class() -> Generator[MagicMock]:
         client.access_tier = AccessTier.ADMIN
         client.fetch_scenes.return_value = list(DEFAULT_SCENES)
         client.fetch_rooms.return_value = dict(DEFAULT_ROOMS)
-        client.resolve_records.return_value = {}
+        client.resolve_records.return_value = EMPTY_SWEEP
 
         # Mirrors the real resolver's documented contract over the seeded
         # catalogue: join by device_id, gated on the leaf-derived mac.

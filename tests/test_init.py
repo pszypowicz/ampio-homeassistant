@@ -13,6 +13,7 @@ from ampio_mqtt import (
     AvailabilityChanged,
     ConnectionDied,
     DesignerRecord,
+    RecordSweep,
 )
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -29,7 +30,17 @@ from homeassistant.helpers import (
 )
 
 from . import setup_integration
-from .conftest import MSENS_DEVICE_NAME, MSENS_IDENTIFIER, MSERV_MAC, USER_INPUT, emit
+from .conftest import (
+    EMPTY_SWEEP,
+    MSENS_DEVICE_NAME,
+    MSENS_IDENTIFIER,
+    MSENS_MAC_NAME,
+    MSERV_MAC,
+    USER_INPUT,
+    emit,
+    make_object,
+    pinned_id,
+)
 
 
 async def test_setup_and_unload(
@@ -140,9 +151,10 @@ async def test_restricted_account_groups_by_module_mac(
     """Without the module catalogue, grouping still keys on the leaf-derived mac.
 
     A standard (non-administrator) account is served the object catalogue
-    but no module list. The device tree, the device names, and therefore
-    every entity id build from the leaf-embedded mac alone, so they match
-    the administrator tier. Only the metadata is missing.
+    but no module list. The device tree builds from the leaf-embedded mac
+    alone, and the module device falls back to a mac-derived name. Only the
+    name and the metadata differ from the administrator tier, and neither
+    reaches an entity id.
     """
     mock_client.modules = {}
     mock_client.mserv = None
@@ -163,7 +175,7 @@ async def test_restricted_account_groups_by_module_mac(
         MSENS_IDENTIFIER, mock_config_entry.entry_id
     )
     assert module is not None
-    assert module.name == MSENS_DEVICE_NAME
+    assert module.name == MSENS_MAC_NAME
     assert module.model is None
     assert module.via_device_id == hub.id
 
@@ -186,19 +198,18 @@ async def test_restricted_account_groups_by_module_mac(
     assert len([entity for entity in entities if entity.domain == "scene"]) == 1
 
 
-async def test_tier_switch_keeps_device_grouping(
+async def test_tier_switch_keeps_entity_ids(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
     device_registry: dr.DeviceRegistry,
     entity_registry: er.EntityRegistry,
 ) -> None:
-    """An entry keeps its devices and its names across account-tier switches.
+    """An entry keeps its devices and its entity ids across tier switches.
 
-    The admin module catalogue decorates the model and the versions only.
-    The device name holds still in both directions, because Home Assistant
-    mints an entity id from it and a rename on a tier change would strand
-    every automation that names the old id.
+    The admin module catalogue names the device and decorates the model, so
+    the name follows the tier in both directions. Every entity id holds
+    still, because the integration pins it and no name composes it.
     """
     admin_modules = mock_client.modules
     admin_mserv = mock_client.mserv
@@ -246,8 +257,51 @@ async def test_tier_switch_keeps_device_grouping(
     )
     assert downgraded is not None
     assert downgraded.id == module.id
-    assert downgraded.name == MSENS_DEVICE_NAME
+    assert downgraded.name == MSENS_MAC_NAME
     assert downgraded.model is None
+    assert {
+        entity.entity_id: entity.device_id
+        for entity in er.async_entries_for_config_entry(
+            entity_registry, mock_config_entry.entry_id
+        )
+    } == entity_devices
+
+
+async def test_user_names_never_reach_an_entity_id(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+    area_registry: ar.AreaRegistry,
+) -> None:
+    """An object discovered after a rename still pins its own id.
+
+    Home Assistant composes an entity id from the area name and the device
+    name, at first registration. An object that Designer gains later
+    registers against a device the user has since renamed and placed, so
+    without the pin its id would carry both. The pin holds it to the object
+    identity, which is the unique id.
+    """
+    await setup_integration(hass, mock_config_entry)
+    module = device_registry.async_get_device_by_identifier(
+        MSENS_IDENTIFIER, mock_config_entry.entry_id
+    )
+    assert module is not None
+    area = area_registry.async_get_or_create("Kuchnia")
+    device_registry.async_update_device(
+        module.id, area_id=area.id, name_by_user="Sufit kuchnia"
+    )
+
+    mock_client.objects[500] = make_object(
+        500, "temp", 1, leaf_id="0_cb8f_temp_0_9", opis_menu="Nowy"
+    )
+    await hass.config_entries.async_reload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entity_registry.async_get_entity_id(
+        "sensor", DOMAIN, f"{MSERV_MAC}_obj_500"
+    ) == pinned_id("sensor", 500)
 
 
 async def test_runtime_auth_failure_reloads_into_auth_error(
@@ -310,7 +364,7 @@ async def test_module_devices_preregistered(
     mock_config_entry: MockConfigEntry,
     device_registry: dr.DeviceRegistry,
 ) -> None:
-    """Module devices exist after setup, named by mac and decorated by catalogue."""
+    """Module devices exist after setup, named and decorated by the catalogue."""
     await setup_integration(hass, mock_config_entry)
 
     hub = device_registry.async_get_device_by_identifier(
@@ -393,11 +447,11 @@ async def test_sweep_never_moves_an_entity(
     bundle the sweep fills must leave the relay on the switch platform.
     """
 
-    def _resolve() -> dict[int, DesignerRecord]:
+    def _resolve() -> RecordSweep:
         obj = mock_client.objects[74]
         record = DesignerRecord(matter_device_type=0x0100)
         mock_client.objects[74] = replace(obj, record=record)
-        return {}
+        return EMPTY_SWEEP
 
     mock_client.resolve_records.side_effect = _resolve
 
@@ -443,17 +497,17 @@ async def test_admin_records_never_set_an_area(
 ) -> None:
     """No device takes an area from the admin-only Designer records.
 
-    The sweep answers an administrator alone. An area it seeded would put
-    a fresh restricted install in a different area, and Home Assistant
-    mints the entity id from the area as well as the device name.
+    The sweep answers an administrator alone, and the Designer location is
+    not the Home Assistant area map. Where a device belongs is the user's
+    call, so the integration seeds nothing.
     """
 
-    def _resolve() -> dict[int, DesignerRecord]:
+    def _resolve() -> RecordSweep:
         for oid, location in ((81, "Elsewhere"), (82, "Garaz")):
             mock_client.objects[oid] = replace(
                 mock_client.objects[oid], record=DesignerRecord(location=location)
             )
-        return {}
+        return EMPTY_SWEEP
 
     mock_client.resolve_records.side_effect = _resolve
 

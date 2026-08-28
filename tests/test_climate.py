@@ -28,9 +28,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import MSENS_SLUG, emit
+from .conftest import emit, pinned_id
 
-THERMOSTAT_ENTITY_ID = f"climate.{MSENS_SLUG}_termostat_salon"
+THERMOSTAT_ENTITY_ID = pinned_id("climate", 91)
 
 
 @pytest.fixture(autouse=True)
