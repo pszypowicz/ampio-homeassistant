@@ -41,7 +41,7 @@ Your entity ids survive an update, and your automations keep working. Home Assis
 
 If an update leaves you with missing entities or entities that stay unavailable, remove the integration and add it again. That is the supported first step, not a last resort. Home Assistant remembers a removed entity for 30 days, so a re-add restores your entity ids, your renames, and your areas.
 
-See [docs/stale-entities.md](docs/stale-entities.md) to clean up an entity Ampio Designer no longer has, or to move an install created before 0.0.12 onto the current entity id scheme.
+See [docs/stale-entities.md](docs/stale-entities.md) to clean up an entity Ampio Designer no longer has, or to learn what happens to your ids when a release changes their form.
 
 ## Configuration
 
