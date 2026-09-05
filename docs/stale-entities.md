@@ -1,8 +1,8 @@
-# Stale entities and old entity ids
+# Stale entities and entity ids
 
-Home Assistant keeps an entity id after the integration that made it stops using it. This page explains why, and how to clean up.
+Home Assistant keeps an entity id after the integration that made it stops using it. This page answers the questions that follow from that rule, and explains how to clean up.
 
-## Why an entity id never changes on its own
+## Why does an entity id never change on its own?
 
 Home Assistant builds an entity id once, when the entity registers for the first time. After that the id is stored, and no later change moves it. A device rename does not move it. An area change does not move it. An integration update does not move it.
 
@@ -10,7 +10,13 @@ Removing the integration does not move it either. Home Assistant remembers a rem
 
 This is good behavior. Your automations keep working across an update, a rename, and a reinstall.
 
-It has one cost. An install created before version 0.0.12 keeps its old entity ids, in the `light.ampio_module_0xc9ae_osw_obwod_1` form. A fresh install of 0.0.12 uses `light.ampio_47846_obj_7` instead. Both work. Nothing forces you to change.
+## A release changed how entity ids look. Did my ids change?
+
+No. Your install keeps the ids it already has. A fresh install gets the new form. Both forms work, and nothing forces you to change.
+
+Every `0.0.x` release is beta, and none of them carries a migration. A release can therefore change the id form, and the same rule applies each time. Version 0.0.12 is one example. A fresh install of 0.0.12 or later uses ids of the form `light.ampio_47846_obj_7`. An install created before 0.0.12 keeps ids of the form `light.ampio_module_0xc9ae_osw_obwod_1`.
+
+If you want the new form on an existing install, use the reset procedure below. It is a support procedure. No update requires it.
 
 ## Back up first
 
@@ -20,7 +26,7 @@ Do not start either procedure below without a backup. Both delete records that H
 2. Select "Create backup".
 3. Wait for the backup to finish.
 
-## Remove a few stale entities
+## How do I remove a few stale entities?
 
 Use this when Ampio Designer no longer has an object, and its entity is still listed. Such an entity shows the state `unavailable` or the label "restored".
 
@@ -31,9 +37,9 @@ Use this when Ampio Designer no longer has an object, and its entity is still li
 
 If the "Delete" button is not offered, the integration still creates that entity. Check Ampio Designer before you go further.
 
-## Reset every Ampio entity id
+## How do I reset every Ampio entity id?
 
-Use this only to move an old install onto the current id scheme. The procedure deletes every Ampio entity record, so Home Assistant builds the ids again from scratch on the next start.
+Use this to move an existing install onto the current id form. The procedure deletes every Ampio entity record, so Home Assistant builds the ids again from scratch on the next start.
 
 **Every automation, script, scene, and dashboard card that names an Ampio entity id stops working.** Write those ids down first, and plan to repoint them.
 
