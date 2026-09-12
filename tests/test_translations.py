@@ -1,20 +1,21 @@
-"""Contract tests for the generated English translation.
+"""Contract tests for the English translation.
 
-``translations/en.json`` is generated from ``strings.json`` and no CI check
-guards the pair, so a key added to one file and forgotten in the other ships
-silently. These tests are that guard.
+``translations/en.json`` mirrors ``strings.json``. A person maintains it by
+hand, expanding each ``[%key:...%]`` reference to its English text.
+hassfest does not compare the two files. These tests do.
 """
 
 import json
 from pathlib import Path
 from typing import Any
 
-STRINGS = Path("custom_components/ampio/strings.json")
-ENGLISH = Path("custom_components/ampio/translations/en.json")
+ROOT = Path(__file__).parent.parent
+STRINGS = ROOT / "custom_components/ampio/strings.json"
+ENGLISH = ROOT / "custom_components/ampio/translations/en.json"
 
 # A value of this shape points at a Home Assistant common string. The
-# generated file carries the resolved English text, so the two legitimately
-# differ there and nowhere else.
+# hand-maintained file carries the resolved English text, so the two
+# legitimately differ there and nowhere else.
 REFERENCE_PREFIX = "[%key:"
 
 

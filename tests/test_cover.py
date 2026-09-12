@@ -34,7 +34,7 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import ServiceNotSupported, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
@@ -355,3 +355,36 @@ async def test_a_move_the_lock_allows_goes_out(
         blocking=True,
     )
     mock_client.set_roller_pos.assert_awaited_once_with(82, target)
+
+
+@pytest.mark.parametrize(
+    ("block", "service", "verb"),
+    [
+        pytest.param(2, SERVICE_OPEN_COVER, "open", id="opening-blocked"),
+        pytest.param(1, SERVICE_CLOSE_COVER, "close", id="closing-blocked"),
+    ],
+)
+async def test_a_blocked_travel_service_is_not_supported(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    block: int,
+    service: str,
+    verb: str,
+) -> None:
+    """Calling the travel service the lock refuses raises instead of doing nothing."""
+    await setup_integration(hass, mock_config_entry)
+
+    obj = replace(mock_client.objects[82], block=block)
+    mock_client.objects[82] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+    await hass.async_block_till_done()
+
+    with pytest.raises(ServiceNotSupported):
+        await hass.services.async_call(
+            COVER_DOMAIN,
+            service,
+            {ATTR_ENTITY_ID: POSITION_ENTITY_ID},
+            blocking=True,
+        )
+    getattr(mock_client, verb).assert_not_awaited()
