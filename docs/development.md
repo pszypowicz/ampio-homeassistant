@@ -41,4 +41,4 @@ docker run --rm -v "$PWD":/github/workspace ghcr.io/home-assistant/hassfest
 
 `betterleaks` scans the staged changes for hardcoded secrets. `.gitleaks.toml` exempts the two translation files, the test suite, and the test snapshots. Home Assistant's translation schema fixes the `password` field key and its English label, and the tests carry throwaway account literals. Neither is a credential. Every other path is scanned in full.
 
-`custom_components/ampio/translations/en.json` is hand-maintained. Edit it in place, keep the four-space indentation, and expand every `[%key:...%]` reference to its English text. No check guards this file.
+`custom_components/ampio/translations/en.json` is hand-maintained. Edit it in place, keep the four-space indentation, and expand every `[%key:...%]` reference to its English text. A test suite checks the pair for matching keys, for literal values copied through unchanged, and for a reference left unexpanded, but it cannot check whether an expanded reference carries the right English text.
