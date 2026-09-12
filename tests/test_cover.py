@@ -251,20 +251,20 @@ async def test_a_travel_lock_leaves_the_slats_alone(
     await hass.async_block_till_done()
 
     features = hass.states.get(TILT_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
-    for tilt in (
-        CoverEntityFeature.SET_TILT_POSITION,
-        CoverEntityFeature.OPEN_TILT,
-        CoverEntityFeature.CLOSE_TILT,
-        CoverEntityFeature.STOP_TILT,
-    ):
-        assert tilt & features
+    assert features == (
+        CoverEntityFeature.STOP
+        | CoverEntityFeature.SET_TILT_POSITION
+        | CoverEntityFeature.OPEN_TILT
+        | CoverEntityFeature.CLOSE_TILT
+        | CoverEntityFeature.STOP_TILT
+    )
 
 
 @pytest.mark.parametrize(
-    ("block", "target"),
+    ("block", "target", "expected_key"),
     [
-        pytest.param(2, 80, id="opening-blocked-moves-up"),
-        pytest.param(1, 10, id="closing-blocked-moves-down"),
+        pytest.param(2, 80, "cover_blocked_opening", id="opening-blocked-moves-up"),
+        pytest.param(1, 10, "cover_blocked_closing", id="closing-blocked-moves-down"),
     ],
 )
 async def test_a_blocked_position_move_is_refused(
@@ -273,11 +273,15 @@ async def test_a_blocked_position_move_is_refused(
     mock_config_entry: MockConfigEntry,
     block: int,
     target: int,
+    expected_key: str,
 ) -> None:
     """A position move in the locked direction raises instead of going out.
 
     The feature stays, because the other direction still runs, so nothing
-    but the move's own direction can decide this one.
+    but the move's own direction can decide this one. The translation key
+    is the only thing that tells the two blocked directions apart, so it
+    is what proves the module's message names the direction that is
+    actually locked.
     """
     await setup_integration(hass, mock_config_entry)
 
@@ -286,14 +290,39 @@ async def test_a_blocked_position_move_is_refused(
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as excinfo:
         await hass.services.async_call(
             COVER_DOMAIN,
             SERVICE_SET_COVER_POSITION,
             {ATTR_ENTITY_ID: POSITION_ENTITY_ID, ATTR_POSITION: target},
             blocking=True,
         )
+    assert excinfo.value.translation_key == expected_key
     mock_client.set_roller_pos.assert_not_awaited()
+
+
+async def test_an_unknown_position_allows_the_move(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Without a reported position, nothing can decide a direction, so the move goes out.
+
+    A position-capable cover grants ``SET_POSITION`` from its kind alone, so
+    it can offer the service before a parsable state has ever arrived.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    obj = replace(mock_client.objects[82], state=None, block=2)
+    mock_client.objects[82] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_SET_COVER_POSITION,
+        {ATTR_ENTITY_ID: POSITION_ENTITY_ID, ATTR_POSITION: 50},
+        blocking=True,
+    )
+    mock_client.set_roller_pos.assert_awaited_once_with(82, 50)
 
 
 @pytest.mark.parametrize(
