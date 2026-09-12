@@ -17,9 +17,11 @@ from homeassistant.components.cover import (
     ATTR_POSITION,
     ATTR_TILT_POSITION,
     DOMAIN as COVER_DOMAIN,
+    CoverEntityFeature,
 )
 from homeassistant.const import (
     ATTR_ENTITY_ID,
+    ATTR_SUPPORTED_FEATURES,
     SERVICE_CLOSE_COVER,
     SERVICE_CLOSE_COVER_TILT,
     SERVICE_OPEN_COVER,
@@ -32,6 +34,7 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
@@ -193,3 +196,133 @@ async def test_plain_cover_has_no_position(
     state = hass.states.get(PLAIN_ENTITY_ID)
     assert ATTR_CURRENT_POSITION not in state.attributes
     assert state.state == "unknown"
+
+
+@pytest.mark.parametrize(
+    ("block", "expected_missing"),
+    [
+        pytest.param(0, CoverEntityFeature(0), id="no-lock"),
+        pytest.param(1, CoverEntityFeature.CLOSE, id="closing-blocked"),
+        pytest.param(2, CoverEntityFeature.OPEN, id="opening-blocked"),
+        pytest.param(
+            3,
+            CoverEntityFeature.OPEN
+            | CoverEntityFeature.CLOSE
+            | CoverEntityFeature.SET_POSITION,
+            id="both-blocked",
+        ),
+    ],
+)
+async def test_a_lock_drops_the_feature_it_refuses(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    block: int,
+    expected_missing: CoverEntityFeature,
+) -> None:
+    """Each lock bit removes the travel service the module would drop."""
+    await setup_integration(hass, mock_config_entry)
+    unlocked = hass.states.get(POSITION_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
+
+    obj = replace(mock_client.objects[82], block=block)
+    mock_client.objects[82] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+    await hass.async_block_till_done()
+
+    features = hass.states.get(POSITION_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
+    assert features == unlocked & ~expected_missing
+    assert CoverEntityFeature.STOP & features
+
+
+async def test_a_travel_lock_leaves_the_slats_alone(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A cover locked both ways keeps every tilt service.
+
+    The library documents the lock on the travel axis alone, and whether it
+    also stops the slats cannot be tested without driving a real blocked
+    cover. Keeping the tilt features preserves the behavior that exists.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    obj = replace(mock_client.objects[83], block=3)
+    mock_client.objects[83] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+    await hass.async_block_till_done()
+
+    features = hass.states.get(TILT_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
+    for tilt in (
+        CoverEntityFeature.SET_TILT_POSITION,
+        CoverEntityFeature.OPEN_TILT,
+        CoverEntityFeature.CLOSE_TILT,
+        CoverEntityFeature.STOP_TILT,
+    ):
+        assert tilt & features
+
+
+@pytest.mark.parametrize(
+    ("block", "target"),
+    [
+        pytest.param(2, 80, id="opening-blocked-moves-up"),
+        pytest.param(1, 10, id="closing-blocked-moves-down"),
+    ],
+)
+async def test_a_blocked_position_move_is_refused(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    block: int,
+    target: int,
+) -> None:
+    """A position move in the locked direction raises instead of going out.
+
+    The feature stays, because the other direction still runs, so nothing
+    but the move's own direction can decide this one.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    obj = replace(mock_client.objects[82], block=block)
+    mock_client.objects[82] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+    await hass.async_block_till_done()
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            COVER_DOMAIN,
+            SERVICE_SET_COVER_POSITION,
+            {ATTR_ENTITY_ID: POSITION_ENTITY_ID, ATTR_POSITION: target},
+            blocking=True,
+        )
+    mock_client.set_roller_pos.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("block", "target"),
+    [
+        pytest.param(2, 10, id="opening-blocked-moves-down"),
+        pytest.param(1, 80, id="closing-blocked-moves-up"),
+        pytest.param(2, 35, id="opening-blocked-holds-still"),
+    ],
+)
+async def test_a_move_the_lock_allows_goes_out(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    block: int,
+    target: int,
+) -> None:
+    """One locked direction leaves the other one working."""
+    await setup_integration(hass, mock_config_entry)
+
+    obj = replace(mock_client.objects[82], block=block)
+    mock_client.objects[82] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_SET_COVER_POSITION,
+        {ATTR_ENTITY_ID: POSITION_ENTITY_ID, ATTR_POSITION: target},
+        blocking=True,
+    )
+    mock_client.set_roller_pos.assert_awaited_once_with(82, target)

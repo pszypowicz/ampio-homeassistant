@@ -12,8 +12,10 @@ from homeassistant.components.cover import (
     CoverEntityFeature,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from .const import DOMAIN
 from .data import AmpioConfigEntry, AmpioData
 from .entity import AmpioEntity
 
@@ -61,10 +63,39 @@ class AmpioCover(AmpioEntity, CoverEntity):
                 | CoverEntityFeature.CLOSE_TILT
                 | CoverEntityFeature.STOP_TILT
             )
-        self._attr_supported_features = features
+        self._unblocked_features = features
         self._attr_device_class = (
             CoverDeviceClass.BLIND if has_tilt else CoverDeviceClass.SHUTTER
         )
+
+    @property
+    @override
+    def supported_features(self) -> CoverEntityFeature:
+        """The feature set, minus whatever the module's lock refuses.
+
+        A Designer logic rule locks a cover's travel through its "Disable
+        movement", "Disable closing" and "Disable opening" roller actions,
+        and a rule holds the lock for as long as its trigger holds. The
+        module then drops every command for the blocked direction, the
+        ``/api`` verbs included, with no error and no reply. Dropping the
+        feature is what tells the difference: the dashboard greys the
+        arrow, and core refuses the service call rather than reporting a
+        move that will not happen.
+
+        Position survives one blocked direction, because the other
+        direction still runs. ``async_set_cover_position`` decides that
+        case on the direction of the requested move.
+        """
+        features = self._unblocked_features
+        if (obj := self._object) is None:
+            return features
+        if obj.blocks_opening:
+            features &= ~CoverEntityFeature.OPEN
+        if obj.blocks_closing:
+            features &= ~CoverEntityFeature.CLOSE
+        if obj.blocks_opening and obj.blocks_closing:
+            features &= ~CoverEntityFeature.SET_POSITION
+        return features
 
     @property
     @override
@@ -107,8 +138,29 @@ class AmpioCover(AmpioEntity, CoverEntity):
 
     @override
     async def async_set_cover_position(self, **kwargs: Any) -> None:
-        """Drive the cover to the requested percent."""
-        await self._data.client.set_roller_pos(self._object_id, kwargs[ATTR_POSITION])
+        """Drive the cover to the requested percent, unless the lock refuses."""
+        target: int = kwargs[ATTR_POSITION]
+        self._reject_blocked_move(target)
+        await self._data.client.set_roller_pos(self._object_id, target)
+
+    def _reject_blocked_move(self, target: int) -> None:
+        """Raise when the requested move runs in a direction the module refuses.
+
+        The feature set already covers a cover locked both ways. One
+        locked direction keeps the feature, because the other direction
+        still runs, so the move's own direction decides. Without a
+        reported position nothing can decide, and the command goes out.
+        """
+        obj = self._object
+        if obj is None or (position := obj.position) is None:
+            return
+        if target > position and obj.blocks_opening:
+            key = "cover_blocked_opening"
+        elif target < position and obj.blocks_closing:
+            key = "cover_blocked_closing"
+        else:
+            return
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key=key)
 
     @override
     async def async_set_cover_tilt_position(self, **kwargs: Any) -> None:
