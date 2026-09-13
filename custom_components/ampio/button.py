@@ -22,7 +22,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import VolDictType
 
-from .const import DOMAIN
+from .const import DOMAIN, MAX_WIRE_SECONDS
 from .data import AmpioConfigEntry, AmpioData
 from .entity import AmpioEntity, AmpioModuleEntity, async_turn_on_honoring_pulse
 
@@ -34,10 +34,10 @@ PARALLEL_UPDATES = 0
 # button stops after the same 30 s, so the LED behaves as installers know it.
 IDENTIFY_HOLD_SECONDS: Final = 30
 
-# The wire counts 10 ms ticks in a 16-bit field, so one lock runs from
-# 0.01 s to 655.35 s. There is no indefinite form.
+# The lock's duration field runs from 0.01 s to the wire's per-field
+# ceiling. There is no indefinite form.
 MIN_LOCK_SECONDS: Final = 0.01
-MAX_LOCK_SECONDS: Final = 655.35
+MAX_LOCK_SECONDS: Final = MAX_WIRE_SECONDS
 
 LOCK_TOUCH_SCHEMA: VolDictType = {
     vol.Required("seconds"): vol.All(
@@ -242,7 +242,9 @@ class AmpioTouchUnlockButton(AmpioModuleEntity, ButtonEntity):
     @override
     async def async_press(self) -> None:
         """Release the panel's touch lock now."""
-        await self._send(self._data.client.unlock_panel(self._module_id), "unlock")
+        await self._send(
+            self._data.client.unlock_panel(self._module_id), "touch_unlock_failed"
+        )
 
     async def async_lock_touch(self, seconds: float) -> None:
         """Make the panel ignore every touch for ``seconds``.
@@ -251,15 +253,16 @@ class AmpioTouchUnlockButton(AmpioModuleEntity, ButtonEntity):
         repeats rather than a latch this entity keeps.
         """
         await self._send(
-            self._data.client.lock_panel(self._module_id, seconds=seconds), "lock"
+            self._data.client.lock_panel(self._module_id, seconds=seconds),
+            "touch_lock_failed",
         )
 
-    async def _send(self, command: Coroutine[Any, Any, None], what: str) -> None:
+    async def _send(self, command: Coroutine[Any, Any, None], failure_key: str) -> None:
         """Await a panel write, turning its failures into messages.
 
-        ``what`` picks the message, because a lock that does not arrive
-        leaves the panel usable while an unlock that does not arrive leaves
-        it deaf until the lock runs out.
+        ``failure_key`` picks the message, because a lock that does not
+        arrive leaves the panel usable while an unlock that does not arrive
+        leaves it deaf until the lock runs out.
         """
         try:
             await command
@@ -269,5 +272,5 @@ class AmpioTouchUnlockButton(AmpioModuleEntity, ButtonEntity):
             ) from err
         except (AmpioConnectionError, AmpioTimeoutError) as err:
             raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key=f"touch_{what}_failed"
+                translation_domain=DOMAIN, translation_key=failure_key
             ) from err

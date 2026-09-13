@@ -591,7 +591,7 @@ async def test_module_sensors_are_withheld_on_a_standard_account(
     assert entity_registry.async_get(MODULE_VOLTAGE_ID) is None
     assert entity_registry.async_get(MODULE_TEMPERATURE_ID) is None
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
-    assert {"module_17_voltage", "module_17_temperature"} <= withheld
+    assert withheld == {"module_17_voltage", "module_17_temperature"}
 
 
 @pytest.mark.usefixtures("sensor_only")

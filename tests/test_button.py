@@ -11,6 +11,7 @@ from ampio_mqtt import (
     AmpioConnectionError,
     AmpioTimeoutError,
     AvailabilityChanged,
+    ModuleFunction,
     ObjectAdded,
 )
 import pytest
@@ -22,9 +23,14 @@ from pytest_homeassistant_custom_component.common import (
 from syrupy.assertion import SnapshotAssertion
 import voluptuous as vol
 
+from custom_components.ampio import button as button_module
 from custom_components.ampio.button import IDENTIFY_HOLD_SECONDS
 from custom_components.ampio.const import DOMAIN
-from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN, SERVICE_PRESS
+from homeassistant.components.button import (
+    DOMAIN as BUTTON_DOMAIN,
+    SERVICE_PRESS,
+    ButtonEntity,
+)
 from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
@@ -40,6 +46,7 @@ from .conftest import (
     pinned_id,
     set_access_tier,
     unique_id,
+    with_buzzer,
     with_key_lock,
 )
 
@@ -69,12 +76,49 @@ async def _elapse(hass: HomeAssistant, seconds: int) -> None:
 
 
 async def _lock(hass: HomeAssistant, entity_id: str, seconds: float) -> None:
+    """Call ``ampio.lock_touch`` against ``entity_id`` for ``seconds``."""
     await hass.services.async_call(
         DOMAIN,
         "lock_touch",
         {ATTR_ENTITY_ID: entity_id, "seconds": seconds},
         blocking=True,
     )
+
+
+def test_every_button_class_handles_lock_touch() -> None:
+    """A button class answers ``async_lock_touch`` itself, or inherits the refusal.
+
+    Home Assistant resolves ``ampio.lock_touch`` by attribute lookup, and
+    every Ampio button is offered in its target selector because the
+    selector filters by integration and domain alone. A class with neither
+    its own ``async_lock_touch`` nor the ``_NoTouchLock`` mixin would raise
+    an unhandled ``AttributeError`` instead of the translated refusal.
+    """
+    button_classes = [
+        obj
+        for obj in vars(button_module).values()
+        if isinstance(obj, type)
+        and issubclass(obj, ButtonEntity)
+        and obj.__module__ == button_module.__name__
+    ]
+    assert button_classes
+    for button_class in button_classes:
+        assert hasattr(button_class, "async_lock_touch"), button_class.__name__
+
+
+def test_key_lock_and_buzzer_capabilities_compose(mock_client: MagicMock) -> None:
+    """The two capability helpers merge onto one row, as a real panel reports both.
+
+    An M-DOT panel can carry a buzzer and a touch lock together. A helper
+    that replaced the capability map instead of merging into it would drop
+    whichever one ran first.
+    """
+    with_buzzer(mock_client)
+    with_key_lock(mock_client)
+
+    capabilities = mock_client.modules[17].capabilities
+    assert ModuleFunction.BUZZER in capabilities
+    assert ModuleFunction.KEY_LOCK in capabilities
 
 
 @pytest.mark.usefixtures("button_only")
@@ -248,7 +292,7 @@ async def test_identify_is_withheld_on_a_standard_account(
     )
     assert module is not None
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
-    assert {"module_17_identify"} <= withheld
+    assert withheld == {"module_17_identify", "module_17_unlock_touch"}
 
 
 @pytest.mark.usefixtures("button_only")
@@ -402,7 +446,9 @@ async def test_unlock_touch_is_withheld_on_a_standard_account(
 
     A standard account cannot read capabilities, so the factory owes every
     module row an entity, which the withheld enumeration then names; a bare
-    capability check would name none of them.
+    capability check would name none of them. ``button_only`` scopes the
+    platform to its two admin-only registrations over one module device, so
+    the withheld set is exactly these two ids and no others.
     """
     set_access_tier(mock_client, AccessTier.RESTRICTED)
 
@@ -410,7 +456,7 @@ async def test_unlock_touch_is_withheld_on_a_standard_account(
 
     assert entity_registry.async_get(UNLOCK_TOUCH_ENTITY_ID) is None
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
-    assert {"module_17_unlock_touch"} <= withheld
+    assert withheld == {"module_17_identify", "module_17_unlock_touch"}
 
 
 @pytest.mark.usefixtures("button_only")

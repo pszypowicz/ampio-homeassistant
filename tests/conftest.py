@@ -535,14 +535,24 @@ def mock_setup_entry() -> Generator[MagicMock]:
 
 
 def with_buzzer(client: MagicMock, module_id: int = 17) -> None:
-    """Give a seeded module the buzzer capability, as a panel reports it."""
+    """Give a seeded module the buzzer capability, as a panel reports it.
+
+    Merges into the row's existing capabilities rather than replacing them,
+    because a real panel can carry a buzzer and a touch lock together.
+    """
+    module = client.modules[module_id]
     client.modules[module_id] = replace(
-        client.modules[module_id], capabilities={ModuleFunction.BUZZER: 4}
+        module, capabilities={**module.capabilities, ModuleFunction.BUZZER: 4}
     )
 
 
 def with_key_lock(client: MagicMock, module_id: int = 17) -> None:
-    """Give a seeded module the touch-lock capability, as a panel reports it."""
+    """Give a seeded module the touch-lock capability, as a panel reports it.
+
+    Merges into the row's existing capabilities rather than replacing them,
+    because a real panel can carry a buzzer and a touch lock together.
+    """
+    module = client.modules[module_id]
     client.modules[module_id] = replace(
-        client.modules[module_id], capabilities={ModuleFunction.KEY_LOCK: 1}
+        module, capabilities={**module.capabilities, ModuleFunction.KEY_LOCK: 1}
     )
