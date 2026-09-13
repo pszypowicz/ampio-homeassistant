@@ -94,18 +94,20 @@ async def test_config_entry_diagnostics(
     assert result == snapshot
 
 
-async def test_config_entry_diagnostics_redacts_username_from_topic_keys(
+async def test_config_entry_diagnostics_carries_no_username(
     hass: HomeAssistant,
     hass_client: ClientSessionGenerator,
     mock_client: MagicMock,
 ) -> None:
-    """The account username never reaches the download, including inside a topic key.
+    """The account username reaches no part of the download.
 
     ``subscribe_failures`` and ``protocol_violations`` key on the full MQTT
-    topic, which the library builds as ``ampio/fromDB/<username>/...``, so
-    key-based redaction alone cannot mask the username sitting inside it.
-    Serializing the whole result, rather than checking the two entries by
-    hand, also catches the username if it ever reappeared somewhere else.
+    topic, and an account topic carries the username in the middle of the
+    key, where key-based redaction cannot reach it. ampio-mqtt masks that
+    segment before the snapshot leaves the library, so the fixture carries
+    the masked form it emits. Serializing the whole result, rather than
+    checking the two entries by hand, catches the username anywhere else it
+    appears: this file is attached to public bug reports.
     """
     username = "ha_user"
     config_entry = MockConfigEntry(
@@ -118,9 +120,9 @@ async def test_config_entry_diagnostics_redacts_username_from_topic_keys(
         **DIAGNOSTICS_SNAPSHOT,
         "connection": {
             **DIAGNOSTICS_SNAPSHOT["connection"],
-            "subscribe_failures": {f"ampio/fromDB/{username}/ob/+/state": 135},
+            "subscribe_failures": {"ampio/fromDB/<account>/ob/+/state": 135},
             "protocol_violations": {
-                f"ampio/fromDB/{username}/md5/devices": "missing column"
+                "ampio/fromDB/<account>/md5/devices": "missing column"
             },
         },
     }

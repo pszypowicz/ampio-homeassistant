@@ -17,8 +17,8 @@
   ],
   "quality_scale": "bronze",
   "requirements": [
-    "ampio-mqtt==0.58.0"
+    "ampio-mqtt==0.59.0"
   ],
   "single_config_entry": true,
-  "version": "0.0.37"
+  "version": "0.0.38"
 }
