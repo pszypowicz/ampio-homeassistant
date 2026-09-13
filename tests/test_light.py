@@ -28,6 +28,7 @@ from homeassistant.components.light import (
     DOMAIN as LIGHT_DOMAIN,
 )
 from homeassistant.const import (
+    ATTR_ASSUMED_STATE,
     ATTR_ENTITY_ID,
     SERVICE_TURN_OFF,
     SERVICE_TURN_ON,
@@ -316,6 +317,21 @@ async def test_panel_lights_exist_with_both_capabilities(
 
     assert hass.states.get(BACKLIGHT_ENTITY_ID) is not None
     assert hass.states.get(STATUS_LIGHT_ENTITY_ID) is not None
+
+
+async def test_panel_lights_report_assumed_state(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Neither panel light's color is confirmed, so both report assumed_state."""
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    backlight = hass.states.get(BACKLIGHT_ENTITY_ID)
+    assert backlight is not None
+    assert backlight.attributes[ATTR_ASSUMED_STATE] is True
+    status_light = hass.states.get(STATUS_LIGHT_ENTITY_ID)
+    assert status_light is not None
+    assert status_light.attributes[ATTR_ASSUMED_STATE] is True
 
 
 async def test_panel_lights_attach_to_the_module_device(

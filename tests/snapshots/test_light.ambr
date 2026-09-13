@@ -43,6 +43,7 @@
 # name: test_all_entities[light.ampio_module_17_backlight-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
+      <EntityStateAttribute.ASSUMED_STATE: 'assumed_state'>: True,
       <LightEntityStateAttribute.BRIGHTNESS: 'brightness'>: 40,
       <LightEntityStateAttribute.COLOR_MODE: 'color_mode'>: <ColorMode.RGBW: 'rgbw'>,
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'm-sens salon Backlight',
@@ -122,6 +123,7 @@
 # name: test_all_entities[light.ampio_module_17_status_light-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
+      <EntityStateAttribute.ASSUMED_STATE: 'assumed_state'>: True,
       <LightEntityStateAttribute.BRIGHTNESS: 'brightness'>: 220,
       <LightEntityStateAttribute.COLOR_MODE: 'color_mode'>: <ColorMode.RGB: 'rgb'>,
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'm-sens salon Status light',

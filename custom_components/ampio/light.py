@@ -282,6 +282,10 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
     """
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    # Neither surface reads back, so the color this entity reports is never
+    # confirmed. This tells the frontend to stop presenting it as such, and
+    # to split the toggle into separate on and off buttons.
+    _attr_assumed_state = True
     # The channel count, the kwargs key carrying a requested color, the
     # color sent when neither a call nor Designer supplies one, and the
     # translation key for a broker failure on this surface.
@@ -398,22 +402,29 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
                 translation_domain=DOMAIN, translation_key="panel_no_fields"
             )
         module = self._data.module_row(self._module_id)
-        # One panel has one set of touch fields, and the backlight and the
-        # status light frames address them through the same mask with the
-        # same numbering. BACKLIGHT_RGBW is the capability the library
-        # documents as counting them, and STATUSLIGHT_RGB counts something
-        # else instead (an M-DOT with a 3-channel status LED can still
-        # report 6 touch fields), so it must not be read here even on the
-        # status light.
+        # _panel_mask is one function serving both frames, so the backlight
+        # and the status light address the same touch fields under the same
+        # numbering. The library documents BACKLIGHT_RGBW's count as that
+        # field count, and resolve_panel_settings takes the panel's field
+        # width from BACKLIGHT_RGBW alone, resolving nothing without it.
+        # STATUSLIGHT_RGB is not that count, and is not read for one here,
+        # even on the status light.
         count = (
             module.capabilities.get(ModuleFunction.BACKLIGHT_RGBW) if module else None
         )
-        # A missing catalogue row loses the panel's own count, but not the
-        # wire's hard ceiling, because that ceiling is knowable without any
-        # catalogue read. So a missing row still bounds the call rather
+        # count comes back None down two paths: no catalogue row for this
+        # module, or a row present with no BACKLIGHT_RGBW entry - the state
+        # of a panel that reports STATUSLIGHT_RGB without BACKLIGHT_RGBW
+        # (build_panel_status_lights still builds its entity). Neither path
+        # loses the wire's hard ceiling, because that ceiling is knowable
+        # without any catalogue read, so this still bounds the call rather
         # than skipping validation outright. Left unbounded, a field the
         # library refuses with a bare ValueError would be mistranslated by
-        # _publish_translated as an unaddressable module.
+        # _publish_translated as an unaddressable module. For that second
+        # panel the same gap also means field validation silently widens
+        # from its real count to MAX_PANEL_FIELDS, and its seed starts
+        # all-zero, because resolve_panel_settings refuses to resolve
+        # panel_settings without BACKLIGHT_RGBW.
         ceiling = count if count is not None else MAX_PANEL_FIELDS
         for number in fields:
             if not 1 <= number <= ceiling:
