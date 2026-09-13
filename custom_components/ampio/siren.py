@@ -63,10 +63,11 @@ def build_buzzers(data: AmpioData, module_id: int) -> list[AmpioBuzzer]:
     """The siren platform's entities for one module device.
 
     A standard account receives no module catalogue, so the capability is
-    unknowable there. This answers for every row on that tier, which only
-    the withheld enumeration ever reads: the tier gate means nothing is
-    built from it, and a bare capability check would leave an orphaned
-    buzzer record in the repair card meant for a Designer deletion.
+    unknowable there. This answers for every row on that tier. On that
+    tier the factory's answer reaches the withheld enumeration, and the
+    tier gate means nothing is built from it. A bare capability check
+    would leave an orphaned buzzer record in the repair card meant for a
+    Designer deletion.
     """
     if not data.is_admin:
         return [AmpioBuzzer(data, module_id)]

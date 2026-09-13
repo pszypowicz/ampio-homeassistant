@@ -53,7 +53,7 @@ data:
   seconds: 30
 ```
 
-The lock always expires and caps at 655.35 seconds, with no indefinite form. Nothing on the bus reports whether a panel is locked. To release one early, press the panel's Unlock touch button, or set one yourself at the panel with its own touch field combination. The action needs an administrator Ampio account, like the button itself.
+The lock always expires and caps at 655.35 seconds, with no indefinite form. Nothing on the bus reports whether a panel is locked. To release one early, press the panel's Unlock touch button. A person at the panel can set or clear the lock there too, with its own touch field combination. The action needs an administrator Ampio account, like the button itself.
 
 ## Installation
 

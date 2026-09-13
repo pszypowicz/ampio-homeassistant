@@ -3,7 +3,7 @@ rules:
   action-setup:
     status: exempt
     comment: |
-      The one action this integration provides is an entity service, which
+      Every action this integration provides is an entity service, which
       has to be registered by its platform rather than in async_setup.
   appropriate-polling:
     status: exempt

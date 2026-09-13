@@ -77,10 +77,11 @@ def build_touch_unlock_buttons(
     """The button platform's touch-lock entities for one module device.
 
     A standard account receives no module catalogue, so the capability is
-    unknowable there. This answers for every row on that tier, which only
-    the withheld enumeration ever reads: the tier gate means nothing is
-    built from it, and a bare capability check would leave an orphaned
-    record in the repair card meant for a Designer deletion.
+    unknowable there. This answers for every row on that tier. On that
+    tier the factory's answer reaches the withheld enumeration, and the
+    tier gate means nothing is built from it. A bare capability check
+    would leave an orphaned record in the repair card meant for a
+    Designer deletion.
     """
     if not data.is_admin:
         return [AmpioTouchUnlockButton(data, module_id)]
@@ -125,7 +126,7 @@ class _NoTouchLock:
         )
 
 
-class AmpioButton(_NoTouchLock, AmpioEntity, ButtonEntity):
+class AmpioButton(AmpioEntity, ButtonEntity, _NoTouchLock):
     """A press-only control backed by a bell-marked Ampio object."""
 
     _attr_translation_key = "bell"
@@ -148,7 +149,7 @@ class AmpioButton(_NoTouchLock, AmpioEntity, ButtonEntity):
         await async_turn_on_honoring_pulse(self._data.client, obj, self._object_id)
 
 
-class AmpioIdentifyButton(_NoTouchLock, AmpioModuleEntity, ButtonEntity):
+class AmpioIdentifyButton(AmpioModuleEntity, ButtonEntity, _NoTouchLock):
     """Lights a module's CAN LED, so that the module can be found by eye.
 
     The Designer's "Identify device" button. The frame rides the CAN write

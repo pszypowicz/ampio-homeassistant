@@ -51,7 +51,7 @@ Open the entry, choose Reconfigure from its menu, and enter the address and the 
 
 Do not delete the integration for this. A delete removes every device record and every entity record. You lose every rename and every area with them.
 
-A different account changes what the server serves you. An app-created user receives the objects granted to it in the Ampio app, so an object outside that grant loses its entities. The repair on the Settings page lists them. Read the list before you submit it. If you move to a standard account, a second repair lists the administrator-only entities it withheld, such as the Identify buttons, the module sensors, and the buzzer, and that one is explained under "The administrator-only entities are gone".
+A different account changes what the server serves you. An app-created user receives the objects granted to it in the Ampio app, so an object outside that grant loses its entities. The repair on the Settings page lists them. Read the list before you submit it. If you move to a standard account, a second repair lists the administrator-only entities it withheld, such as the Identify buttons, the module sensors, the buzzer, and the Unlock touch buttons, and that one is explained under "The administrator-only entities are gone".
 
 If the address you enter answers with different M-SERV hardware, the flow asks you to confirm first. It names the CAN address it found. Continue only if you replaced the M-SERV, or if you meant to point Home Assistant at another one.
 
@@ -95,9 +95,9 @@ The module drops the blocked command with no error and no reply, so the integrat
 
 ## The administrator-only entities are gone
 
-Several module entities are provided with the administrator login alone: the Identify button, the supply voltage and temperature sensors, and the buzzer on a module with a touch panel. The Ampio server carries the frames and the readings behind them to that login and no other, so a standard account is given none of them.
+Several module entities are provided with the administrator login alone: the Identify button, the supply voltage and temperature sensors, the buzzer on a module with a touch panel, and that panel's Unlock touch button. The Ampio server carries the frames and the readings behind them to that login and no other, so a standard account is given none of them.
 
-The Identify button once existed on both accounts, where a press on a standard account only ever returned an error. If you did not change anything, an update is what removed it. If you changed the account this integration uses, that removed it too. The sensors and the buzzer are administrator-only from their first release, so a standard account never had them to lose.
+The Identify button once existed on both accounts, where a press on a standard account only ever returned an error. If you did not change anything, an update is what removed it. If you changed the account this integration uses, that removed it too. The sensors, the buzzer, and the Unlock touch button are administrator-only from their first release, so a standard account never had them to lose.
 
 A repair on the Settings page lists whichever of these entities your account withholds. Submit it to delete the records, or leave it alone. If you point the integration back at the administrator account, the entities come back on their own with the same entity ids.
 
