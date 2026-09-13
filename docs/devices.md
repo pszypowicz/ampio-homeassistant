@@ -40,6 +40,12 @@ A module with a touch panel also gets a siren entity for its buzzer, on the admi
 
 A module with a touch panel also gets an Unlock touch button, on the administrator login alone. A press releases the panel's touch lock. The `ampio.lock_touch` action sets the lock, described in the Actions section of the project README. A lock always expires and caps at 655.35 seconds, and nothing on the bus reports whether a panel is locked. A person can also set or clear the lock at the panel itself, with its own touch field combination.
 
+## The panel colors
+
+A module with a touch panel gets two more light entities, on the administrator login alone and only when the panel itself reports the capability. A Backlight holds the resting color of its touch field icons, and a Status light holds the color its indicators show. The status light is what reacts when a field is touched or the object behind it turns on, so it carries its own color separately from the backlight's.
+
+Both are runtime overrides, not Designer settings. A panel restart restores whatever Ampio Designer stored for it, undoing anything either entity asked for. Neither reads back either, because nothing on the bus reports a panel's current color, so each entity shows what was last asked for and starts from the stored Designer default. The `ampio.set_backlight_fields` and `ampio.set_status_fields` actions color individual touch fields rather than the whole surface, described in the Actions section of the project README.
+
 ## Areas
 
 An object device takes the object's app room as its area when Home Assistant creates it. After that the area is yours. The integration never moves a device.
