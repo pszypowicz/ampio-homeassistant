@@ -1,5 +1,6 @@
 """Light platform for the Ampio integration."""
 
+from collections.abc import Sequence
 from typing import Any, override
 
 from ampio_mqtt import (
@@ -211,15 +212,16 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
     zero otherwise.
 
     A subclass differs only in its channel count, its client command, and
-    its stored default field: it sets ``_color_attr``, ``_plain_default``,
-    and ``_failure_key``, and implements ``_stored_default`` and
-    ``_publish``.
+    its stored default field: it sets ``_channels``, ``_color_attr``,
+    ``_plain_default``, and ``_failure_key``, and implements
+    ``_stored_default`` and ``_publish``.
     """
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    # The kwargs key carrying a requested color, the color sent when
-    # neither a call nor Designer supplies one, and the translation key
-    # for a broker failure on this surface.
+    # The channel count, the kwargs key carrying a requested color, the
+    # color sent when neither a call nor Designer supplies one, and the
+    # translation key for a broker failure on this surface.
+    _channels: int
     _color_attr: str
     _plain_default: tuple[int, ...]
     _failure_key: str
@@ -229,15 +231,17 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
         super().__init__(data, module_id, key_suffix=key_suffix)
         stored = self._stored_default()
         self._color: tuple[int, ...] = (
-            stored if stored is not None else tuple(0 for _ in self._plain_default)
+            stored if stored is not None else (0,) * self._channels
         )
 
     def _stored_default(self) -> tuple[int, ...] | None:
         """The color Ampio Designer stored for this surface, or None."""
         raise NotImplementedError
 
-    async def _publish(self, color: tuple[int, ...]) -> None:
-        """Send ``color`` to the panel."""
+    async def _publish(
+        self, color: tuple[int, ...], *, fields: Sequence[int] | None = None
+    ) -> None:
+        """Send ``color`` to the panel, every field by default."""
         raise NotImplementedError
 
     @property
@@ -254,16 +258,27 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
 
     @override
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Send the requested color, the stored default, or plain white.
+        """Send the requested color, or restore what this entity held.
 
-        Brightness scales every channel toward the peak, the same
+        With no requested color, a bare turn_on restores whatever this
+        entity currently holds; only when that is dark does it fall back
+        to the stored default, and only when that default is absent or
+        itself all-black does it fall back further to plain white. This
+        is what keeps a brightness-only call (the more-info dialog's
+        slider sends exactly that) from jumping to an unrelated hue, the
+        same guarantee ``AmpioLight.async_turn_on`` gives an object light.
+
+        Brightness then scales every channel toward the peak, the same
         arithmetic ``AmpioLight.async_turn_on`` uses. An explicit all-zero
         color means darkness, and routes to turn_off the same way.
         """
         color: tuple[int, ...] | None = kwargs.get(self._color_attr)
         if color is None:
             stored = self._stored_default()
-            color = stored if stored is not None else self._plain_default
+            fallback = (
+                stored if stored is not None and any(stored) else self._plain_default
+            )
+            color = self._color if any(self._color) else fallback
         if (brightness := kwargs.get(ATTR_BRIGHTNESS)) is not None:
             peak = max(color) or 255
             color = tuple(channel * brightness // peak for channel in color)
@@ -275,7 +290,7 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
     @override
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Send every channel at zero."""
-        await self._send(tuple(0 for _ in self._color))
+        await self._send((0,) * self._channels)
 
     async def _send(self, color: tuple[int, ...]) -> None:
         """Publish ``color``, translate a failure, and remember what was sent."""
@@ -300,6 +315,7 @@ class AmpioPanelBacklight(_AmpioPanelLight):
     login alone, so this entity is built on that account alone.
     """
 
+    _channels = 4
     _attr_color_mode = ColorMode.RGBW
     _attr_supported_color_modes = {ColorMode.RGBW}
     _attr_translation_key = "backlight"
@@ -319,8 +335,12 @@ class AmpioPanelBacklight(_AmpioPanelLight):
         return settings.touch_field_color if settings else None
 
     @override
-    async def _publish(self, color: tuple[int, ...]) -> None:
-        await self._data.client.set_panel_backlight(self._module_id, *color)
+    async def _publish(
+        self, color: tuple[int, ...], *, fields: Sequence[int] | None = None
+    ) -> None:
+        await self._data.client.set_panel_backlight(
+            self._module_id, *color, fields=fields
+        )
 
     @property
     @override
@@ -337,6 +357,7 @@ class AmpioPanelStatusLight(_AmpioPanelLight):
     the surface with no white channel.
     """
 
+    _channels = 3
     _attr_color_mode = ColorMode.RGB
     _attr_supported_color_modes = {ColorMode.RGB}
     _attr_translation_key = "status_light"
@@ -356,8 +377,12 @@ class AmpioPanelStatusLight(_AmpioPanelLight):
         return settings.status_color if settings else None
 
     @override
-    async def _publish(self, color: tuple[int, ...]) -> None:
-        await self._data.client.set_panel_status_light(self._module_id, *color)
+    async def _publish(
+        self, color: tuple[int, ...], *, fields: Sequence[int] | None = None
+    ) -> None:
+        await self._data.client.set_panel_status_light(
+            self._module_id, *color, fields=fields
+        )
 
     @property
     @override

@@ -36,10 +36,11 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from . import setup_integration
 from .conftest import (
+    MSENS_IDENTIFIER,
     STATUS_COLOR,
     TOUCH_FIELD_COLOR,
     emit,
@@ -286,6 +287,29 @@ async def test_panel_lights_exist_with_both_capabilities(
     assert hass.states.get(STATUS_LIGHT_ENTITY_ID) is not None
 
 
+async def test_panel_lights_attach_to_the_module_device(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """Both panel lights attach to their module device, not the hub or an object."""
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    module = device_registry.async_get_device_by_identifier(
+        MSENS_IDENTIFIER, mock_config_entry.entry_id
+    )
+    assert module is not None
+    backlight = entity_registry.async_get(BACKLIGHT_ENTITY_ID)
+    assert backlight is not None
+    assert backlight.device_id == module.id
+    status_light = entity_registry.async_get(STATUS_LIGHT_ENTITY_ID)
+    assert status_light is not None
+    assert status_light.device_id == module.id
+
+
 async def test_panel_light_built_only_for_its_own_capability(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
@@ -362,7 +386,9 @@ async def test_backlight_turn_on_with_color_sends_it(
         {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID, ATTR_RGBW_COLOR: (10, 20, 30, 40)},
         blocking=True,
     )
-    mock_client.set_panel_backlight.assert_awaited_once_with(17, 10, 20, 30, 40)
+    mock_client.set_panel_backlight.assert_awaited_once_with(
+        17, 10, 20, 30, 40, fields=None
+    )
 
 
 async def test_status_light_turn_on_with_color_sends_it(
@@ -378,7 +404,9 @@ async def test_status_light_turn_on_with_color_sends_it(
         {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID, ATTR_RGB_COLOR: (50, 60, 70)},
         blocking=True,
     )
-    mock_client.set_panel_status_light.assert_awaited_once_with(17, 50, 60, 70)
+    mock_client.set_panel_status_light.assert_awaited_once_with(
+        17, 50, 60, 70, fields=None
+    )
 
 
 async def test_backlight_turn_on_without_color_sends_stored_default(
@@ -395,7 +423,9 @@ async def test_backlight_turn_on_without_color_sends_stored_default(
         {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID},
         blocking=True,
     )
-    mock_client.set_panel_backlight.assert_awaited_once_with(17, *TOUCH_FIELD_COLOR)
+    mock_client.set_panel_backlight.assert_awaited_once_with(
+        17, *TOUCH_FIELD_COLOR, fields=None
+    )
 
 
 async def test_status_light_turn_on_without_color_sends_stored_default(
@@ -412,7 +442,9 @@ async def test_status_light_turn_on_without_color_sends_stored_default(
         {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID},
         blocking=True,
     )
-    mock_client.set_panel_status_light.assert_awaited_once_with(17, *STATUS_COLOR)
+    mock_client.set_panel_status_light.assert_awaited_once_with(
+        17, *STATUS_COLOR, fields=None
+    )
 
 
 async def test_turn_on_without_color_or_settings_sends_plain_white(
@@ -428,7 +460,9 @@ async def test_turn_on_without_color_or_settings_sends_plain_white(
         {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID},
         blocking=True,
     )
-    mock_client.set_panel_backlight.assert_awaited_once_with(17, 0, 0, 0, 255)
+    mock_client.set_panel_backlight.assert_awaited_once_with(
+        17, 0, 0, 0, 255, fields=None
+    )
 
     await hass.services.async_call(
         LIGHT_DOMAIN,
@@ -436,7 +470,106 @@ async def test_turn_on_without_color_or_settings_sends_plain_white(
         {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID},
         blocking=True,
     )
-    mock_client.set_panel_status_light.assert_awaited_once_with(17, 255, 255, 255)
+    mock_client.set_panel_status_light.assert_awaited_once_with(
+        17, 255, 255, 255, fields=None
+    )
+
+
+async def test_brightness_only_turn_on_keeps_the_held_color(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A brightness-only turn_on scales the color this entity is holding.
+
+    The more-info dialog's brightness slider sends brightness alone. A
+    bare fallback to the stored default (rather than what the entity
+    currently holds) would jump the panel to an unrelated hue on every
+    brightness change.
+    """
+    with_panel_colors(mock_client)
+    with_panel_settings(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID, ATTR_RGBW_COLOR: (255, 0, 0, 0)},
+        blocking=True,
+    )
+    mock_client.set_panel_backlight.reset_mock()
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID, ATTR_BRIGHTNESS: 128},
+        blocking=True,
+    )
+    mock_client.set_panel_backlight.assert_awaited_once_with(
+        17, 128, 0, 0, 0, fields=None
+    )
+
+
+async def test_bare_turn_on_from_the_seeded_state_sends_the_held_color(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A bare turn_on with no prior change sends the color seeded at construction.
+
+    Complements the stored-default test above by exercising the
+    self-held-color branch directly from the value ``__init__`` seeds,
+    rather than from a value a previous turn_on set.
+    """
+    with_panel_colors(mock_client)
+    with_panel_settings(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.set_panel_backlight.assert_awaited_once_with(
+        17, *TOUCH_FIELD_COLOR, fields=None
+    )
+
+
+async def test_bare_turn_on_falls_through_to_plain_white_when_default_is_black(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """An all-black stored default is not None, so it must not block the white fallback.
+
+    Without this rule, a panel whose Designer default happens to be black
+    could never be turned on from Home Assistant with a bare call: the
+    color would resolve to all zero and route straight to turn_off.
+    """
+    with_panel_colors(mock_client)
+    with_panel_settings(mock_client)
+    module = mock_client.modules[17]
+    assert module.panel_settings is not None
+    black_settings = replace(
+        module.panel_settings, touch_field_color=(0, 0, 0, 0), status_color=(0, 0, 0)
+    )
+    mock_client.modules[17] = replace(module, panel_settings=black_settings)
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.set_panel_backlight.assert_awaited_once_with(
+        17, 0, 0, 0, 255, fields=None
+    )
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.set_panel_status_light.assert_awaited_once_with(
+        17, 255, 255, 255, fields=None
+    )
 
 
 async def test_backlight_brightness_scales_channels(
@@ -456,7 +589,9 @@ async def test_backlight_brightness_scales_channels(
         },
         blocking=True,
     )
-    mock_client.set_panel_backlight.assert_awaited_once_with(17, 20, 40, 80, 160)
+    mock_client.set_panel_backlight.assert_awaited_once_with(
+        17, 20, 40, 80, 160, fields=None
+    )
 
 
 async def test_status_light_brightness_scales_channels(
@@ -476,7 +611,9 @@ async def test_status_light_brightness_scales_channels(
         },
         blocking=True,
     )
-    mock_client.set_panel_status_light.assert_awaited_once_with(17, 40, 80, 160)
+    mock_client.set_panel_status_light.assert_awaited_once_with(
+        17, 40, 80, 160, fields=None
+    )
 
 
 async def test_backlight_turn_off_and_explicit_zero_send_all_zero(
@@ -493,7 +630,9 @@ async def test_backlight_turn_off_and_explicit_zero_send_all_zero(
         {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID},
         blocking=True,
     )
-    mock_client.set_panel_backlight.assert_awaited_once_with(17, 0, 0, 0, 0)
+    mock_client.set_panel_backlight.assert_awaited_once_with(
+        17, 0, 0, 0, 0, fields=None
+    )
 
     mock_client.set_panel_backlight.reset_mock()
     await hass.services.async_call(
@@ -502,7 +641,9 @@ async def test_backlight_turn_off_and_explicit_zero_send_all_zero(
         {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID, ATTR_RGBW_COLOR: (0, 0, 0, 0)},
         blocking=True,
     )
-    mock_client.set_panel_backlight.assert_awaited_once_with(17, 0, 0, 0, 0)
+    mock_client.set_panel_backlight.assert_awaited_once_with(
+        17, 0, 0, 0, 0, fields=None
+    )
 
 
 async def test_status_light_turn_off_and_explicit_zero_send_all_zero(
@@ -519,7 +660,9 @@ async def test_status_light_turn_off_and_explicit_zero_send_all_zero(
         {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID},
         blocking=True,
     )
-    mock_client.set_panel_status_light.assert_awaited_once_with(17, 0, 0, 0)
+    mock_client.set_panel_status_light.assert_awaited_once_with(
+        17, 0, 0, 0, fields=None
+    )
 
     mock_client.set_panel_status_light.reset_mock()
     await hass.services.async_call(
@@ -528,7 +671,9 @@ async def test_status_light_turn_off_and_explicit_zero_send_all_zero(
         {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID, ATTR_RGB_COLOR: (0, 0, 0)},
         blocking=True,
     )
-    mock_client.set_panel_status_light.assert_awaited_once_with(17, 0, 0, 0)
+    mock_client.set_panel_status_light.assert_awaited_once_with(
+        17, 0, 0, 0, fields=None
+    )
 
 
 async def test_backlight_unknown_module_raises(
