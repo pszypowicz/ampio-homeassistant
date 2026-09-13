@@ -21,7 +21,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import VolDictType
 
-from .const import DOMAIN
+from .const import DOMAIN, MAX_WIRE_SECONDS
 from .data import AmpioConfigEntry, AmpioData
 from .entity import AmpioModuleEntity
 
@@ -32,13 +32,13 @@ PARALLEL_UPDATES = 0
 # The Designer default, and the loudest: the piezo resonates near 2.4 kHz
 # and the fundamental is 16576 Hz over the tone plus one.
 DEFAULT_TONE: Final = 6
-# The sequence frame's per-step ceiling, in seconds. A latched call asks
-# for one step this long and repeats it, which is a continuous tone.
-MAX_STEP_SECONDS: Final = 655.35
+# The sequence frame's per-step ceiling: the wire's per-field maximum. A
+# latched call asks for one step this long and repeats it, which is a
+# continuous tone.
+MAX_STEP_SECONDS: Final = MAX_WIRE_SECONDS
 
-# The sequence frame's own fields, at the ranges the wire accepts. Times
-# are 10 ms ticks on the wire, so the ceiling is 655.35 s; tone 0 is a
-# silent rest, which is what makes a pip pattern one frame.
+# The sequence frame's own fields, at the ranges the wire accepts. Tone 0 is
+# a silent rest, which is what makes a pip pattern one frame.
 BUZZ_PATTERN_SCHEMA: VolDictType = {
     vol.Required("tone"): vol.All(vol.Coerce(int), vol.Range(min=0, max=31)),
     vol.Required("seconds"): vol.All(
@@ -63,10 +63,11 @@ def build_buzzers(data: AmpioData, module_id: int) -> list[AmpioBuzzer]:
     """The siren platform's entities for one module device.
 
     A standard account receives no module catalogue, so the capability is
-    unknowable there. This answers for every row on that tier, which only
-    the withheld enumeration ever reads: the tier gate means nothing is
-    built from it, and a bare capability check would leave an orphaned
-    buzzer record in the repair card meant for a Designer deletion.
+    unknowable there. This answers for every row on that tier. On that
+    tier the factory's answer reaches the withheld enumeration, and the
+    tier gate means nothing is built from it. A bare capability check
+    would leave an orphaned buzzer record in the repair card meant for a
+    Designer deletion.
     """
     if not data.is_admin:
         return [AmpioBuzzer(data, module_id)]

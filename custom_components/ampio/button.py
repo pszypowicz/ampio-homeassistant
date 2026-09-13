@@ -1,20 +1,28 @@
 """Button platform for the Ampio integration."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from datetime import datetime
 import logging
-from typing import Final, override
+from typing import Any, Final, override
 
-from ampio_mqtt import AmpioConnectionError, AmpioObject, AmpioTimeoutError
+from ampio_mqtt import (
+    AmpioConnectionError,
+    AmpioObject,
+    AmpioTimeoutError,
+    ModuleFunction,
+)
+import voluptuous as vol
 
 from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_call_later
+from homeassistant.helpers.typing import VolDictType
 
-from .const import DOMAIN
+from .const import DOMAIN, MAX_WIRE_SECONDS
 from .data import AmpioConfigEntry, AmpioData
 from .entity import AmpioEntity, AmpioModuleEntity, async_turn_on_honoring_pulse
 
@@ -25,6 +33,17 @@ PARALLEL_UPDATES = 0
 # How long a module holds identify after a press. Ampio Designer's own
 # button stops after the same 30 s, so the LED behaves as installers know it.
 IDENTIFY_HOLD_SECONDS: Final = 30
+
+# The lock's duration field runs from 0.01 s to the wire's per-field
+# ceiling. There is no indefinite form.
+MIN_LOCK_SECONDS: Final = 0.01
+MAX_LOCK_SECONDS: Final = MAX_WIRE_SECONDS
+
+LOCK_TOUCH_SCHEMA: VolDictType = {
+    vol.Required("seconds"): vol.All(
+        vol.Coerce(float), vol.Range(min=MIN_LOCK_SECONDS, max=MAX_LOCK_SECONDS)
+    ),
+}
 
 
 def is_button(obj: AmpioObject) -> bool:
@@ -52,6 +71,26 @@ def build_identify_buttons(
     return [AmpioIdentifyButton(data, module_id)]
 
 
+def build_touch_unlock_buttons(
+    data: AmpioData, module_id: int
+) -> list[AmpioTouchUnlockButton]:
+    """The button platform's touch-lock entities for one module device.
+
+    A standard account receives no module catalogue, so the capability is
+    unknowable there. This answers for every row on that tier. On that
+    tier the factory's answer reaches the withheld enumeration, and the
+    tier gate means nothing is built from it. A bare capability check
+    would leave an orphaned record in the repair card meant for a
+    Designer deletion.
+    """
+    if not data.is_admin:
+        return [AmpioTouchUnlockButton(data, module_id)]
+    module = data.module_row(module_id)
+    if module is None or ModuleFunction.KEY_LOCK not in module.capabilities:
+        return []
+    return [AmpioTouchUnlockButton(data, module_id)]
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: AmpioConfigEntry,
@@ -62,9 +101,32 @@ async def async_setup_entry(
     entry.runtime_data.async_add_module_platform(
         build_identify_buttons, async_add_entities, admin_only=True
     )
+    entry.runtime_data.async_add_module_platform(
+        build_touch_unlock_buttons, async_add_entities, admin_only=True
+    )
+    entity_platform.async_get_current_platform().async_register_entity_service(
+        "lock_touch", LOCK_TOUCH_SCHEMA, "async_lock_touch"
+    )
 
 
-class AmpioButton(AmpioEntity, ButtonEntity):
+class _NoTouchLock:
+    """Refuses the touch-lock service, for a button that is not a panel's.
+
+    Home Assistant resolves an entity service by attribute lookup, so a
+    button without the method fails with an unhandled error rather than
+    something a user can act on. Every Ampio button is offered in the
+    service picker, because the target selector filters by integration and
+    domain alone.
+    """
+
+    async def async_lock_touch(self, seconds: float) -> None:
+        """Refuse a lock aimed at a button that drives no panel."""
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="not_a_touch_panel"
+        )
+
+
+class AmpioButton(AmpioEntity, ButtonEntity, _NoTouchLock):
     """A press-only control backed by a bell-marked Ampio object."""
 
     _attr_translation_key = "bell"
@@ -87,7 +149,7 @@ class AmpioButton(AmpioEntity, ButtonEntity):
         await async_turn_on_honoring_pulse(self._data.client, obj, self._object_id)
 
 
-class AmpioIdentifyButton(AmpioModuleEntity, ButtonEntity):
+class AmpioIdentifyButton(AmpioModuleEntity, ButtonEntity, _NoTouchLock):
     """Lights a module's CAN LED, so that the module can be found by eye.
 
     The Designer's "Identify device" button. The frame rides the CAN write
@@ -153,3 +215,63 @@ class AmpioIdentifyButton(AmpioModuleEntity, ButtonEntity):
                 "stays lit until Ampio Designer sends one or the module restarts",
                 self._module_id,
             )
+
+
+class AmpioTouchUnlockButton(AmpioModuleEntity, ButtonEntity):
+    """Releases an Ampio touch panel's lock on its touch fields.
+
+    A locked panel ignores every touch and broadcasts nothing at all, not
+    even the press. The frame rides the CAN write tree, which answers the
+    administrator login alone, so this entity is built on that account
+    alone.
+
+    The lock has no readback, so this entity holds no state. It is useful
+    even when Home Assistant sent no lock, because a person can set one at
+    the panel with its touch field combination.
+
+    ``ampio.lock_touch`` carries the lock, because a press carries no
+    duration and every lock expires.
+    """
+
+    _attr_translation_key = "unlock_touch"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, data: AmpioData, module_id: int) -> None:
+        """Attach to the module device of Designer row ``module_id``."""
+        super().__init__(data, module_id, key_suffix="unlock_touch")
+
+    @override
+    async def async_press(self) -> None:
+        """Release the panel's touch lock now."""
+        await self._send(
+            self._data.client.unlock_panel(self._module_id), "touch_unlock_failed"
+        )
+
+    async def async_lock_touch(self, seconds: float) -> None:
+        """Make the panel ignore every touch for ``seconds``.
+
+        The lock always expires, so a long hold is an automation that
+        repeats rather than a latch this entity keeps.
+        """
+        await self._send(
+            self._data.client.lock_panel(self._module_id, seconds=seconds),
+            "touch_lock_failed",
+        )
+
+    async def _send(self, command: Coroutine[Any, Any, None], failure_key: str) -> None:
+        """Await a panel write, turning its failures into messages.
+
+        ``failure_key`` picks the message, because a lock that does not
+        arrive leaves the panel usable while an unlock that does not arrive
+        leaves it deaf until the lock runs out.
+        """
+        try:
+            await command
+        except ValueError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="module_not_addressable"
+            ) from err
+        except (AmpioConnectionError, AmpioTimeoutError) as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key=failure_key
+            ) from err

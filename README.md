@@ -11,17 +11,17 @@ A Home Assistant integration for the [Ampio Smart Home](https://ampio.com/) syst
 
 ## Platforms
 
-| Platform        | What you get                                                                                                                                                                                                                                                                         |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `sensor`        | Temperature, humidity, pressure, CO2, air quality, illuminance, loudness, and every integer sensor slot, with the Designer unit where one is set (Modbus meters behind an M-CON-485), plus the supply voltage and temperature each module reports about itself (administrator login) |
-| `binary_sensor` | Wired button inputs                                                                                                                                                                                                                                                                  |
-| `light`         | Dimmers, RGBW outputs, and relays tagged as lights in Ampio Designer                                                                                                                                                                                                                 |
-| `cover`         | Shutters and blinds, with position and slat tilt where the hardware has them                                                                                                                                                                                                         |
-| `switch`        | Remaining relays and Ampio flags, with the outlet class for plug-tagged ones                                                                                                                                                                                                         |
-| `button`        | Relays and flags marked as bell objects in Ampio Designer (a single press), and an Identify button on each module that lights its CAN LED (administrator login)                                                                                                                      |
-| `climate`       | Heating regulators with temperature readback and operating-mode presets                                                                                                                                                                                                              |
-| `scene`         | The Ampio app's scene catalog                                                                                                                                                                                                                                                        |
-| `siren`         | The buzzer on each Ampio touch panel, with an `ampio.buzz_pattern` action for two-step sequences (administrator login)                                                                                                                                                               |
+| Platform        | What you get                                                                                                                                                                                                                                                                           |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sensor`        | Temperature, humidity, pressure, CO2, air quality, illuminance, loudness, and every integer sensor slot, with the Designer unit where one is set (Modbus meters behind an M-CON-485), plus the supply voltage and temperature each module reports about itself (administrator login)   |
+| `binary_sensor` | Wired button inputs                                                                                                                                                                                                                                                                    |
+| `light`         | Dimmers, RGBW outputs, and relays tagged as lights in Ampio Designer                                                                                                                                                                                                                   |
+| `cover`         | Shutters and blinds, with position and slat tilt where the hardware has them                                                                                                                                                                                                           |
+| `switch`        | Remaining relays and Ampio flags, with the outlet class for plug-tagged ones                                                                                                                                                                                                           |
+| `button`        | Relays and flags marked as bell objects in Ampio Designer (a single press), an Identify button on each module that lights its CAN LED, and an Unlock touch button on each touch panel that releases its touch lock, with an `ampio.lock_touch` action to set one (administrator login) |
+| `climate`       | Heating regulators with temperature readback and operating-mode presets                                                                                                                                                                                                                |
+| `scene`         | The Ampio app's scene catalog                                                                                                                                                                                                                                                          |
+| `siren`         | The buzzer on each Ampio touch panel, with an `ampio.buzz_pattern` action for two-step sequences (administrator login)                                                                                                                                                                 |
 
 ## Actions
 
@@ -42,6 +42,18 @@ data:
 ```
 
 Tones run from 0 to 31, and tone 6 is the loudest. Each step lasts up to 655.35 seconds, and `cycles` goes up to 254. Set `cycles` to 0 to repeat until you turn the siren off. Add `delay` to hold off before the first cycle starts, up to the same 655.35 second ceiling. It defaults to 0, a start with no wait. The action needs an administrator Ampio account, like the buzzer itself.
+
+`ampio.lock_touch` makes a touch panel ignore every touch for a chosen length. A locked touch field reports nothing at all, not even the press:
+
+```yaml
+action: ampio.lock_touch
+target:
+  entity_id: button.ampio_module_12_unlock_touch
+data:
+  seconds: 30
+```
+
+The lock always expires and caps at 655.35 seconds, with no indefinite form. Nothing on the bus reports whether a panel is locked. To release one early, press the panel's Unlock touch button. A person at the panel can set or clear the lock there too, with its own touch field combination. The action needs an administrator Ampio account, like the button itself.
 
 ## Installation
 

@@ -36,6 +36,10 @@ Each module device also carries two diagnostic sensors, a supply voltage and a t
 
 A module with a touch panel also gets a siren entity for its buzzer, on the administrator login alone. Turning it on sounds a single tone for a single length. The `ampio.buzz_pattern` action reaches the two-tone sequences the buzzer also supports, described in the Actions section of the project README.
 
+## The touch lock
+
+A module with a touch panel also gets an Unlock touch button, on the administrator login alone. A press releases the panel's touch lock. The `ampio.lock_touch` action sets the lock, described in the Actions section of the project README. A lock always expires and caps at 655.35 seconds, and nothing on the bus reports whether a panel is locked. A person can also set or clear the lock at the panel itself, with its own touch field combination.
+
 ## Areas
 
 An object device takes the object's app room as its area when Home Assistant creates it. After that the area is yours. The integration never moves a device.

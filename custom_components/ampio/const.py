@@ -20,6 +20,11 @@ PLATFORMS: Final = [
 
 DEFAULT_HOST: Final = "ampio.local"
 
+# The wire counts 10 ms ticks in a 16-bit field, so a single timed value on
+# the bus tops out at 655.35 seconds. The buzzer's per-step ceiling and the
+# touch lock's duration both come from this field.
+MAX_WIRE_SECONDS: Final = 655.35
+
 # Registry records the last setup left unclaimed, and could not explain.
 STALE_RECORDS_ISSUE: Final = "stale_records"
 # Entity records the administrator rule withholds from a standard account.
