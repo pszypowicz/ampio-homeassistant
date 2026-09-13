@@ -118,6 +118,8 @@ A label works too. Apply one label to both entities of each panel, then reject `
 
 For `entity_id: all`, name your targets instead. Home Assistant turns off every light entity for that value, and the category changes nothing.
 
+The same reject belongs in every template that reads `states.light`. A sensor that counts the lights that are on, and a card that lists them, both include two entities per panel without it.
+
 ## The administrator-only entities are gone
 
 Several module entities are provided with the administrator login alone: the Identify button, the supply voltage and temperature sensors, the buzzer on a module with a touch panel, that panel's Unlock touch button, and its Backlight and Status light. The Ampio server carries the frames and the readings behind them to that login and no other, so a standard account is given none of them.
