@@ -19,6 +19,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 from syrupy.assertion import SnapshotAssertion
 
+from custom_components.ampio.const import DOMAIN
 from custom_components.ampio.light import LIGHT_MATTER_TYPES
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
@@ -35,7 +36,7 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from . import setup_integration
@@ -63,6 +64,36 @@ def light_only() -> Generator[None]:
     """Limit setup to the light platform so snapshots stay scoped."""
     with patch("custom_components.ampio.PLATFORMS", [Platform.LIGHT]):
         yield
+
+
+async def _set_backlight_fields(
+    hass: HomeAssistant,
+    entity_id: str,
+    fields: list[int],
+    color: tuple[int, int, int, int],
+) -> None:
+    """Call ``ampio.set_backlight_fields`` against ``entity_id``."""
+    await hass.services.async_call(
+        DOMAIN,
+        "set_backlight_fields",
+        {ATTR_ENTITY_ID: entity_id, "fields": fields, ATTR_RGBW_COLOR: color},
+        blocking=True,
+    )
+
+
+async def _set_status_fields(
+    hass: HomeAssistant,
+    entity_id: str,
+    fields: list[int],
+    color: tuple[int, int, int],
+) -> None:
+    """Call ``ampio.set_status_fields`` against ``entity_id``."""
+    await hass.services.async_call(
+        DOMAIN,
+        "set_status_fields",
+        {ATTR_ENTITY_ID: entity_id, "fields": fields, ATTR_RGB_COLOR: color},
+        blocking=True,
+    )
 
 
 def test_output_kind_vocabulary_is_split_or_deferred() -> None:
@@ -760,3 +791,161 @@ async def test_status_light_command_failure_raises(
             blocking=True,
         )
     assert excinfo.value.translation_key == "status_light_command_failed"
+
+
+async def test_set_backlight_fields_sends_the_named_fields_and_color(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The service sends exactly the named fields and color, not every field."""
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [2, 4], (10, 20, 30, 40))
+    mock_client.set_panel_backlight.assert_awaited_once_with(
+        17, 10, 20, 30, 40, fields=[2, 4]
+    )
+
+
+async def test_set_status_fields_sends_the_named_fields_and_color(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The service sends exactly the named fields and color, not every field."""
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await _set_status_fields(hass, STATUS_LIGHT_ENTITY_ID, [1, 3], (50, 60, 70))
+    mock_client.set_panel_status_light.assert_awaited_once_with(
+        17, 50, 60, 70, fields=[1, 3]
+    )
+
+
+async def test_set_backlight_fields_on_an_object_light_raises(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """An object-backed light drives no panel, and the service names the surface."""
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _set_backlight_fields(hass, RGBW_ENTITY_ID, [1], (10, 20, 30, 40))
+    assert excinfo.value.translation_key == "not_a_panel_backlight"
+    mock_client.set_panel_backlight.assert_not_awaited()
+
+
+async def test_set_status_fields_on_an_object_light_raises(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """An object-backed light drives no panel, and the service names the surface."""
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _set_status_fields(hass, RGBW_ENTITY_ID, [1], (10, 20, 30))
+    assert excinfo.value.translation_key == "not_a_panel_status_light"
+    mock_client.set_panel_status_light.assert_not_awaited()
+
+
+async def test_set_backlight_fields_on_the_status_light_raises(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The backlight service refuses the status light entity, naming the backlight."""
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _set_backlight_fields(hass, STATUS_LIGHT_ENTITY_ID, [1], (10, 20, 30, 40))
+    assert excinfo.value.translation_key == "not_a_panel_backlight"
+    mock_client.set_panel_backlight.assert_not_awaited()
+
+
+async def test_set_status_fields_on_the_backlight_raises(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The status light service refuses the backlight entity, naming the status light."""
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _set_status_fields(hass, BACKLIGHT_ENTITY_ID, [1], (10, 20, 30))
+    assert excinfo.value.translation_key == "not_a_panel_status_light"
+    mock_client.set_panel_status_light.assert_not_awaited()
+
+
+@pytest.mark.parametrize("field", [0, 7])
+async def test_set_backlight_fields_out_of_range_raises(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    field: int,
+) -> None:
+    """A field below 1 or above the panel's own 6-field count raises, naming it.
+
+    The library would otherwise drop an out-of-range field in silence, so
+    this validation is what turns that silence into a message.
+    """
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _set_backlight_fields(
+            hass, BACKLIGHT_ENTITY_ID, [field], (10, 20, 30, 40)
+        )
+    assert excinfo.value.translation_key == "panel_field_out_of_range"
+    assert excinfo.value.translation_placeholders == {"count": "6"}
+    mock_client.set_panel_backlight.assert_not_awaited()
+
+
+async def test_set_backlight_fields_at_the_panel_count_is_accepted(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The panel's own last field number is in range, not one past it."""
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [6], (10, 20, 30, 40))
+    mock_client.set_panel_backlight.assert_awaited_once_with(
+        17, 10, 20, 30, 40, fields=[6]
+    )
+
+
+async def test_set_backlight_fields_leaves_the_entity_state_unchanged(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A per-field call colors part of the panel and reports no new color.
+
+    The backlight entity holds one color for the whole surface, so a call
+    that colors only some of its fields must not make the entity claim a
+    color the panel does not uniformly wear. The color the entity reports
+    stays exactly what it was before the call.
+    """
+    with_panel_colors(mock_client)
+    with_panel_settings(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    before = hass.states.get(BACKLIGHT_ENTITY_ID)
+    assert before is not None
+    assert before.attributes[ATTR_RGBW_COLOR] == TOUCH_FIELD_COLOR
+
+    await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [2], (1, 2, 3, 4))
+
+    after = hass.states.get(BACKLIGHT_ENTITY_ID)
+    assert after is not None
+    assert after.attributes[ATTR_RGBW_COLOR] == TOUCH_FIELD_COLOR
+
+
+async def test_set_backlight_fields_skips_validation_when_the_module_row_is_missing(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A row the catalogue dropped mid-session has no count, so the call goes out.
+
+    ``AmpioData.module_row`` returns None for a row that left the catalogue
+    after this entity was built, and that case is tolerated rather than
+    failing the call: an out-of-range field then reaches the panel
+    unvalidated instead of being refused here.
+    """
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+    del mock_client.modules[17]
+
+    await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [99], (10, 20, 30, 40))
+    mock_client.set_panel_backlight.assert_awaited_once_with(
+        17, 10, 20, 30, 40, fields=[99]
+    )

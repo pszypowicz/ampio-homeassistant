@@ -74,3 +74,35 @@ lock_touch:
           step: 0.01
           unit_of_measurement: s
           mode: box
+set_backlight_fields:
+  target:
+    entity:
+      integration: ampio
+      domain: light
+  fields:
+    fields:
+      required: true
+      example: "[1, 2]"
+      selector:
+        object:
+    rgbw_color:
+      required: true
+      example: "[255, 100, 100, 50]"
+      selector:
+        object:
+set_status_fields:
+  target:
+    entity:
+      integration: ampio
+      domain: light
+  fields:
+    fields:
+      required: true
+      example: "[1, 2]"
+      selector:
+        object:
+    rgb_color:
+      required: true
+      example: "[255, 100, 100]"
+      selector:
+        color_rgb:

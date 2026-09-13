@@ -148,8 +148,17 @@
     "module_not_addressable": {
       "message": "The Ampio server lists no address for this module, so the frame cannot be sent."
     },
+    "not_a_panel_backlight": {
+      "message": "This light does not drive a touch panel's backlight. Target the Backlight entity of the panel you want to color."
+    },
+    "not_a_panel_status_light": {
+      "message": "This light does not drive a touch panel's status light. Target the Status light entity of the panel you want to color."
+    },
     "not_a_touch_panel": {
       "message": "This button does not drive a touch panel. Target the Unlock touch button of the panel you want to lock."
+    },
+    "panel_field_out_of_range": {
+      "message": "This panel reports {count} touch fields, so field numbers run from 1 to {count}."
     },
     "read_only_object": {
       "message": "This object is marked read-only in Ampio Designer, and the server drops every write to it."
@@ -249,6 +258,34 @@
         "seconds": {
           "name": "Length",
           "description": "How long the panel ignores touches, in seconds, from 0.01 to 655.35."
+        }
+      }
+    },
+    "set_backlight_fields": {
+      "name": "Color backlight touch fields",
+      "description": "Colors the named touch fields of an Ampio panel's icon backlight, rather than the whole surface. The panel's Backlight entity keeps the color it already reports; only the panel itself changes.",
+      "fields": {
+        "fields": {
+          "name": "Fields",
+          "description": "The 1-based touch field numbers to color."
+        },
+        "rgbw_color": {
+          "name": "Color",
+          "description": "The RGBW color to send to the named fields."
+        }
+      }
+    },
+    "set_status_fields": {
+      "name": "Color status light touch fields",
+      "description": "Colors the named touch fields of an Ampio panel's status indicator, rather than the whole surface. The panel's Status light entity keeps the color it already reports; only the panel itself changes.",
+      "fields": {
+        "fields": {
+          "name": "Fields",
+          "description": "The 1-based touch field numbers to color."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "The RGB color to send to the named fields."
         }
       }
     }

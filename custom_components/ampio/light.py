@@ -10,6 +10,7 @@ from ampio_mqtt import (
     ModuleFunction,
     OutputKind,
 )
+import voluptuous as vol
 
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
@@ -19,9 +20,11 @@ from homeassistant.components.light import (
     LightEntity,
 )
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import config_validation as cv, entity_platform
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.typing import VolDictType
 
 from .const import DOMAIN
 from .data import AmpioConfigEntry, AmpioData
@@ -39,6 +42,22 @@ LIGHT_MATTER_TYPES = frozenset({0x0100, 0x0101, 0x010C, 0x010D})
 # A bare turn_on (no requested color) on an all-zero rgbw output raises the
 # white channel instead of writing back the dark state it started from.
 _DEFAULT_RGBW = (0, 0, 0, 255)
+
+# The touch field numbers a per-field call colors; validated against the
+# panel's own count in _AmpioPanelLight.async_set_fields, not here, because
+# the count is a module-catalogue fact this schema cannot see.
+SET_BACKLIGHT_FIELDS_SCHEMA: VolDictType = {
+    vol.Required("fields"): vol.All(cv.ensure_list, [vol.Coerce(int)]),
+    vol.Required(ATTR_RGBW_COLOR): vol.All(
+        vol.Coerce(tuple), vol.ExactSequence((cv.byte,) * 4)
+    ),
+}
+SET_STATUS_FIELDS_SCHEMA: VolDictType = {
+    vol.Required("fields"): vol.All(cv.ensure_list, [vol.Coerce(int)]),
+    vol.Required(ATTR_RGB_COLOR): vol.All(
+        vol.Coerce(tuple), vol.ExactSequence((cv.byte,) * 3)
+    ),
+}
 
 
 def is_light(obj: AmpioObject) -> bool:
@@ -98,6 +117,34 @@ def build_panel_status_lights(
     return [AmpioPanelStatusLight(data, module_id)]
 
 
+async def _async_set_backlight_fields(entity: LightEntity, call: ServiceCall) -> None:
+    """Color named touch fields on the backlight, or say why this entity cannot.
+
+    A callable handler, not the entity's own method name, because it must
+    answer for every light entity the platform has - an object-backed
+    ``AmpioLight`` and the status light included - and name the surface
+    ``ampio.set_backlight_fields`` drives when the target is neither.
+    """
+    if not isinstance(entity, AmpioPanelBacklight):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="not_a_panel_backlight"
+        )
+    await entity.async_set_fields(call.data["fields"], call.data[ATTR_RGBW_COLOR])
+
+
+async def _async_set_status_fields(entity: LightEntity, call: ServiceCall) -> None:
+    """Color named touch fields on the status light, or say why this entity cannot.
+
+    The mirror of :func:`_async_set_backlight_fields`, for
+    ``ampio.set_status_fields``.
+    """
+    if not isinstance(entity, AmpioPanelStatusLight):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="not_a_panel_status_light"
+        )
+    await entity.async_set_fields(call.data["fields"], call.data[ATTR_RGB_COLOR])
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: AmpioConfigEntry,
@@ -110,6 +157,15 @@ async def async_setup_entry(
     )
     entry.runtime_data.async_add_module_platform(
         build_panel_status_lights, async_add_entities, admin_only=True
+    )
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service(
+        "set_backlight_fields",
+        SET_BACKLIGHT_FIELDS_SCHEMA,
+        _async_set_backlight_fields,
+    )
+    platform.async_register_entity_service(
+        "set_status_fields", SET_STATUS_FIELDS_SCHEMA, _async_set_status_fields
     )
 
 
@@ -213,8 +269,8 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
 
     A subclass differs only in its channel count, its client command, and
     its stored default field: it sets ``_channels``, ``_color_attr``,
-    ``_plain_default``, and ``_failure_key``, and implements
-    ``_stored_default`` and ``_publish``.
+    ``_plain_default``, ``_failure_key``, and ``_field_capability``, and
+    implements ``_stored_default`` and ``_publish``.
     """
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -225,6 +281,9 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
     _color_attr: str
     _plain_default: tuple[int, ...]
     _failure_key: str
+    # The capability id whose value is this surface's own touch field
+    # count, read off the module catalogue row in async_set_fields.
+    _field_capability: ModuleFunction
 
     def __init__(self, data: AmpioData, module_id: int, *, key_suffix: str) -> None:
         """Attach to the module device, and seed state from panel_settings."""
@@ -293,9 +352,17 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
         await self._send((0,) * self._channels)
 
     async def _send(self, color: tuple[int, ...]) -> None:
-        """Publish ``color``, translate a failure, and remember what was sent."""
+        """Publish ``color`` to every field, and remember what was sent."""
+        await self._publish_translated(color)
+        self._color = color
+        self.async_write_ha_state()
+
+    async def _publish_translated(
+        self, color: tuple[int, ...], *, fields: Sequence[int] | None = None
+    ) -> None:
+        """Publish ``color``, translating a broker failure into a message."""
         try:
-            await self._publish(color)
+            await self._publish(color, fields=fields)
         except ValueError as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN, translation_key="module_not_addressable"
@@ -304,8 +371,32 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
             raise HomeAssistantError(
                 translation_domain=DOMAIN, translation_key=self._failure_key
             ) from err
-        self._color = color
-        self.async_write_ha_state()
+
+    async def async_set_fields(
+        self, fields: Sequence[int], color: tuple[int, ...]
+    ) -> None:
+        """Color the named touch fields, leaving this entity's own color alone.
+
+        A per-field call colors part of the panel, while this entity holds
+        one color for the whole surface, so there is no honest single color
+        to store afterwards. The frame goes out and the state this entity
+        reports stays whatever it was before the call.
+
+        A field number outside the panel's own touch field count raises a
+        translated error naming that count, because the panel would
+        otherwise ignore the field in silence rather than refuse it.
+        """
+        module = self._data.module_row(self._module_id)
+        count = module.capabilities.get(self._field_capability) if module else None
+        if count is not None:
+            for number in fields:
+                if not 1 <= number <= count:
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN,
+                        translation_key="panel_field_out_of_range",
+                        translation_placeholders={"count": str(count)},
+                    )
+        await self._publish_translated(color, fields=fields)
 
 
 class AmpioPanelBacklight(_AmpioPanelLight):
@@ -322,6 +413,7 @@ class AmpioPanelBacklight(_AmpioPanelLight):
     _color_attr = ATTR_RGBW_COLOR
     _plain_default = _DEFAULT_RGBW
     _failure_key = "backlight_command_failed"
+    _field_capability = ModuleFunction.BACKLIGHT_RGBW
 
     def __init__(self, data: AmpioData, module_id: int) -> None:
         """Attach to the module device of Designer row ``module_id``."""
@@ -364,6 +456,7 @@ class AmpioPanelStatusLight(_AmpioPanelLight):
     _color_attr = ATTR_RGB_COLOR
     _plain_default = (255, 255, 255)
     _failure_key = "status_light_command_failed"
+    _field_capability = ModuleFunction.STATUSLIGHT_RGB
 
     def __init__(self, data: AmpioData, module_id: int) -> None:
         """Attach to the module device of Designer row ``module_id``."""
