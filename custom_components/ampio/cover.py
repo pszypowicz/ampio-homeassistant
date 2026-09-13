@@ -82,19 +82,28 @@ class AmpioCover(AmpioEntity, CoverEntity):
         arrow and core refuses the service call rather than reporting a
         move that will not happen.
 
-        Position survives one blocked direction, because the other
-        direction still runs. ``async_set_cover_position`` decides that
-        case on the direction of the requested move.
+        The slats answer the same two bits as the travel, measured on a
+        blind under a one-directional rule: it refused a slat turn toward
+        open and ran one toward closed, while its travel followed the same
+        split. So each tilt feature drops with its own direction.
+
+        Position and tilt position survive one blocked direction, because
+        the other direction still runs. ``_reject_blocked_move`` decides
+        that case on the direction of the requested move. Both stop
+        features stay: a stop is not a move, and the allowed direction can
+        still be running.
         """
         features = self._unblocked_features
         if (obj := self._object) is None:
             return features
         if obj.blocks_opening:
-            features &= ~CoverEntityFeature.OPEN
+            features &= ~(CoverEntityFeature.OPEN | CoverEntityFeature.OPEN_TILT)
         if obj.blocks_closing:
-            features &= ~CoverEntityFeature.CLOSE
+            features &= ~(CoverEntityFeature.CLOSE | CoverEntityFeature.CLOSE_TILT)
         if obj.blocks_opening and obj.blocks_closing:
-            features &= ~CoverEntityFeature.SET_POSITION
+            features &= ~(
+                CoverEntityFeature.SET_POSITION | CoverEntityFeature.SET_TILT_POSITION
+            )
         return features
 
     @property
@@ -140,23 +149,24 @@ class AmpioCover(AmpioEntity, CoverEntity):
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Drive the cover to the requested percent, unless the lock refuses."""
         target: int = kwargs[ATTR_POSITION]
-        self._reject_blocked_move(target)
+        self._reject_blocked_move(target, self.current_cover_position)
         await self._data.client.set_roller_pos(self._object_id, target)
 
-    def _reject_blocked_move(self, target: int) -> None:
+    def _reject_blocked_move(self, target: int, current: int | None) -> None:
         """Raise when the requested move runs in a direction the module refuses.
 
-        The feature set already covers a cover locked both ways. One
-        locked direction keeps the feature, because the other direction
-        still runs, so the move's own direction decides. Without a
-        reported position nothing can decide, and the command goes out.
+        Serves both axes, which answer the same two lock bits. The feature
+        set already covers a cover locked both ways. One locked direction
+        keeps the feature, because the other direction still runs, so the
+        move's own direction decides. Without a reported ``current``
+        nothing can decide, and the command goes out.
         """
         obj = self._object
-        if obj is None or (position := obj.position) is None:
+        if obj is None or current is None:
             return
-        if target > position and obj.blocks_opening:
+        if target > current and obj.blocks_opening:
             key = "cover_blocked_opening"
-        elif target < position and obj.blocks_closing:
+        elif target < current and obj.blocks_closing:
             key = "cover_blocked_closing"
         else:
             return
@@ -164,10 +174,10 @@ class AmpioCover(AmpioEntity, CoverEntity):
 
     @override
     async def async_set_cover_tilt_position(self, **kwargs: Any) -> None:
-        """Set the slat angle to the requested percent."""
-        await self._data.client.set_roller_lamella(
-            self._object_id, kwargs[ATTR_TILT_POSITION]
-        )
+        """Turn the slats to the requested percent, unless the lock refuses."""
+        target: int = kwargs[ATTR_TILT_POSITION]
+        self._reject_blocked_move(target, self.current_cover_tilt_position)
+        await self._data.client.set_roller_lamella(self._object_id, target)
 
     @override
     async def async_open_cover_tilt(self, **kwargs: Any) -> None:

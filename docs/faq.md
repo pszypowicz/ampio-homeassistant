@@ -85,6 +85,8 @@ A rule in Ampio Designer is locking the cover's travel through one of its roller
 
 The module drops the blocked command with no error and no reply, so the integration removes the control instead of letting a press do nothing. The cover keeps reporting its position the whole time. The position slider still works in the direction that is not locked, and refuses the other with a message naming the Designer rule that holds it. `cover.toggle` needs both directions, so locking either one disables it entirely.
 
+The lock covers the slats as well. On a blind, the tilt arrows and the tilt slider follow the same two directions as the travel, so a rule that blocks opening also stops a slat turn toward open and leaves a turn toward closed working.
+
 **Fix:** None is required. The arrow returns once the Designer rule's trigger clears. An automation that targets the cover through an area, a device, or a label skips it silently while the lock holds. An automation that names the cover by its entity id raises and halts the rest of the sequence unless the action sets `continue_on_error: true`.
 
 ## A module shows no last-seen time in the diagnostics

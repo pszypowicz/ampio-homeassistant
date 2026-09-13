@@ -76,6 +76,25 @@ Deleting a device behaves differently again: it applies at once, with no save st
 
 Between those two, Designer can leave an object that is still shown to Home Assistant while the device it belongs to is gone. The integration handles it: that module device keeps its entities and takes the name `Ampio module <row>`, because no catalogue row is left to name it. Finish the delete in UNGROUPED and the repair on the Settings page lists what is left over.
 
+## A roller lock stops the slats too
+
+Designer's roller actions "Disable movement", "Disable closing" and "Disable opening" set two lock bits on the channel. The module then drops every command in the blocked direction, with no error and no reply. The wire carries the bits as the `block` field on the cover's state.
+
+The bits also govern the slat axis, which no Ampio document states. Measured on a blind driven by a rule that blocks opening alone:
+
+| Lock            | Command                   | Result             |
+| --------------- | ------------------------- | ------------------ |
+| None            | Slats 0 to 70             | Runs               |
+| Opening blocked | Slats 0 to 70             | Dropped in silence |
+| Opening blocked | Slats 70 to 20            | Runs               |
+| Opening blocked | Travel 40 to 20           | Runs               |
+| Opening blocked | Travel 20 to 60           | Dropped in silence |
+| Both blocked    | Slats in either direction | Dropped in silence |
+
+So a slat turn toward open counts as opening, and one toward closed counts as closing. The integration drops each tilt control with the direction that matches it, exactly as it does for the travel.
+
+Designer's two other roller actions, "Close permanently" and "Open permanently", were not measured.
+
 ## Designer's messages do not tell you what the server did
 
 All three cases below were seen on **virtual devices**, and each one misleads in a different direction:
