@@ -931,10 +931,11 @@ async def test_set_status_fields_accepts_a_field_within_the_backlight_count(
     """The status light validates against BACKLIGHT_RGBW, not its own STATUSLIGHT_RGB.
 
     ``with_panel_colors`` gives the fixture panel ``BACKLIGHT_RGBW: 6`` (the
-    real touch field count) and ``STATUSLIGHT_RGB: 3`` (an unrelated channel
-    count) on purpose. Field 5 is past a 3-field range but within the real
-    6-field one, so acceptance here proves the check reads the field count,
-    not the status light's own capability value.
+    real touch field count) and ``STATUSLIGHT_RGB: 3``, values no panel
+    reports on real hardware but chosen here so a passing check proves
+    which capability it read. Field 5 is past a 3-field range but within
+    the real 6-field one, so acceptance here proves the check reads the
+    field count, not the status light's own capability value.
     """
     with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)
@@ -950,9 +951,10 @@ async def test_set_status_fields_out_of_range_names_the_backlight_count(
 ) -> None:
     """A status-light field beyond BACKLIGHT_RGBW's count raises, naming that count.
 
-    Not the status light's own ``STATUSLIGHT_RGB: 3`` - if the check read
-    that capability instead, the message would wrongly claim a 3-field
-    panel and field 5 above would have raised in the companion test.
+    Not the status light's own ``STATUSLIGHT_RGB: 3``, a value no panel
+    reports on real hardware. If the check read that capability instead,
+    the message would wrongly claim a 3-field panel and field 5 above
+    would have raised in the companion test.
     """
     with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)

@@ -568,9 +568,9 @@ def with_panel_colors(client: MagicMock, module_id: int = 17) -> None:
     because a real M-DOT panel carries a buzzer, a touch lock, and a
     backlight all at once.
 
-    ``BACKLIGHT_RGBW`` and ``STATUSLIGHT_RGB`` carry deliberately different
-    numbers, so the two capabilities stay distinguishable and code that
-    reads the wrong one for the field count fails a test.
+    No panel reports ``BACKLIGHT_RGBW`` and ``STATUSLIGHT_RGB`` with
+    different counts. This fixture gives them different values anyway, so
+    a test can prove which capability the code reads.
     """
     module = client.modules[module_id]
     client.modules[module_id] = replace(
