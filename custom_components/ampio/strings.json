@@ -73,6 +73,9 @@
     "button": {
       "bell": {
         "name": "Bell"
+      },
+      "unlock_touch": {
+        "name": "Unlock touch"
       }
     },
     "sensor": {
@@ -134,11 +137,20 @@
     "module_not_addressable": {
       "message": "The Ampio server lists no address for this module, so the frame cannot be sent."
     },
+    "not_a_touch_panel": {
+      "message": "This button does not drive a touch panel. Target the Unlock touch button of the panel you want to lock."
+    },
     "read_only_object": {
       "message": "This object is marked read-only in Ampio Designer, and the server drops every write to it."
     },
     "records_unavailable": {
       "message": "Connected to the Ampio server, but it did not answer the module description request."
+    },
+    "touch_lock_failed": {
+      "message": "The Ampio server did not confirm the touch lock, so the panel still answers a touch."
+    },
+    "touch_unlock_failed": {
+      "message": "The Ampio server did not confirm the touch unlock, so the panel may ignore a touch until the lock runs out."
     }
   },
   "issues": {
@@ -213,6 +225,16 @@
         "delay": {
           "name": "Delay",
           "description": "How long to wait before the first step, in seconds, up to 655.35."
+        }
+      }
+    },
+    "lock_touch": {
+      "name": "Lock a panel's touch fields",
+      "description": "Makes an Ampio touch panel ignore every touch for a time. A locked field reports nothing at all, not even the press. Every lock expires, and the longest single lock is 655.35 seconds.",
+      "fields": {
+        "seconds": {
+          "name": "Length",
+          "description": "How long the panel ignores touches, in seconds, from 0.01 to 655.35."
         }
       }
     }

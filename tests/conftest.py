@@ -539,3 +539,10 @@ def with_buzzer(client: MagicMock, module_id: int = 17) -> None:
     client.modules[module_id] = replace(
         client.modules[module_id], capabilities={ModuleFunction.BUZZER: 4}
     )
+
+
+def with_key_lock(client: MagicMock, module_id: int = 17) -> None:
+    """Give a seeded module the touch-lock capability, as a panel reports it."""
+    client.modules[module_id] = replace(
+        client.modules[module_id], capabilities={ModuleFunction.KEY_LOCK: 1}
+    )

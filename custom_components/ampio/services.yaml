@@ -58,3 +58,19 @@ buzz_pattern:
           step: 0.01
           unit_of_measurement: s
           mode: box
+lock_touch:
+  target:
+    entity:
+      integration: ampio
+      domain: button
+  fields:
+    seconds:
+      required: true
+      example: 30
+      selector:
+        number:
+          min: 0.01
+          max: 655.35
+          step: 0.01
+          unit_of_measurement: s
+          mode: box
