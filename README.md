@@ -15,7 +15,7 @@ A Home Assistant integration for the [Ampio Smart Home](https://ampio.com/) syst
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sensor`        | Temperature, humidity, pressure, CO2, air quality, illuminance, loudness, and every integer sensor slot, with the Designer unit where one is set (Modbus meters behind an M-CON-485), plus the supply voltage and temperature each module reports about itself (administrator login)   |
 | `binary_sensor` | Wired button inputs                                                                                                                                                                                                                                                                    |
-| `light`         | Dimmers, RGBW outputs, and relays tagged as lights in Ampio Designer                                                                                                                                                                                                                   |
+| `light`         | Dimmers, RGBW outputs, and relays tagged as lights in Ampio Designer, plus a Backlight and a Status light on each touch panel that reports the capability, with `ampio.set_backlight_fields` and `ampio.set_status_fields` actions to color named touch fields (administrator login)   |
 | `cover`         | Shutters and blinds, with position and slat tilt where the hardware has them                                                                                                                                                                                                           |
 | `switch`        | Remaining relays and Ampio flags, with the outlet class for plug-tagged ones                                                                                                                                                                                                           |
 | `button`        | Relays and flags marked as bell objects in Ampio Designer (a single press), an Identify button on each module that lights its CAN LED, and an Unlock touch button on each touch panel that releases its touch lock, with an `ampio.lock_touch` action to set one (administrator login) |
@@ -54,6 +54,21 @@ data:
 ```
 
 The lock always expires and caps at 655.35 seconds, with no indefinite form. Nothing on the bus reports whether a panel is locked. To release one early, press the panel's Unlock touch button. A person at the panel can set or clear the lock there too, with its own touch field combination. The action needs an administrator Ampio account, like the button itself.
+
+`ampio.set_backlight_fields` and `ampio.set_status_fields` color individual touch fields on a panel instead of the whole Backlight or Status light entity. Fields are numbered from 1:
+
+```yaml
+action: ampio.set_backlight_fields
+target:
+  entity_id: light.ampio_module_12_backlight
+data:
+  fields: [1, 2]
+  rgbw_color: [255, 100, 100, 50]
+```
+
+The backlight's white channel drives the panel's own white LEDs rather than blending into red, green, and blue, so `[0, 0, 0, 255]` is plain white. A field number the panel does not have is refused, naming the panel's real field count rather than doing nothing. Coloring individual fields leaves the Backlight or Status light entity reporting whatever color it already held, because that entity holds one color for the whole surface and a partial change has no honest single color to report. Both actions need an administrator Ampio account, like the entities themselves.
+
+Target these two actions at the entity by name, not at an area or a device, and not at `entity_id: all`. Any of those reaches every Ampio light the target matches and sends the field colors to each one. A module device gets no seeded area, only an object child device does, so an area target usually reaches only object lights, colors nothing at all, and returns exactly one error, since Home Assistant re-raises just the first exception rather than one per light. That error is Home Assistant's own handling of an action not every targeted entity supports, and there is no way to filter it out.
 
 ## Installation
 

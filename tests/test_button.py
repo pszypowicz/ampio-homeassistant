@@ -48,6 +48,7 @@ from .conftest import (
     unique_id,
     with_buzzer,
     with_key_lock,
+    with_panel_colors,
 )
 
 RELAY_ENTITY_ID = pinned_id("button", 150)
@@ -106,19 +107,30 @@ def test_every_button_class_handles_lock_touch() -> None:
         assert hasattr(button_class, "async_lock_touch"), button_class.__name__
 
 
-def test_key_lock_and_buzzer_capabilities_compose(mock_client: MagicMock) -> None:
-    """The two capability helpers merge onto one row, as a real panel reports both.
+def test_capability_helpers_compose(mock_client: MagicMock) -> None:
+    """The capability helpers merge onto one row, as a real panel reports all of them.
 
-    An M-DOT panel can carry a buzzer and a touch lock together. A helper
-    that replaced the capability map instead of merging into it would drop
-    whichever one ran first.
+    An M-DOT panel can carry a buzzer, a touch lock, and a backlight
+    together. Asserting after every call, not only at the end, means a
+    helper that replaced the capability map instead of merging into it is
+    caught by whichever helper runs after it - the check does not depend
+    on which of the three happens to run last.
     """
     with_buzzer(mock_client)
-    with_key_lock(mock_client)
+    capabilities = mock_client.modules[17].capabilities
+    assert ModuleFunction.BUZZER in capabilities
 
+    with_key_lock(mock_client)
     capabilities = mock_client.modules[17].capabilities
     assert ModuleFunction.BUZZER in capabilities
     assert ModuleFunction.KEY_LOCK in capabilities
+
+    with_panel_colors(mock_client)
+    capabilities = mock_client.modules[17].capabilities
+    assert ModuleFunction.BUZZER in capabilities
+    assert ModuleFunction.KEY_LOCK in capabilities
+    assert ModuleFunction.BACKLIGHT_RGBW in capabilities
+    assert ModuleFunction.STATUSLIGHT_RGB in capabilities
 
 
 @pytest.mark.usefixtures("button_only")

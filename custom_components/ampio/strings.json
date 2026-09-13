@@ -78,6 +78,14 @@
         "name": "Unlock touch"
       }
     },
+    "light": {
+      "backlight": {
+        "name": "Backlight"
+      },
+      "status_light": {
+        "name": "Status light"
+      }
+    },
     "sensor": {
       "co2": {
         "name": "CO2"
@@ -110,6 +118,9 @@
     }
   },
   "exceptions": {
+    "backlight_command_failed": {
+      "message": "The Ampio server did not confirm the backlight color, so the panel keeps the color it had."
+    },
     "buzz_duration_too_long": {
       "message": "A buzzer pattern step cannot last longer than {maximum} seconds."
     },
@@ -137,14 +148,29 @@
     "module_not_addressable": {
       "message": "The Ampio server lists no address for this module, so the frame cannot be sent."
     },
+    "not_a_panel_backlight": {
+      "message": "This light does not drive a touch panel's backlight. Target the Backlight entity of the panel you want to color."
+    },
+    "not_a_panel_status_light": {
+      "message": "This light does not drive a touch panel's status light. Target the Status light entity of the panel you want to color."
+    },
     "not_a_touch_panel": {
       "message": "This button does not drive a touch panel. Target the Unlock touch button of the panel you want to lock."
+    },
+    "panel_field_out_of_range": {
+      "message": "Field {field} is outside this panel's touch fields, which run from 1 to {count}."
+    },
+    "panel_no_fields": {
+      "message": "This call named no touch fields, so it would color nothing on the panel."
     },
     "read_only_object": {
       "message": "This object is marked read-only in Ampio Designer, and the server drops every write to it."
     },
     "records_unavailable": {
       "message": "Connected to the Ampio server, but it did not answer the module description request."
+    },
+    "status_light_command_failed": {
+      "message": "The Ampio server did not confirm the status light color, so the panel keeps the color it had."
     },
     "touch_lock_failed": {
       "message": "The Ampio server did not confirm the touch lock, so the panel still answers a touch."
@@ -235,6 +261,34 @@
         "seconds": {
           "name": "Length",
           "description": "How long the panel ignores touches, in seconds, from 0.01 to 655.35."
+        }
+      }
+    },
+    "set_backlight_fields": {
+      "name": "Color backlight touch fields",
+      "description": "Colors the named touch fields of an Ampio panel's icon backlight, rather than the whole surface, and leaves the panel's Backlight entity reporting the color it already had.",
+      "fields": {
+        "fields": {
+          "name": "Fields",
+          "description": "The 1-based touch field numbers to color."
+        },
+        "rgbw_color": {
+          "name": "Color",
+          "description": "The RGBW color to send to the named fields."
+        }
+      }
+    },
+    "set_status_fields": {
+      "name": "Color status light touch fields",
+      "description": "Colors the named touch fields of an Ampio panel's status indicator, rather than the whole surface, and leaves the panel's Status light entity reporting the color it already had.",
+      "fields": {
+        "fields": {
+          "name": "Fields",
+          "description": "The 1-based touch field numbers to color."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "The RGB color to send to the named fields."
         }
       }
     }
