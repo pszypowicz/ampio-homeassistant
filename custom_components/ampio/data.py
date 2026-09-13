@@ -42,7 +42,7 @@ HUB_IDENTIFIER: Final = (DOMAIN, "hub")
 # within one second of a Designer save, so a batch waits this long for both.
 RECONCILE_COOLDOWN: Final = 1.0
 
-type Fingerprint = tuple[str | None, int | None, int | None, int, int, int | None]
+type Fingerprint = tuple[str, int, int | None, int, int, int]
 
 
 def fingerprint(obj: AmpioObject) -> Fingerprint:

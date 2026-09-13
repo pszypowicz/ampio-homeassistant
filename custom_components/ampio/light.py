@@ -404,27 +404,24 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
         module = self._data.module_row(self._module_id)
         # _panel_mask is one function serving both frames, so the backlight
         # and the status light address the same touch fields under the same
-        # numbering. The library documents BACKLIGHT_RGBW's count as that
-        # field count, and resolve_panel_settings takes the panel's field
-        # width from BACKLIGHT_RGBW alone, resolving nothing without it.
-        # STATUSLIGHT_RGB is not that count, and is not read for one here,
-        # even on the status light.
+        # numbering. BACKLIGHT_RGBW and STATUSLIGHT_RGB agree on every panel
+        # measured, but the library reads STATUSLIGHT_RGB nowhere and
+        # documents BACKLIGHT_RGBW alone as the touch field count, the one
+        # resolve_panel_settings reads. Reading the documented field keeps
+        # this code off an agreement the library never promises.
         count = (
             module.capabilities.get(ModuleFunction.BACKLIGHT_RGBW) if module else None
         )
-        # count comes back None down two paths: no catalogue row for this
-        # module, or a row present with no BACKLIGHT_RGBW entry - the state
-        # of a panel that reports STATUSLIGHT_RGB without BACKLIGHT_RGBW
-        # (build_panel_status_lights still builds its entity). Neither path
-        # loses the wire's hard ceiling, because that ceiling is knowable
-        # without any catalogue read, so this still bounds the call rather
-        # than skipping validation outright. Left unbounded, a field the
-        # library refuses with a bare ValueError would be mistranslated by
-        # _publish_translated as an unaddressable module. For that second
-        # panel the same gap also means field validation silently widens
-        # from its real count to MAX_PANEL_FIELDS, and its seed starts
-        # all-zero, because resolve_panel_settings refuses to resolve
-        # panel_settings without BACKLIGHT_RGBW.
+        # count comes back None down one path here: the row left the
+        # catalogue mid-session, because Designer deletes a device at once
+        # and only unassigns its objects. module_row's other None path, a
+        # standard account never served the catalogue, cannot reach this
+        # method, since both panel entities are admin_only. Not observed:
+        # a row present without a BACKLIGHT_RGBW entry. Either way the
+        # wire's hard ceiling still applies, so this still bounds the call
+        # rather than skipping validation outright. Left unbounded, a
+        # field the library refuses with a bare ValueError would be
+        # mistranslated by _publish_translated as an unaddressable module.
         ceiling = count if count is not None else MAX_PANEL_FIELDS
         for number in fields:
             if not 1 <= number <= ceiling:

@@ -342,29 +342,25 @@ async def test_unexposable_objects_are_skipped(
     assert len(entities) == 15
 
 
-@pytest.mark.parametrize(
-    ("leaf_id", "id_urzadzenia"),
-    [
-        # The M-SERV's own leaf outranks whatever row the object carries.
-        pytest.param("0_1_temp_0_1", 17, id="server-owned"),
-    ],
-)
 async def test_hub_anchored_objects(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
     device_registry: dr.DeviceRegistry,
     entity_registry: er.EntityRegistry,
-    leaf_id: str,
-    id_urzadzenia: int,
 ) -> None:
-    """The M-SERV's own objects get a child of the hub."""
+    """The M-SERV's own objects get a child of the hub.
+
+    The object below carries ``id_urzadzenia=17``, a real module row, but its
+    ``leaf_id`` embeds the M-SERV's own mac, and the M-SERV's own leaf
+    outranks the row the object carries.
+    """
     mock_client.objects[500] = make_object(
         500,
         "temp",
         1,
-        leaf_id=leaf_id,
-        id_urzadzenia=id_urzadzenia,
+        leaf_id="0_1_temp_0_1",
+        id_urzadzenia=17,
         funkcja=5,
         opis_menu="Hub sensor",
     )
