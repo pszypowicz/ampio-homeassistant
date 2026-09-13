@@ -1030,7 +1030,7 @@ async def test_set_backlight_fields_still_refuses_past_the_wire_ceiling(
     """A missing module row loses the panel's own count, not the wire's hard ceiling.
 
     Without this bound, field 99 would reach ``set_panel_backlight``, which
-    the real library refuses with a bare ``ValueError`` - a failure
+    the real library refuses with ``AmpioValueError`` - a failure
     ``_publish_translated`` would mistranslate as an unaddressable module
     rather than an out-of-range field.
     """

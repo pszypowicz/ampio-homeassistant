@@ -1,9 +1,10 @@
 """Light platform for the Ampio integration."""
 
 from collections.abc import Sequence
-from typing import Any, Final, override
+from typing import Any, override
 
 from ampio_mqtt import (
+    MAX_PANEL_FIELD,
     AmpioConnectionError,
     AmpioObject,
     AmpioTimeoutError,
@@ -42,13 +43,6 @@ LIGHT_MATTER_TYPES = frozenset({0x0100, 0x0101, 0x010C, 0x010D})
 # A bare turn_on (no requested color) on an all-zero rgbw output raises the
 # white channel instead of writing back the dark state it started from.
 _DEFAULT_RGBW = (0, 0, 0, 255)
-
-# A panel reports at most this many touch fields (ampio_mqtt's own
-# PANEL_MASK_MAX_BYTES * 8, docs/panel-writes.md: "a field number above 24
-# is refused, because no frame can carry it"). Knowable without any
-# catalogue row, so async_set_fields falls back to it when a missing
-# module row loses the panel's own, smaller count.
-MAX_PANEL_FIELDS: Final = 24
 
 # The touch field numbers a per-field call colors. Validated against the
 # panel's own count in _AmpioPanelLight.async_set_fields, not here, because
@@ -417,12 +411,10 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
         # and only unassigns its objects. module_row's other None path, a
         # standard account never served the catalogue, cannot reach this
         # method, since both panel entities are admin_only. Not observed:
-        # a row present without a BACKLIGHT_RGBW entry. Either way the
-        # wire's hard ceiling still applies, so this still bounds the call
-        # rather than skipping validation outright. Left unbounded, a
-        # field the library refuses with a bare ValueError would be
-        # mistranslated by _publish_translated as an unaddressable module.
-        ceiling = count if count is not None else MAX_PANEL_FIELDS
+        # a row present without a BACKLIGHT_RGBW entry. MAX_PANEL_FIELD is
+        # the library's own ceiling, the highest field any frame carries,
+        # so it stands in for the count a missing row loses.
+        ceiling = MAX_PANEL_FIELD if count is None else count
         for number in fields:
             if not 1 <= number <= ceiling:
                 raise ServiceValidationError(

@@ -15,7 +15,7 @@ import voluptuous as vol
 
 from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -91,6 +91,23 @@ def build_touch_unlock_buttons(
     return [AmpioTouchUnlockButton(data, module_id)]
 
 
+async def _async_lock_touch(entity: ButtonEntity, call: ServiceCall) -> None:
+    """Lock a panel's touch fields, or say why this entity cannot.
+
+    A callable handler, not the entity's own method name, because it must
+    answer for every button entity the platform has - a bell button and an
+    identify button included - and name the surface ``ampio.lock_touch``
+    drives when the target is neither. Every Ampio button is offered in the
+    service picker, because the target selector filters by integration and
+    domain alone.
+    """
+    if not isinstance(entity, AmpioTouchUnlockButton):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="not_a_touch_panel"
+        )
+    await entity.async_lock_touch(call.data["seconds"])
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: AmpioConfigEntry,
@@ -105,28 +122,11 @@ async def async_setup_entry(
         build_touch_unlock_buttons, async_add_entities, admin_only=True
     )
     entity_platform.async_get_current_platform().async_register_entity_service(
-        "lock_touch", LOCK_TOUCH_SCHEMA, "async_lock_touch"
+        "lock_touch", LOCK_TOUCH_SCHEMA, _async_lock_touch
     )
 
 
-class _NoTouchLock:
-    """Refuses the touch-lock service, for a button that is not a panel's.
-
-    Home Assistant resolves an entity service by attribute lookup, so a
-    button without the method fails with an unhandled error rather than
-    something a user can act on. Every Ampio button is offered in the
-    service picker, because the target selector filters by integration and
-    domain alone.
-    """
-
-    async def async_lock_touch(self, seconds: float) -> None:
-        """Refuse a lock aimed at a button that drives no panel."""
-        raise ServiceValidationError(
-            translation_domain=DOMAIN, translation_key="not_a_touch_panel"
-        )
-
-
-class AmpioButton(AmpioEntity, ButtonEntity, _NoTouchLock):
+class AmpioButton(AmpioEntity, ButtonEntity):
     """A press-only control backed by a bell-marked Ampio object."""
 
     _attr_translation_key = "bell"
@@ -149,7 +149,7 @@ class AmpioButton(AmpioEntity, ButtonEntity, _NoTouchLock):
         await async_turn_on_honoring_pulse(self._data.client, obj, self._object_id)
 
 
-class AmpioIdentifyButton(AmpioModuleEntity, ButtonEntity, _NoTouchLock):
+class AmpioIdentifyButton(AmpioModuleEntity, ButtonEntity):
     """Lights a module's CAN LED, so that the module can be found by eye.
 
     The Designer's "Identify device" button. The frame rides the CAN write

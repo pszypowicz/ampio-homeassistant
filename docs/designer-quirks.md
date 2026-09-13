@@ -18,7 +18,9 @@ Every object row carries a `leafId`, the pointer to the module output that drive
 
 The object survives the uncheck. It keeps its type, its rooms, and its state. The integration keeps its entity, its id, its name, its area, and its module, because the device tree reads `id_urzadzenia`, the Designer module row that every object carries on both account tiers, and not the leaf.
 
-What the uncheck costs is the diagnostics. The leaf id is how the diagnostics download joins an object to its Designer record, so a leafless object carries no record there until you check the box again.
+The uncheck costs less than it looks. The leaf id is one of two ways an object joins its Designer record. Without it, the join uses the Designer module row and the channel number instead, so the record still resolves.
+
+One case does lose the record. A leafed object carries its module's address inside the leaf id. A leafless object reads that address from the module catalogue. If Designer deleted the module row, a leafless object has nothing left to join through, and a leafed one still joins.
 
 So leave the Matter box alone on every object that has an entity here, in either state. To stop the M-SERV's Matter bridge, use "Clear configuration" in Designer's Matter panel. That wipes the bridge's pairing and restarts it unpaired, and it touches no object. A check on a relay also re-syncs the type column from the module record, so a relay whose record lost its Lighting tag comes back as a switch (see the section above).
 
@@ -73,6 +75,25 @@ Removing an object from a place in Designer does not delete it. It unassigns it,
 Deleting a device behaves differently again: it applies at once, with no save step, and it leaves its objects behind.
 
 Between those two, Designer can leave an object that is still shown to Home Assistant while the device it belongs to is gone. The integration handles it: that module device keeps its entities and takes the name `Ampio module <row>`, because no catalogue row is left to name it. Finish the delete in UNGROUPED and the repair on the Settings page lists what is left over.
+
+## A roller lock stops the slats too
+
+Designer's roller actions "Disable movement", "Disable closing" and "Disable opening" set two lock bits on the channel. The module then drops every command in the blocked direction, with no error and no reply. The wire carries the bits as the `block` field on the cover's state.
+
+The bits also govern the slat axis, which no Ampio document states. Measured on a blind driven by a rule that blocks opening alone:
+
+| Lock            | Command                   | Result             |
+| --------------- | ------------------------- | ------------------ |
+| None            | Slats 0 to 70             | Runs               |
+| Opening blocked | Slats 0 to 70             | Dropped in silence |
+| Opening blocked | Slats 70 to 20            | Runs               |
+| Opening blocked | Travel 40 to 20           | Runs               |
+| Opening blocked | Travel 20 to 60           | Dropped in silence |
+| Both blocked    | Slats in either direction | Dropped in silence |
+
+So a slat turn toward open counts as opening, and one toward closed counts as closing. The integration drops each tilt control with the direction that matches it, exactly as it does for the travel.
+
+Designer's two other roller actions, "Close permanently" and "Open permanently", were not measured.
 
 ## Designer's messages do not tell you what the server did
 

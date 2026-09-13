@@ -25,6 +25,7 @@ from homeassistant.components.siren import (
     DOMAIN as SIREN_DOMAIN,
 )
 from homeassistant.const import (
+    ATTR_ASSUMED_STATE,
     ATTR_ENTITY_ID,
     SERVICE_TURN_OFF,
     SERVICE_TURN_ON,
@@ -91,6 +92,27 @@ async def test_buzzer_exists_when_the_module_reports_one(
     entry = entity_registry.async_get(BUZZER_ENTITY_ID)
     assert entry is not None
     assert entry.unique_id == "module_17_buzzer"
+
+
+@pytest.mark.usefixtures("siren_only")
+async def test_buzzer_reports_an_assumed_state(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """The buzzer tells the frontend that its state is not confirmed.
+
+    No panel reports whether it is sounding, so the state is a record of
+    what was asked for. ``assumed_state`` reaches the state machine as an
+    attribute, which is what splits the toggle into two buttons.
+    """
+    with_buzzer(mock_client)
+
+    await setup_integration(hass, mock_config_entry)
+
+    state = hass.states.get(BUZZER_ENTITY_ID)
+    assert state is not None
+    assert state.attributes[ATTR_ASSUMED_STATE] is True
 
 
 @pytest.mark.usefixtures("siren_only")

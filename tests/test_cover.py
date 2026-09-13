@@ -234,30 +234,147 @@ async def test_a_lock_drops_the_feature_it_refuses(
     assert CoverEntityFeature.STOP & features
 
 
-async def test_a_travel_lock_leaves_the_slats_alone(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+@pytest.mark.parametrize(
+    ("block", "expected_missing"),
+    [
+        pytest.param(0, CoverEntityFeature(0), id="no-lock"),
+        pytest.param(
+            1,
+            CoverEntityFeature.CLOSE | CoverEntityFeature.CLOSE_TILT,
+            id="closing-blocked",
+        ),
+        pytest.param(
+            2,
+            CoverEntityFeature.OPEN | CoverEntityFeature.OPEN_TILT,
+            id="opening-blocked",
+        ),
+        pytest.param(
+            3,
+            CoverEntityFeature.OPEN
+            | CoverEntityFeature.CLOSE
+            | CoverEntityFeature.SET_POSITION
+            | CoverEntityFeature.OPEN_TILT
+            | CoverEntityFeature.CLOSE_TILT
+            | CoverEntityFeature.SET_TILT_POSITION,
+            id="both-blocked",
+        ),
+    ],
+)
+async def test_a_lock_drops_the_tilt_feature_it_refuses(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    block: int,
+    expected_missing: CoverEntityFeature,
 ) -> None:
-    """A cover locked both ways keeps every tilt service.
+    """Each lock bit removes the slat service the module would drop.
 
-    The library documents the lock on the travel axis alone, and whether it
-    also stops the slats cannot be tested without driving a real blocked
-    cover. Keeping the tilt features preserves the behavior that exists.
+    Measured on a blind under a Designer rule that blocks one direction:
+    a slat turn toward open was dropped in silence and one toward closed
+    ran, matching what the same lock did to the travel. Both stop services
+    stay, because the allowed direction can still be running.
     """
     await setup_integration(hass, mock_config_entry)
+    unlocked = hass.states.get(TILT_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
 
-    obj = replace(mock_client.objects[83], block=3)
+    obj = replace(mock_client.objects[83], block=block)
     mock_client.objects[83] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
     features = hass.states.get(TILT_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
-    assert features == (
-        CoverEntityFeature.STOP
-        | CoverEntityFeature.SET_TILT_POSITION
-        | CoverEntityFeature.OPEN_TILT
-        | CoverEntityFeature.CLOSE_TILT
-        | CoverEntityFeature.STOP_TILT
+    assert features == unlocked & ~expected_missing
+    assert CoverEntityFeature.STOP & features
+    assert CoverEntityFeature.STOP_TILT & features
+
+
+@pytest.mark.parametrize(
+    ("block", "target", "expected_key"),
+    [
+        pytest.param(2, 80, "cover_blocked_opening", id="opening-blocked-turns-up"),
+        pytest.param(1, 10, "cover_blocked_closing", id="closing-blocked-turns-down"),
+    ],
+)
+async def test_a_blocked_tilt_move_is_refused(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    block: int,
+    target: int,
+    expected_key: str,
+) -> None:
+    """A slat turn in the locked direction raises instead of going out.
+
+    The fixture's slats sit at 40, so the target decides the direction the
+    same way a position move does.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    obj = replace(mock_client.objects[83], block=block)
+    mock_client.objects[83] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+    await hass.async_block_till_done()
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await hass.services.async_call(
+            COVER_DOMAIN,
+            SERVICE_SET_COVER_TILT_POSITION,
+            {ATTR_ENTITY_ID: TILT_ENTITY_ID, ATTR_TILT_POSITION: target},
+            blocking=True,
+        )
+    assert excinfo.value.translation_key == expected_key
+    mock_client.set_roller_lamella.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("block", "target"),
+    [
+        pytest.param(2, 10, id="opening-blocked-turns-down"),
+        pytest.param(1, 80, id="closing-blocked-turns-up"),
+    ],
+)
+async def test_a_tilt_move_the_lock_allows_goes_out(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    block: int,
+    target: int,
+) -> None:
+    """One locked direction leaves the other one running on the slat axis too."""
+    await setup_integration(hass, mock_config_entry)
+
+    obj = replace(mock_client.objects[83], block=block)
+    mock_client.objects[83] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_SET_COVER_TILT_POSITION,
+        {ATTR_ENTITY_ID: TILT_ENTITY_ID, ATTR_TILT_POSITION: target},
+        blocking=True,
     )
+    mock_client.set_roller_lamella.assert_awaited_once_with(83, target)
+
+
+async def test_an_unknown_tilt_allows_the_move(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Without a reported slat angle, nothing can decide a direction."""
+    await setup_integration(hass, mock_config_entry)
+
+    obj = replace(mock_client.objects[83], lammel=None, block=2)
+    mock_client.objects[83] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_SET_COVER_TILT_POSITION,
+        {ATTR_ENTITY_ID: TILT_ENTITY_ID, ATTR_TILT_POSITION: 90},
+        blocking=True,
+    )
+    mock_client.set_roller_lamella.assert_awaited_once_with(83, 90)
 
 
 @pytest.mark.parametrize(

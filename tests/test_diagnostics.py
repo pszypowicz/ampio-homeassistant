@@ -94,18 +94,20 @@ async def test_config_entry_diagnostics(
     assert result == snapshot
 
 
-async def test_config_entry_diagnostics_redacts_username_from_topic_keys(
+async def test_config_entry_diagnostics_carries_no_username(
     hass: HomeAssistant,
     hass_client: ClientSessionGenerator,
     mock_client: MagicMock,
 ) -> None:
-    """The account username never reaches the download, including inside a topic key.
+    """The account username reaches no part of the download.
 
     ``subscribe_failures`` and ``protocol_violations`` key on the full MQTT
-    topic, which the library builds as ``ampio/fromDB/<username>/...``, so
-    key-based redaction alone cannot mask the username sitting inside it.
-    Serializing the whole result, rather than checking the two entries by
-    hand, also catches the username if it ever reappeared somewhere else.
+    topic, and an account topic carries the username in the middle of the
+    key, where key-based redaction cannot reach it. ampio-mqtt masks that
+    segment before the snapshot leaves the library, so the fixture carries
+    the masked form it emits. Serializing the whole result, rather than
+    checking the two entries by hand, catches the username anywhere else it
+    appears: this file is attached to public bug reports.
     """
     username = "ha_user"
     config_entry = MockConfigEntry(
@@ -118,9 +120,9 @@ async def test_config_entry_diagnostics_redacts_username_from_topic_keys(
         **DIAGNOSTICS_SNAPSHOT,
         "connection": {
             **DIAGNOSTICS_SNAPSHOT["connection"],
-            "subscribe_failures": {f"ampio/fromDB/{username}/ob/+/state": 135},
+            "subscribe_failures": {"ampio/fromDB/<account>/ob/+/state": 135},
             "protocol_violations": {
-                f"ampio/fromDB/{username}/md5/devices": "missing column"
+                "ampio/fromDB/<account>/md5/devices": "missing column"
             },
         },
     }
@@ -185,6 +187,69 @@ async def test_designer_config_reports_modules_and_covers(
     )
 
     assert result["designer_config"] == snapshot
+
+
+async def test_designer_config_emits_only_the_reviewed_keys(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """The two library dataclasses emit these keys and no others.
+
+    A user attaches this download to a public bug report. Both entries go
+    out through ``dataclasses.asdict``, so a field added to ``PanelSettings``
+    or ``CoverParameters`` in a later ampio-mqtt release reaches the file
+    the moment the pin moves.
+
+    Every key below is a color, a flag, a timing, or a count, and none of
+    them needs redaction. Read a new key for identifiers, names, addresses,
+    and credentials before adding it here. A secret that is itself a
+    dictionary key defeats ``async_redact_data``, which matches key names
+    alone, so a topic-shaped or account-shaped key needs its own handling
+    rather than an entry in a redaction set.
+    """
+    with_panel_settings(mock_client)
+    with_cover_parameters(mock_client)
+    mock_client.diagnostics_snapshot.return_value = DIAGNOSTICS_SNAPSHOT
+    await setup_integration(hass, mock_config_entry)
+
+    result = await get_diagnostics_for_config_entry(
+        hass, hass_client, mock_config_entry
+    )
+
+    settings = next(
+        entry["panel_settings"]
+        for entry in result["designer_config"]["modules"]
+        if entry["panel_settings"] is not None
+    )
+    assert set(settings) == {
+        "touch_field_color",
+        "status_color",
+        "light_signal",
+        "beep_time",
+        "sound_signal",
+        "backlight_active",
+        "multitouch_lock",
+        "multitouch_send_count",
+        "dim_after_s",
+        "dim_brightness",
+    }
+    parameters = next(
+        entry["cover_parameters"]
+        for entry in result["designer_config"]["covers"]
+        if entry["cover_parameters"] is not None
+    )
+    assert set(parameters) == {
+        "with_slats",
+        "open_time_s",
+        "close_time_s",
+        "calibration_percent",
+        "slat_time_ms",
+        "reversal_lag_ms",
+        "start_lag_same_ms",
+        "start_lag_other_ms",
+    }
 
 
 async def test_designer_config_names_known_capability_and_numbers_unknown(

@@ -27,7 +27,7 @@ Settings -> Devices & Services -> Ampio -> the three-dot menu on the entry -> Do
 - `typ_komponentu`: the object type (`przekaznik`, `flaga`, `roleta`, ...) - decides the base kind.
 - `type`: the Matter device-type tag mirror - `"256"` (0x0100) marks a relay as a light. An empty value on a relay you tagged in Designer is the half-existing-tag case: see [designer-quirks.md](designer-quirks.md).
 - `params`: the Designer flag bitfield - bit 4 hides an object, bit 6 marks it read-only.
-- `leafId`: the module output the object drives - it joins the object to its Designer record in this download. The device tree reads `id_urzadzenia`, the Designer module row, instead, so an empty `leafId` (Designer's Matter box unchecked) costs the join and nothing else.
+- `leafId`: the module output the object drives - it is one of two ways an object joins its Designer record. The device tree reads `id_urzadzenia`, the Designer module row, instead. An empty `leafId` (Designer's Matter box unchecked) costs neither: the record join falls back to that same module row and the channel number. See [designer-quirks.md](designer-quirks.md) for the one case that does lose the record.
 
 Privacy note before sharing a download publicly: credentials, host, and LAN address are redacted, but object, room, and module names are present verbatim.
 
