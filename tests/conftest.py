@@ -17,6 +17,7 @@ from ampio_mqtt import (
     AmpioObject,
     AmpioScene,
     AmpioServerInfo,
+    CoverParameters,
     ModuleFunction,
     PanelLightSignal,
     PanelSettings,
@@ -607,3 +608,27 @@ def with_panel_settings(client: MagicMock, module_id: int = 17) -> None:
         dim_brightness=20,
     )
     client.modules[module_id] = replace(module, panel_settings=settings)
+
+
+# A stored travel configuration with every field a distinct value, so a test
+# that reads the wrong one fails.
+COVER_PARAMETERS: Final = CoverParameters(
+    with_slats=True,
+    open_time_s=18,
+    close_time_s=24,
+    calibration_percent=6,
+    slat_time_ms=1400,
+    reversal_lag_ms=250,
+    start_lag_same_ms=120,
+    start_lag_other_ms=160,
+)
+
+
+def with_cover_parameters(client: MagicMock, object_id: int = 83) -> None:
+    """Give a seeded cover object a stored travel configuration, as an admin sweep reports it.
+
+    Merges into the object's existing fields rather than replacing them, the
+    way the module capability helpers merge into a module row.
+    """
+    obj = client.objects[object_id]
+    client.objects[object_id] = replace(obj, cover_parameters=COVER_PARAMETERS)

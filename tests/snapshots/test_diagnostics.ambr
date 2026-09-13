@@ -1,6 +1,30 @@
 # serializer version: 1
 # name: test_config_entry_diagnostics
   dict({
+    'designer_config': dict({
+      'covers': list([
+      ]),
+      'modules': list([
+        dict({
+          'capabilities': dict({
+          }),
+          'id': 1,
+          'panel_settings': None,
+        }),
+        dict({
+          'capabilities': dict({
+          }),
+          'id': 3,
+          'panel_settings': None,
+        }),
+        dict({
+          'capabilities': dict({
+          }),
+          'id': 17,
+          'panel_settings': None,
+        }),
+      ]),
+    }),
     'entry_data': dict({
       'host': '**REDACTED**',
       'password': '**REDACTED**',
@@ -53,5 +77,93 @@
         'user_id': -1,
       }),
     }),
+  })
+# ---
+# name: test_designer_config_reports_modules_and_covers
+  dict({
+    'covers': list([
+      dict({
+        'cover_parameters': dict({
+          'calibration_percent': 6,
+          'close_time_s': 24,
+          'open_time_s': 18,
+          'reversal_lag_ms': 250,
+          'slat_time_ms': 1400,
+          'start_lag_other_ms': 160,
+          'start_lag_same_ms': 120,
+          'with_slats': True,
+        }),
+        'id': 83,
+      }),
+    ]),
+    'modules': list([
+      dict({
+        'capabilities': dict({
+        }),
+        'id': 1,
+        'panel_settings': None,
+      }),
+      dict({
+        'capabilities': dict({
+        }),
+        'id': 3,
+        'panel_settings': None,
+      }),
+      dict({
+        'capabilities': dict({
+          'BUZZER': 4,
+        }),
+        'id': 17,
+        'panel_settings': dict({
+          'backlight_active': list([
+            True,
+            True,
+            True,
+            True,
+            True,
+            True,
+          ]),
+          'beep_time': 5,
+          'dim_after_s': 30,
+          'dim_brightness': 20,
+          'light_signal': list([
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+          ]),
+          'multitouch_lock': list([
+            False,
+            False,
+            False,
+            False,
+            False,
+            False,
+          ]),
+          'multitouch_send_count': False,
+          'sound_signal': list([
+            True,
+            True,
+            True,
+            True,
+            True,
+            True,
+          ]),
+          'status_color': list([
+            200,
+            210,
+            220,
+          ]),
+          'touch_field_color': list([
+            10,
+            20,
+            30,
+            40,
+          ]),
+        }),
+      }),
+    ]),
   })
 # ---
