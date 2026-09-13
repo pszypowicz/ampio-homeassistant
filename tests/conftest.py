@@ -18,6 +18,8 @@ from ampio_mqtt import (
     AmpioScene,
     AmpioServerInfo,
     ModuleFunction,
+    PanelLightSignal,
+    PanelSettings,
     RecordSweep,
     ThermostatState,
 )
@@ -556,3 +558,48 @@ def with_key_lock(client: MagicMock, module_id: int = 17) -> None:
     client.modules[module_id] = replace(
         module, capabilities={**module.capabilities, ModuleFunction.KEY_LOCK: 1}
     )
+
+
+def with_panel_colors(client: MagicMock, module_id: int = 17) -> None:
+    """Give a seeded module the backlight and status-light capabilities.
+
+    Merges into the row's existing capabilities rather than replacing them,
+    because a real M-DOT panel carries a buzzer, a touch lock, and a
+    backlight all at once.
+    """
+    module = client.modules[module_id]
+    client.modules[module_id] = replace(
+        module,
+        capabilities={
+            **module.capabilities,
+            ModuleFunction.BACKLIGHT_RGBW: 6,
+            ModuleFunction.STATUSLIGHT_RGB: 6,
+        },
+    )
+
+
+# A stored default for a six-field panel. The backlight and the status
+# light carry distinct values, so a test that reads the wrong field fails.
+TOUCH_FIELD_COLOR: Final = (10, 20, 30, 40)
+STATUS_COLOR: Final = (200, 210, 220)
+
+
+def with_panel_settings(client: MagicMock, module_id: int = 17) -> None:
+    """Give a seeded module a swept panel-settings row, as a proven M-DOT reports it.
+
+    Every per-field tuple is six long, the field count of the fixture panel.
+    """
+    module = client.modules[module_id]
+    settings = PanelSettings(
+        touch_field_color=TOUCH_FIELD_COLOR,
+        status_color=STATUS_COLOR,
+        light_signal=(PanelLightSignal.CHANGE_STATE,) * 6,
+        beep_time=5,
+        sound_signal=(True,) * 6,
+        backlight_active=(True,) * 6,
+        multitouch_lock=(False,) * 6,
+        multitouch_send_count=False,
+        dim_after_s=30,
+        dim_brightness=20,
+    )
+    client.modules[module_id] = replace(module, panel_settings=settings)

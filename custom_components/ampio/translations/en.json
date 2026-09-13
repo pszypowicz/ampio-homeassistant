@@ -78,6 +78,14 @@
                 "name": "Unlock touch"
             }
         },
+        "light": {
+            "backlight": {
+                "name": "Backlight"
+            },
+            "status_light": {
+                "name": "Status light"
+            }
+        },
         "sensor": {
             "co2": {
                 "name": "CO2"
@@ -110,6 +118,9 @@
         }
     },
     "exceptions": {
+        "backlight_command_failed": {
+            "message": "The Ampio server did not confirm the backlight color, so the panel keeps the color it had."
+        },
         "buzz_duration_too_long": {
             "message": "A buzzer pattern step cannot last longer than {maximum} seconds."
         },
@@ -145,6 +156,9 @@
         },
         "records_unavailable": {
             "message": "Connected to the Ampio server, but it did not answer the module description request."
+        },
+        "status_light_command_failed": {
+            "message": "The Ampio server did not confirm the status light color, so the panel keeps the color it had."
         },
         "touch_lock_failed": {
             "message": "The Ampio server did not confirm the touch lock, so the panel still answers a touch."

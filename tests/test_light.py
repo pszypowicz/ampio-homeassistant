@@ -4,7 +4,14 @@ from collections.abc import Generator
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
-from ampio_mqtt import OUTPUT_KIND_KEYS, ObjectUpdated
+from ampio_mqtt import (
+    OUTPUT_KIND_KEYS,
+    AccessTier,
+    AmpioConnectionError,
+    AmpioTimeoutError,
+    ModuleFunction,
+    ObjectUpdated,
+)
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -15,6 +22,7 @@ from syrupy.assertion import SnapshotAssertion
 from custom_components.ampio.light import LIGHT_MATTER_TYPES
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
+    ATTR_RGB_COLOR,
     ATTR_RGBW_COLOR,
     DOMAIN as LIGHT_DOMAIN,
 )
@@ -22,18 +30,31 @@ from homeassistant.const import (
     ATTR_ENTITY_ID,
     SERVICE_TURN_OFF,
     SERVICE_TURN_ON,
+    STATE_OFF,
     STATE_ON,
     Platform,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import emit, pinned_id
+from .conftest import (
+    STATUS_COLOR,
+    TOUCH_FIELD_COLOR,
+    emit,
+    module_pinned_id,
+    pinned_id,
+    set_access_tier,
+    with_panel_colors,
+    with_panel_settings,
+)
 
 DIMMER_ENTITY_ID = pinned_id("light", 71)
 RGBW_ENTITY_ID = pinned_id("light", 72)
 RELAY_ENTITY_ID = pinned_id("light", 73)
+BACKLIGHT_ENTITY_ID = module_pinned_id("light", 17, "_backlight")
+STATUS_LIGHT_ENTITY_ID = module_pinned_id("light", 17, "_status_light")
 
 
 @pytest.fixture(autouse=True)
@@ -61,14 +82,16 @@ def test_output_kind_vocabulary_is_split_or_deferred() -> None:
     assert {0x0100, 0x0101, 0x010C, 0x010D} == LIGHT_MATTER_TYPES
 
 
-@pytest.mark.usefixtures("mock_client")
 async def test_all_entities(
     hass: HomeAssistant,
+    mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
     entity_registry: er.EntityRegistry,
     snapshot: SnapshotAssertion,
 ) -> None:
-    """Snapshot every entity's registry entry and state."""
+    """Snapshot every entity's registry entry and state, including the panel lights."""
+    with_panel_colors(mock_client)
+    with_panel_settings(mock_client)
     await setup_integration(hass, mock_config_entry)
     await snapshot_platform(hass, entity_registry, snapshot, mock_config_entry.entry_id)
 
@@ -250,3 +273,345 @@ async def test_push_echo_updates_brightness(
     state = hass.states.get(DIMMER_ENTITY_ID)
     assert state.state == STATE_ON
     assert state.attributes[ATTR_BRIGHTNESS] == 255
+
+
+async def test_panel_lights_exist_with_both_capabilities(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A panel carrying both capabilities gets a backlight and a status light."""
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    assert hass.states.get(BACKLIGHT_ENTITY_ID) is not None
+    assert hass.states.get(STATUS_LIGHT_ENTITY_ID) is not None
+
+
+async def test_panel_light_built_only_for_its_own_capability(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A module reporting only the backlight capability gets no status light."""
+    module = mock_client.modules[17]
+    mock_client.modules[17] = replace(
+        module, capabilities={**module.capabilities, ModuleFunction.BACKLIGHT_RGBW: 6}
+    )
+    await setup_integration(hass, mock_config_entry)
+
+    assert hass.states.get(BACKLIGHT_ENTITY_ID) is not None
+    assert hass.states.get(STATUS_LIGHT_ENTITY_ID) is None
+
+
+async def test_panel_lights_withheld_on_a_standard_account(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A standard account gets neither panel light, and withheld_unique_ids names both."""
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    await setup_integration(hass, mock_config_entry)
+
+    assert hass.states.get(BACKLIGHT_ENTITY_ID) is None
+    assert hass.states.get(STATUS_LIGHT_ENTITY_ID) is None
+    withheld = mock_config_entry.runtime_data.withheld_unique_ids()
+    assert withheld == {"module_17_backlight", "module_17_status_light"}
+
+
+async def test_initial_color_reads_panel_settings(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Each entity's initial color reads its own panel_settings field."""
+    with_panel_colors(mock_client)
+    with_panel_settings(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    backlight = hass.states.get(BACKLIGHT_ENTITY_ID)
+    assert backlight is not None
+    assert backlight.attributes[ATTR_RGBW_COLOR] == TOUCH_FIELD_COLOR
+    status_light = hass.states.get(STATUS_LIGHT_ENTITY_ID)
+    assert status_light is not None
+    assert status_light.attributes[ATTR_RGB_COLOR] == STATUS_COLOR
+
+
+async def test_missing_panel_settings_starts_at_zero(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A panel whose panel_settings is None starts at zero on both entities.
+
+    ``is_on`` reads whether any channel is non-zero, so an off state is the
+    observable proof that every channel starts there: Home Assistant omits
+    the color attributes for a light it reports off.
+    """
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    backlight = hass.states.get(BACKLIGHT_ENTITY_ID)
+    assert backlight is not None
+    assert backlight.state == STATE_OFF
+    status_light = hass.states.get(STATUS_LIGHT_ENTITY_ID)
+    assert status_light is not None
+    assert status_light.state == STATE_OFF
+
+
+async def test_backlight_turn_on_with_color_sends_it(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """An explicit color is sent as the four backlight channels."""
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID, ATTR_RGBW_COLOR: (10, 20, 30, 40)},
+        blocking=True,
+    )
+    mock_client.set_panel_backlight.assert_awaited_once_with(17, 10, 20, 30, 40)
+
+
+async def test_status_light_turn_on_with_color_sends_it(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """An explicit color is sent as the three status light channels."""
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID, ATTR_RGB_COLOR: (50, 60, 70)},
+        blocking=True,
+    )
+    mock_client.set_panel_status_light.assert_awaited_once_with(17, 50, 60, 70)
+
+
+async def test_backlight_turn_on_without_color_sends_stored_default(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A bare turn_on sends the color Ampio Designer stored for the icons."""
+    with_panel_colors(mock_client)
+    with_panel_settings(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.set_panel_backlight.assert_awaited_once_with(17, *TOUCH_FIELD_COLOR)
+
+
+async def test_status_light_turn_on_without_color_sends_stored_default(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A bare turn_on sends the color Ampio Designer stored for the indicators."""
+    with_panel_colors(mock_client)
+    with_panel_settings(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.set_panel_status_light.assert_awaited_once_with(17, *STATUS_COLOR)
+
+
+async def test_turn_on_without_color_or_settings_sends_plain_white(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Without a stored default, a bare turn_on sends plain white on both surfaces."""
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.set_panel_backlight.assert_awaited_once_with(17, 0, 0, 0, 255)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.set_panel_status_light.assert_awaited_once_with(17, 255, 255, 255)
+
+
+async def test_backlight_brightness_scales_channels(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A color with a brightness scales so the peak channel hits it."""
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {
+            ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID,
+            ATTR_RGBW_COLOR: (10, 20, 40, 80),
+            ATTR_BRIGHTNESS: 160,
+        },
+        blocking=True,
+    )
+    mock_client.set_panel_backlight.assert_awaited_once_with(17, 20, 40, 80, 160)
+
+
+async def test_status_light_brightness_scales_channels(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A color with a brightness scales so the peak channel hits it."""
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {
+            ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID,
+            ATTR_RGB_COLOR: (20, 40, 80),
+            ATTR_BRIGHTNESS: 160,
+        },
+        blocking=True,
+    )
+    mock_client.set_panel_status_light.assert_awaited_once_with(17, 40, 80, 160)
+
+
+async def test_backlight_turn_off_and_explicit_zero_send_all_zero(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """turn_off, and an explicit all-zero turn_on, both send every channel at zero."""
+    with_panel_colors(mock_client)
+    with_panel_settings(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_OFF,
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.set_panel_backlight.assert_awaited_once_with(17, 0, 0, 0, 0)
+
+    mock_client.set_panel_backlight.reset_mock()
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID, ATTR_RGBW_COLOR: (0, 0, 0, 0)},
+        blocking=True,
+    )
+    mock_client.set_panel_backlight.assert_awaited_once_with(17, 0, 0, 0, 0)
+
+
+async def test_status_light_turn_off_and_explicit_zero_send_all_zero(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """turn_off, and an explicit all-zero turn_on, both send every channel at zero."""
+    with_panel_colors(mock_client)
+    with_panel_settings(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_OFF,
+        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.set_panel_status_light.assert_awaited_once_with(17, 0, 0, 0)
+
+    mock_client.set_panel_status_light.reset_mock()
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID, ATTR_RGB_COLOR: (0, 0, 0)},
+        blocking=True,
+    )
+    mock_client.set_panel_status_light.assert_awaited_once_with(17, 0, 0, 0)
+
+
+async def test_backlight_unknown_module_raises(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A module the catalogue cannot address raises, not a bare ValueError."""
+    with_panel_colors(mock_client)
+    mock_client.set_panel_backlight.side_effect = ValueError("module id 17 has no mac")
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(HomeAssistantError) as excinfo:
+        await hass.services.async_call(
+            LIGHT_DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID, ATTR_RGBW_COLOR: (1, 2, 3, 4)},
+            blocking=True,
+        )
+    assert excinfo.value.translation_key == "module_not_addressable"
+
+
+@pytest.mark.parametrize(
+    "error", [AmpioConnectionError("Not connected"), AmpioTimeoutError("no ack")]
+)
+async def test_backlight_command_failure_raises(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    error: Exception,
+) -> None:
+    """A connection or timeout failure raises the backlight's own message."""
+    with_panel_colors(mock_client)
+    mock_client.set_panel_backlight.side_effect = error
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(HomeAssistantError) as excinfo:
+        await hass.services.async_call(
+            LIGHT_DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID, ATTR_RGBW_COLOR: (1, 2, 3, 4)},
+            blocking=True,
+        )
+    assert excinfo.value.translation_key == "backlight_command_failed"
+
+
+async def test_status_light_unknown_module_raises(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A module the catalogue cannot address raises, not a bare ValueError."""
+    with_panel_colors(mock_client)
+    mock_client.set_panel_status_light.side_effect = ValueError(
+        "module id 17 has no mac"
+    )
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(HomeAssistantError) as excinfo:
+        await hass.services.async_call(
+            LIGHT_DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID, ATTR_RGB_COLOR: (1, 2, 3)},
+            blocking=True,
+        )
+    assert excinfo.value.translation_key == "module_not_addressable"
+
+
+@pytest.mark.parametrize(
+    "error", [AmpioConnectionError("Not connected"), AmpioTimeoutError("no ack")]
+)
+async def test_status_light_command_failure_raises(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    error: Exception,
+) -> None:
+    """A connection or timeout failure raises the status light's own message."""
+    with_panel_colors(mock_client)
+    mock_client.set_panel_status_light.side_effect = error
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(HomeAssistantError) as excinfo:
+        await hass.services.async_call(
+            LIGHT_DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID, ATTR_RGB_COLOR: (1, 2, 3)},
+            blocking=True,
+        )
+    assert excinfo.value.translation_key == "status_light_command_failed"
