@@ -89,16 +89,19 @@ async def test_config_entry_diagnostics(
     assert result == snapshot
 
 
-async def test_designer_config_standard_account_is_empty_and_does_not_raise(
+async def test_designer_config_standard_account_has_no_modules_and_does_not_raise(
     hass: HomeAssistant,
     hass_client: ClientSessionGenerator,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
 ) -> None:
-    """A standard account gets an empty section instead of a raised error.
+    """A standard account gets an empty module list instead of a raised error.
 
     ``client.modules`` raises on that tier, so this proves the section
-    gates its own read instead of assuming the account is an administrator.
+    gates its own module read instead of assuming the account is an
+    administrator. The covers list is unaffected: an object's kind is
+    tier-shared, so every eligible cover still appears, each reporting
+    None because the sweep that would fill it in is admin-only.
     """
     set_access_tier(mock_client, AccessTier.RESTRICTED)
     mock_client.diagnostics_snapshot.return_value = DIAGNOSTICS_SNAPSHOT
@@ -108,7 +111,12 @@ async def test_designer_config_standard_account_is_empty_and_does_not_raise(
         hass, hass_client, mock_config_entry
     )
 
-    assert result["designer_config"] == {"modules": [], "covers": []}
+    assert result["designer_config"]["modules"] == []
+    covers = {
+        entry["id"]: entry["cover_parameters"]
+        for entry in result["designer_config"]["covers"]
+    }
+    assert covers == {81: None, 82: None, 83: None}
 
 
 async def test_designer_config_reports_modules_and_covers(
@@ -179,13 +187,18 @@ async def test_designer_config_module_without_panel_settings_reports_none(
     assert entry["capabilities"] == {}
 
 
-async def test_designer_config_omits_object_without_cover_parameters(
+async def test_designer_config_lists_every_cover_reporting_none_without_parameters(
     hass: HomeAssistant,
     hass_client: ClientSessionGenerator,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
 ) -> None:
-    """A cover the fixture never gave travel parameters is absent from the list."""
+    """Every eligible cover is listed, and one the sweep has not proven reports None.
+
+    Dropping a cover the sweep has not covered would read the same as an
+    object that is not a cover at all, which is the one case a cover bug
+    report most needs to rule out.
+    """
     with_cover_parameters(mock_client)
     mock_client.diagnostics_snapshot.return_value = DIAGNOSTICS_SNAPSHOT
     await setup_integration(hass, mock_config_entry)
@@ -194,8 +207,14 @@ async def test_designer_config_omits_object_without_cover_parameters(
         hass, hass_client, mock_config_entry
     )
 
-    cover_ids = {entry["id"] for entry in result["designer_config"]["covers"]}
-    assert cover_ids == {83}
+    covers = {
+        entry["id"]: entry["cover_parameters"]
+        for entry in result["designer_config"]["covers"]
+    }
+    assert covers.keys() == {81, 82, 83}
+    assert covers[81] is None
+    assert covers[82] is None
+    assert covers[83] is not None
 
 
 async def test_designer_config_leaves_entry_data_and_snapshot_unchanged(

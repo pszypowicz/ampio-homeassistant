@@ -111,22 +111,28 @@ def test_capability_helpers_compose(mock_client: MagicMock) -> None:
     """The capability helpers merge onto one row, as a real panel reports all of them.
 
     An M-DOT panel can carry a buzzer, a touch lock, and a backlight
-    together. Asserting after every call, not only at the end, means a
-    helper that replaced the capability map instead of merging into it is
-    caught by whichever helper runs after it - the check does not depend
-    on which of the three happens to run last.
+    together. The row starts with an unrelated capability already stored,
+    so a helper that replaces the capability map instead of merging into
+    it drops that entry on its own first call, not only once a previous
+    helper has written something for it to clobber.
     """
+    module = mock_client.modules[17]
+    mock_client.modules[17] = replace(module, capabilities={ModuleFunction.RGBW: 3})
+
     with_buzzer(mock_client)
     capabilities = mock_client.modules[17].capabilities
+    assert ModuleFunction.RGBW in capabilities
     assert ModuleFunction.BUZZER in capabilities
 
     with_key_lock(mock_client)
     capabilities = mock_client.modules[17].capabilities
+    assert ModuleFunction.RGBW in capabilities
     assert ModuleFunction.BUZZER in capabilities
     assert ModuleFunction.KEY_LOCK in capabilities
 
     with_panel_colors(mock_client)
     capabilities = mock_client.modules[17].capabilities
+    assert ModuleFunction.RGBW in capabilities
     assert ModuleFunction.BUZZER in capabilities
     assert ModuleFunction.KEY_LOCK in capabilities
     assert ModuleFunction.BACKLIGHT_RGBW in capabilities
