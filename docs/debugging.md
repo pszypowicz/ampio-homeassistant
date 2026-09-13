@@ -4,17 +4,21 @@ Two tools answer most questions: the diagnostics download shows what the integra
 
 ## The diagnostics download
 
-Settings -> Devices & Services -> Ampio -> the three-dot menu on the entry -> Download diagnostics. The file is JSON with two blocks:
+Settings -> Devices & Services -> Ampio -> the three-dot menu on the entry -> Download diagnostics. The file is JSON with three blocks:
 
 - `entry_data`: the config entry with host, username, and password redacted.
 - `snapshot`: the library's health report.
   - `access_tier`: `admin` or `restricted` - the account class the server assigned to your login. Several features differ by tier (module metadata, Designer locations), so check this first.
   - `available`, `auth_failure`: whether the broker connection is up, and the rejection reason when the connection loop stopped for auth.
   - `server_info`: the M-SERV self-report (the LAN address is redacted).
-  - `connection`: liveness counters - `started_at`, `reconnect_count`, `last_message_at`, `last_error`, and `subscribe_failures` (topics the broker rejected, usually a grant problem).
+  - `connection`: liveness counters - `started_at`, `reconnect_count`, `last_message_at`, `last_error`, `subscribe_failures` (a topic the broker rejected, mapped to its reason code, usually a grant problem), and `protocol_violations` (a topic whose reply came in a shape the library would not read, mapped to the reason - the connection stays up regardless). Each topic in both maps carries a placeholder where the account name sat, not your real username.
   - `mac_collisions`: override MACs shared by more than one module row.
+  - `params_gap`: objects the params table carries no row for, so every Designer config flag on them reads as unset. A non-empty list marks a server fault, since that table is meant to cover the whole catalogue. Always empty on the administrator login, whose catalogue carries the flags inline.
   - `modules`: one row per module in the catalogue, sorted by id, with the module id, MAC, type, model, `last_seen`, `supply_voltage`, and `temperature`. The last-seen time is in epoch seconds. It is the local time of the last live message from the module. It stays empty after a connect until a real push arrives, because the replay of stored values does not count. The two health values come from the module's own broadcast and stay empty on a restricted login. Not every module type sends that broadcast, see [faq.md](faq.md#a-module-shows-no-last-seen-time-in-the-diagnostics).
   - `last_payloads`: each server endpoint's verbatim last reply. This is the raw material everything else derives from.
+- `designer_config`: the Designer's stored configuration behind several entities, not their live state. The values inside both lists depend on an administrator-only sweep, but the `covers` list itself is present on both tiers, as the bullets below explain:
+  - `modules`: one entry per module in the catalogue, sorted by id, with its `id`, its `capabilities` map, and its `panel_settings`. A capability id reads as a name where the library names it (`BUZZER`, `ROLLER`, and the rest of `ModuleFunction`) and as a number where it does not, and the paired count is a channel count, not a flag - this is what answers "why does this module have no buzzer" or "why does this panel refuse field 7". `panel_settings` is what the Backlight and Status light entities start from, and it reads `null` on a module whose panel layout the library has not proven. Its `light_signal` field is named the same way a capability id is, as `PanelLightSignal` values where the library knows them, so do not expect the raw numbers the library model holds. This whole list is empty on a standard account, because the M-SERV serves the module catalogue to the administrator login alone.
+  - `covers`: one entry per cover object that Ampio Designer still shows, with its `id` and its stored `cover_parameters` or `null`. A hidden or a system cover is absent from the list rather than listed with `null`. This list is not empty on a standard account: an object's kind comes from the catalogue both accounts receive, so every visible cover still appears, each one reporting `null` because the sweep that fills the travel configuration is administrator-only. `cover_parameters` is what the Designer holds for a roller's open and close time, calibration, and slat timing, so it also reads `null` on an administrator account for a cover on a board whose roller layout the library has not proven.
 
 ### Reading the raw catalogue
 
