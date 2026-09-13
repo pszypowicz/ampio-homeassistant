@@ -119,6 +119,12 @@
     "cannot_connect": {
       "message": "Cannot connect to the Ampio server."
     },
+    "cover_blocked_closing": {
+      "message": "This cover is blocked from closing. A rule in Ampio Designer holds the lock, and the module refuses the command until the rule releases it."
+    },
+    "cover_blocked_opening": {
+      "message": "This cover is blocked from opening. A rule in Ampio Designer holds the lock, and the module refuses the command until the rule releases it."
+    },
     "discovery_timeout": {
       "message": "Connected to the Ampio server, but it did not finish reporting its configuration."
     },

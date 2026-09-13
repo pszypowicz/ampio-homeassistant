@@ -77,6 +77,16 @@ See [designer-quirks.md](designer-quirks.md). That page tells you how to check t
 
 See [designer-quirks.md](designer-quirks.md). That page explains why Home Assistant cannot move a child device, and how the repair puts the object under its new module.
 
+## A cover's arrow is missing, or an automation that names it fails
+
+**Check:** On the dashboard, the cover card offers only the arrow for the direction that still works and drops the other one, with no toast and no notification explaining why. An automation that names the cover by its entity id fails instead, with a message such as "Entity cover.ampio_obj_82 does not support action cover.open_cover."
+
+A rule in Ampio Designer is locking the cover's travel through one of its roller actions: "Disable movement", "Disable closing", or "Disable opening". The rule holds the lock for as long as its trigger holds, so a wind alarm or a fire alarm can hold it for a long time, and the lock clears on its own once the trigger clears.
+
+The module drops the blocked command with no error and no reply, so the integration removes the control instead of letting a press do nothing. The cover keeps reporting its position the whole time. The position slider still works in the direction that is not locked, and refuses the other with a message naming the Designer rule that holds it. `cover.toggle` needs both directions, so locking either one disables it entirely.
+
+**Fix:** None is required. The arrow returns once the Designer rule's trigger clears. An automation that targets the cover through an area, a device, or a label skips it silently while the lock holds. An automation that names the cover by its entity id raises and halts the rest of the sequence unless the action sets `continue_on_error: true`.
+
 ## A module shows no last-seen time in the diagnostics
 
 **Check:** Find the module's row under `snapshot.modules` in the diagnostics download, as described in [debugging.md](debugging.md). Look at `supply_voltage` in the same row. If that value is empty too, the module sends no health broadcast, and its last-seen time moves only when one of its objects changes. On the reference install the roller modules, the M-SERV row, and an M-CON-s on old firmware send none. The library lists every type and firmware in [raw-channel-bridge.md](https://github.com/pszypowicz/ampio-mqtt/blob/main/docs/raw-channel-bridge.md). A module that shows a voltage does send the broadcast. Its last-seen time can still lag by a few minutes after a restart, because the broadcast comes on a change of the reading only.
