@@ -876,7 +876,7 @@ async def test_set_backlight_fields_out_of_range_raises(
     mock_config_entry: MockConfigEntry,
     field: int,
 ) -> None:
-    """A field below 1 or above the panel's own 6-field count raises, naming it.
+    """A field below 1 or above the panel's own 6-field count raises, naming both.
 
     The library would otherwise drop an out-of-range field in silence, so
     this validation is what turns that silence into a message.
@@ -889,8 +889,63 @@ async def test_set_backlight_fields_out_of_range_raises(
             hass, BACKLIGHT_ENTITY_ID, [field], (10, 20, 30, 40)
         )
     assert excinfo.value.translation_key == "panel_field_out_of_range"
-    assert excinfo.value.translation_placeholders == {"count": "6"}
+    assert excinfo.value.translation_placeholders == {
+        "field": str(field),
+        "count": "6",
+    }
     mock_client.set_panel_backlight.assert_not_awaited()
+
+
+async def test_set_backlight_fields_with_no_fields_raises(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """An empty fields list would color nothing and report success, so it is refused."""
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [], (10, 20, 30, 40))
+    assert excinfo.value.translation_key == "panel_no_fields"
+    mock_client.set_panel_backlight.assert_not_awaited()
+
+
+async def test_set_status_fields_accepts_a_field_within_the_backlight_count(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The status light validates against BACKLIGHT_RGBW, not its own STATUSLIGHT_RGB.
+
+    ``with_panel_colors`` gives the fixture panel ``BACKLIGHT_RGBW: 6`` (the
+    real touch field count) and ``STATUSLIGHT_RGB: 3`` (an unrelated channel
+    count) on purpose. Field 5 is past a 3-field range but within the real
+    6-field one, so acceptance here proves the check reads the field count,
+    not the status light's own capability value.
+    """
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await _set_status_fields(hass, STATUS_LIGHT_ENTITY_ID, [5], (10, 20, 30))
+    mock_client.set_panel_status_light.assert_awaited_once_with(
+        17, 10, 20, 30, fields=[5]
+    )
+
+
+async def test_set_status_fields_out_of_range_names_the_backlight_count(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A status-light field beyond BACKLIGHT_RGBW's count raises, naming that count.
+
+    Not the status light's own ``STATUSLIGHT_RGB: 3`` - if the check read
+    that capability instead, the message would wrongly claim a 3-field
+    panel and field 5 above would have raised in the companion test.
+    """
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _set_status_fields(hass, STATUS_LIGHT_ENTITY_ID, [7], (10, 20, 30))
+    assert excinfo.value.translation_key == "panel_field_out_of_range"
+    assert excinfo.value.translation_placeholders == {"field": "7", "count": "6"}
+    mock_client.set_panel_status_light.assert_not_awaited()
 
 
 async def test_set_backlight_fields_at_the_panel_count_is_accepted(
@@ -931,21 +986,42 @@ async def test_set_backlight_fields_leaves_the_entity_state_unchanged(
     assert after.attributes[ATTR_RGBW_COLOR] == TOUCH_FIELD_COLOR
 
 
-async def test_set_backlight_fields_skips_validation_when_the_module_row_is_missing(
+async def test_set_backlight_fields_uses_the_wire_ceiling_when_the_module_row_is_missing(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """A row the catalogue dropped mid-session has no count, so the call goes out.
+    """A missing module row falls back to the wire's ceiling, not the panel's count.
 
     ``AmpioData.module_row`` returns None for a row that left the catalogue
-    after this entity was built, and that case is tolerated rather than
-    failing the call: an out-of-range field then reaches the panel
-    unvalidated instead of being refused here.
+    after this entity was built. Field 20 is past the panel's real 6-field
+    count but within the ceiling every panel's frame can carry, so it still
+    reaches the client.
     """
     with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)
     del mock_client.modules[17]
 
-    await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [99], (10, 20, 30, 40))
+    await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [20], (10, 20, 30, 40))
     mock_client.set_panel_backlight.assert_awaited_once_with(
-        17, 10, 20, 30, 40, fields=[99]
+        17, 10, 20, 30, 40, fields=[20]
     )
+
+
+async def test_set_backlight_fields_still_refuses_past_the_wire_ceiling(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A missing module row loses the panel's own count, not the wire's hard ceiling.
+
+    Without this bound, field 99 would reach ``set_panel_backlight``, which
+    the real library refuses with a bare ``ValueError`` - a failure
+    ``_publish_translated`` would mistranslate as an unaddressable module
+    rather than an out-of-range field.
+    """
+    with_panel_colors(mock_client)
+    await setup_integration(hass, mock_config_entry)
+    del mock_client.modules[17]
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [99], (10, 20, 30, 40))
+    assert excinfo.value.translation_key == "panel_field_out_of_range"
+    assert excinfo.value.translation_placeholders == {"field": "99", "count": "24"}
+    mock_client.set_panel_backlight.assert_not_awaited()

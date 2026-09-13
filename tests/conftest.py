@@ -566,6 +566,11 @@ def with_panel_colors(client: MagicMock, module_id: int = 17) -> None:
     Merges into the row's existing capabilities rather than replacing them,
     because a real M-DOT panel carries a buzzer, a touch lock, and a
     backlight all at once.
+
+    ``BACKLIGHT_RGBW`` and ``STATUSLIGHT_RGB`` carry deliberately different
+    numbers: only ``BACKLIGHT_RGBW`` counts the panel's touch fields, and a
+    real M-DOT can report a 3-channel status LED alongside 6 touch fields.
+    Code that reads the wrong one for the field count fails a test.
     """
     module = client.modules[module_id]
     client.modules[module_id] = replace(
@@ -573,7 +578,7 @@ def with_panel_colors(client: MagicMock, module_id: int = 17) -> None:
         capabilities={
             **module.capabilities,
             ModuleFunction.BACKLIGHT_RGBW: 6,
-            ModuleFunction.STATUSLIGHT_RGB: 6,
+            ModuleFunction.STATUSLIGHT_RGB: 3,
         },
     )
 

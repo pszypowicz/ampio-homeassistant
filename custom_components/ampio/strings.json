@@ -158,7 +158,10 @@
       "message": "This button does not drive a touch panel. Target the Unlock touch button of the panel you want to lock."
     },
     "panel_field_out_of_range": {
-      "message": "This panel reports {count} touch fields, so field numbers run from 1 to {count}."
+      "message": "Field {field} is outside this panel's touch fields, which run from 1 to {count}."
+    },
+    "panel_no_fields": {
+      "message": "This call named no touch fields, so it would color nothing on the panel."
     },
     "read_only_object": {
       "message": "This object is marked read-only in Ampio Designer, and the server drops every write to it."
@@ -263,7 +266,7 @@
     },
     "set_backlight_fields": {
       "name": "Color backlight touch fields",
-      "description": "Colors the named touch fields of an Ampio panel's icon backlight, rather than the whole surface. The panel's Backlight entity keeps the color it already reports; only the panel itself changes.",
+      "description": "Colors the named touch fields of an Ampio panel's icon backlight, rather than the whole surface, and leaves the panel's Backlight entity reporting the color it already had.",
       "fields": {
         "fields": {
           "name": "Fields",
@@ -277,7 +280,7 @@
     },
     "set_status_fields": {
       "name": "Color status light touch fields",
-      "description": "Colors the named touch fields of an Ampio panel's status indicator, rather than the whole surface. The panel's Status light entity keeps the color it already reports; only the panel itself changes.",
+      "description": "Colors the named touch fields of an Ampio panel's status indicator, rather than the whole surface, and leaves the panel's Status light entity reporting the color it already had.",
       "fields": {
         "fields": {
           "name": "Fields",

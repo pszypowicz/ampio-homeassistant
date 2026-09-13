@@ -1,7 +1,7 @@
 """Light platform for the Ampio integration."""
 
 from collections.abc import Sequence
-from typing import Any, override
+from typing import Any, Final, override
 
 from ampio_mqtt import (
     AmpioConnectionError,
@@ -43,17 +43,25 @@ LIGHT_MATTER_TYPES = frozenset({0x0100, 0x0101, 0x010C, 0x010D})
 # white channel instead of writing back the dark state it started from.
 _DEFAULT_RGBW = (0, 0, 0, 255)
 
-# The touch field numbers a per-field call colors; validated against the
+# A panel reports at most this many touch fields (ampio_mqtt's own
+# PANEL_MASK_MAX_BYTES * 8, docs/panel-writes.md: "a field number above 24
+# is refused, because no frame can carry it"). Knowable without any
+# catalogue row, so async_set_fields falls back to it when a missing
+# module row loses the panel's own, smaller count.
+MAX_PANEL_FIELDS: Final = 24
+
+# The touch field numbers a per-field call colors. Validated against the
 # panel's own count in _AmpioPanelLight.async_set_fields, not here, because
 # the count is a module-catalogue fact this schema cannot see.
+_FIELDS_VALIDATOR = vol.All(cv.ensure_list, [vol.Coerce(int)])
 SET_BACKLIGHT_FIELDS_SCHEMA: VolDictType = {
-    vol.Required("fields"): vol.All(cv.ensure_list, [vol.Coerce(int)]),
+    vol.Required("fields"): _FIELDS_VALIDATOR,
     vol.Required(ATTR_RGBW_COLOR): vol.All(
         vol.Coerce(tuple), vol.ExactSequence((cv.byte,) * 4)
     ),
 }
 SET_STATUS_FIELDS_SCHEMA: VolDictType = {
-    vol.Required("fields"): vol.All(cv.ensure_list, [vol.Coerce(int)]),
+    vol.Required("fields"): _FIELDS_VALIDATOR,
     vol.Required(ATTR_RGB_COLOR): vol.All(
         vol.Coerce(tuple), vol.ExactSequence((cv.byte,) * 3)
     ),
@@ -269,8 +277,8 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
 
     A subclass differs only in its channel count, its client command, and
     its stored default field: it sets ``_channels``, ``_color_attr``,
-    ``_plain_default``, ``_failure_key``, and ``_field_capability``, and
-    implements ``_stored_default`` and ``_publish``.
+    ``_plain_default``, and ``_failure_key``, and implements
+    ``_stored_default`` and ``_publish``.
     """
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -281,9 +289,6 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
     _color_attr: str
     _plain_default: tuple[int, ...]
     _failure_key: str
-    # The capability id whose value is this surface's own touch field
-    # count, read off the module catalogue row in async_set_fields.
-    _field_capability: ModuleFunction
 
     def __init__(self, data: AmpioData, module_id: int, *, key_suffix: str) -> None:
         """Attach to the module device, and seed state from panel_settings."""
@@ -382,20 +387,44 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
         to store afterwards. The frame goes out and the state this entity
         reports stays whatever it was before the call.
 
-        A field number outside the panel's own touch field count raises a
-        translated error naming that count, because the panel would
-        otherwise ignore the field in silence rather than refuse it.
+        An empty ``fields`` would color nothing and report success, so it is
+        refused rather than sent. A field number outside the panel's own
+        touch field count raises a translated error naming the offending
+        field and that count, because the panel would otherwise ignore the
+        field in silence rather than refuse it.
         """
+        if not fields:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="panel_no_fields"
+            )
         module = self._data.module_row(self._module_id)
-        count = module.capabilities.get(self._field_capability) if module else None
-        if count is not None:
-            for number in fields:
-                if not 1 <= number <= count:
-                    raise ServiceValidationError(
-                        translation_domain=DOMAIN,
-                        translation_key="panel_field_out_of_range",
-                        translation_placeholders={"count": str(count)},
-                    )
+        # One panel has one set of touch fields, and the backlight and the
+        # status light frames address them through the same mask with the
+        # same numbering. BACKLIGHT_RGBW is the capability the library
+        # documents as counting them, and STATUSLIGHT_RGB counts something
+        # else instead (an M-DOT with a 3-channel status LED can still
+        # report 6 touch fields), so it must not be read here even on the
+        # status light.
+        count = (
+            module.capabilities.get(ModuleFunction.BACKLIGHT_RGBW) if module else None
+        )
+        # A missing catalogue row loses the panel's own count, but not the
+        # wire's hard ceiling, because that ceiling is knowable without any
+        # catalogue read. So a missing row still bounds the call rather
+        # than skipping validation outright. Left unbounded, a field the
+        # library refuses with a bare ValueError would be mistranslated by
+        # _publish_translated as an unaddressable module.
+        ceiling = count if count is not None else MAX_PANEL_FIELDS
+        for number in fields:
+            if not 1 <= number <= ceiling:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="panel_field_out_of_range",
+                    translation_placeholders={
+                        "field": str(number),
+                        "count": str(ceiling),
+                    },
+                )
         await self._publish_translated(color, fields=fields)
 
 
@@ -413,7 +442,6 @@ class AmpioPanelBacklight(_AmpioPanelLight):
     _color_attr = ATTR_RGBW_COLOR
     _plain_default = _DEFAULT_RGBW
     _failure_key = "backlight_command_failed"
-    _field_capability = ModuleFunction.BACKLIGHT_RGBW
 
     def __init__(self, data: AmpioData, module_id: int) -> None:
         """Attach to the module device of Designer row ``module_id``."""
@@ -456,7 +484,6 @@ class AmpioPanelStatusLight(_AmpioPanelLight):
     _color_attr = ATTR_RGB_COLOR
     _plain_default = (255, 255, 255)
     _failure_key = "status_light_command_failed"
-    _field_capability = ModuleFunction.STATUSLIGHT_RGB
 
     def __init__(self, data: AmpioData, module_id: int) -> None:
         """Attach to the module device of Designer row ``module_id``."""
