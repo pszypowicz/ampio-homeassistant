@@ -102,6 +102,16 @@ class AmpioBuzzer(AmpioModuleEntity, SirenEntity):
     """
 
     _attr_translation_key = "buzzer"
+    # Nothing on the bus reports whether a panel is sounding, so this state
+    # is a record of what was asked for. The frontend then splits the toggle
+    # into separate on and off buttons and stops presenting the state as
+    # confirmed, which is the honest reading of a write-only surface.
+    _attr_assumed_state = True
+    # No EntityCategory, unlike every other administrator-only module
+    # entity. The category hides an entity from the device page's Controls
+    # row and from area cards, which suits configuration set once. A siren
+    # is a control a person may want on a dashboard, so it stays out of the
+    # diagnostic category and this is the one entity the rule excepts.
     _attr_supported_features = (
         SirenEntityFeature.TURN_ON
         | SirenEntityFeature.TURN_OFF
