@@ -22,6 +22,24 @@ TO_REDACT_ENTRY = {CONF_HOST, CONF_PASSWORD, CONF_USERNAME}
 TO_REDACT_SNAPSHOT = {"local_ip", "device_id", "info"}
 
 
+def _redact_username_in_keys(mapping: dict[str, Any], username: str) -> dict[str, Any]:
+    """Replace ``username`` wherever it appears in a key, values untouched.
+
+    ``connection.subscribe_failures`` and ``connection.protocol_violations``
+    key on the full MQTT topic, which the library builds as
+    ``ampio/fromDB/<username>/...``, so the account name sits inside the
+    key rather than behind it. ``async_redact_data`` matches a key against
+    a fixed set, so it cannot reach a secret embedded partway through one;
+    only a per-key rewrite can. Do nothing when ``username`` is empty, so
+    an empty needle does not match - and hollow out - every key.
+    """
+    if not username:
+        return mapping
+    return {
+        key.replace(username, "<username>"): value for key, value in mapping.items()
+    }
+
+
 def _capability_name(function_id: int) -> str:
     """The ``ModuleFunction`` name for a capability id, or the id itself as a string."""
     try:
@@ -107,10 +125,21 @@ async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: AmpioConfigEntry
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
+    snapshot = async_redact_data(
+        entry.runtime_data.client.diagnostics_snapshot(), TO_REDACT_SNAPSHOT
+    )
+    # subscribe_failures and protocol_violations are the only two entries
+    # whose keys are shaped like a topic rather than a field name, so they
+    # are the only two that need the key rewrite above. The membership
+    # check leaves a snapshot that carries neither key untouched, rather
+    # than inventing one.
+    username = entry.data.get(CONF_USERNAME, "")
+    connection = snapshot["connection"]
+    for key in ("subscribe_failures", "protocol_violations"):
+        if key in connection:
+            connection[key] = _redact_username_in_keys(connection[key], username)
     return {
         "entry_data": async_redact_data(entry.data, TO_REDACT_ENTRY),
-        "snapshot": async_redact_data(
-            entry.runtime_data.client.diagnostics_snapshot(), TO_REDACT_SNAPSHOT
-        ),
+        "snapshot": snapshot,
         "designer_config": _designer_config(entry.runtime_data),
     }

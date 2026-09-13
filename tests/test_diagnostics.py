@@ -1,6 +1,7 @@
 """Tests for the Ampio diagnostics platform."""
 
 from dataclasses import asdict, replace
+import json
 from unittest.mock import MagicMock
 
 from ampio_mqtt import AccessTier
@@ -11,13 +12,17 @@ from pytest_homeassistant_custom_component.components.diagnostics import (
 from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 from syrupy.assertion import SnapshotAssertion
 
+from custom_components.ampio.const import DOMAIN
 from custom_components.ampio.diagnostics import TO_REDACT_ENTRY, TO_REDACT_SNAPSHOT
 from homeassistant.components.diagnostics import async_redact_data
+from homeassistant.const import CONF_HOST, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 
 from . import setup_integration
 from .conftest import (
+    MSERV_MAC,
     SERVER_INFO,
+    USER_INPUT,
     set_access_tier,
     with_buzzer,
     with_cover_parameters,
@@ -87,6 +92,43 @@ async def test_config_entry_diagnostics(
     )
 
     assert result == snapshot
+
+
+async def test_config_entry_diagnostics_redacts_username_from_topic_keys(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    mock_client: MagicMock,
+) -> None:
+    """The account username never reaches the download, including inside a topic key.
+
+    ``subscribe_failures`` and ``protocol_violations`` key on the full MQTT
+    topic, which the library builds as ``ampio/fromDB/<username>/...``, so
+    key-based redaction alone cannot mask the username sitting inside it.
+    Serializing the whole result, rather than checking the two entries by
+    hand, also catches the username if it ever reappeared somewhere else.
+    """
+    username = "ha_user"
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        title=USER_INPUT[CONF_HOST],
+        data={**USER_INPUT, CONF_USERNAME: username},
+        unique_id=MSERV_MAC,
+    )
+    mock_client.diagnostics_snapshot.return_value = {
+        **DIAGNOSTICS_SNAPSHOT,
+        "connection": {
+            **DIAGNOSTICS_SNAPSHOT["connection"],
+            "subscribe_failures": {f"ampio/fromDB/{username}/ob/+/state": 135},
+            "protocol_violations": {
+                f"ampio/fromDB/{username}/md5/devices": "missing column"
+            },
+        },
+    }
+    await setup_integration(hass, config_entry)
+
+    result = await get_diagnostics_for_config_entry(hass, hass_client, config_entry)
+
+    assert username not in json.dumps(result)
 
 
 async def test_designer_config_standard_account_has_no_modules_and_does_not_raise(
