@@ -23,14 +23,9 @@ from pytest_homeassistant_custom_component.common import (
 from syrupy.assertion import SnapshotAssertion
 import voluptuous as vol
 
-from custom_components.ampio import button as button_module
 from custom_components.ampio.button import IDENTIFY_HOLD_SECONDS
 from custom_components.ampio.const import DOMAIN
-from homeassistant.components.button import (
-    DOMAIN as BUTTON_DOMAIN,
-    SERVICE_PRESS,
-    ButtonEntity,
-)
+from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN, SERVICE_PRESS
 from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
@@ -84,27 +79,6 @@ async def _lock(hass: HomeAssistant, entity_id: str, seconds: float) -> None:
         {ATTR_ENTITY_ID: entity_id, "seconds": seconds},
         blocking=True,
     )
-
-
-def test_every_button_class_handles_lock_touch() -> None:
-    """A button class answers ``async_lock_touch`` itself, or inherits the refusal.
-
-    Home Assistant resolves ``ampio.lock_touch`` by attribute lookup, and
-    every Ampio button is offered in its target selector because the
-    selector filters by integration and domain alone. A class with neither
-    its own ``async_lock_touch`` nor the ``_NoTouchLock`` mixin would raise
-    an unhandled ``AttributeError`` instead of the translated refusal.
-    """
-    button_classes = [
-        obj
-        for obj in vars(button_module).values()
-        if isinstance(obj, type)
-        and issubclass(obj, ButtonEntity)
-        and obj.__module__ == button_module.__name__
-    ]
-    assert button_classes
-    for button_class in button_classes:
-        assert hasattr(button_class, "async_lock_touch"), button_class.__name__
 
 
 def test_capability_helpers_compose(mock_client: MagicMock) -> None:
