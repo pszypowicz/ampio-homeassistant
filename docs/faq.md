@@ -95,6 +95,31 @@ The lock covers the slats as well. On a blind, the tilt arrows and the tilt slid
 
 **Fix:** None is required. An empty value says only that nothing arrived from that module since the restart. Move one of its covers, or wait for one of its objects to change, and the row fills. If a light or a cover on that module still responds, the module is alive.
 
+## My touch panels go dark when I turn off all the lights
+
+**Check:** Read the automation or the script that turns the lights off. Two forms of it reach a panel's Backlight and Status light:
+
+- A template over `states.light` whose result is passed as `entity_id`.
+- A call to `light.turn_off` with `entity_id: all`.
+
+Every other way to target lights skips them already. Both entities carry the diagnostic category, and Home Assistant leaves an entity with a category out of area, device, and floor targeting, out of the voice assistants, and out of the HomeKit bridge.
+
+The two forms above are different. A template over `states.light` sees every light entity, and no template test reports an entity's category. A list of entity ids is a direct target, and a direct target is never filtered.
+
+**Fix:** Reject the panel entities inside the template. The entity ids are pinned, so this pattern holds:
+
+```jinja
+{{ states.light
+   | rejectattr('entity_id', 'search', '^light[.]ampio_module_[0-9]+_(backlight|status_light)$')
+   | map(attribute='entity_id') | list }}
+```
+
+A label works too. Apply one label to both entities of each panel, then reject `label_entities('<your label>')`. A label survives a rename of an entity id, and it needs one more step for each panel you add later.
+
+For `entity_id: all`, name your targets instead. Home Assistant turns off every light entity for that value, and the category changes nothing.
+
+The same reject belongs in every template that reads `states.light`. A sensor that counts the lights that are on, and a card that lists them, both include two entities per panel without it.
+
 ## The administrator-only entities are gone
 
 Several module entities are provided with the administrator login alone: the Identify button, the supply voltage and temperature sensors, the buzzer on a module with a touch panel, that panel's Unlock touch button, and its Backlight and Status light. The Ampio server carries the frames and the readings behind them to that login and no other, so a standard account is given none of them.
