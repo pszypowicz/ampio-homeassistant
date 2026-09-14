@@ -95,7 +95,7 @@ The slider works, and the numbers are a scale rather than a measurement.
 
 Ampio serves a warm/cold white output as two raw bytes, a power level and a coldness level, each 0 to 255. The M-SERV publishes no kelvin range for such an object, and its `min` and `max` columns read 0 and 255. So nothing on the wire says what white 3512 K is.
 
-The integration maps the coldness byte onto Home Assistant's own default range, 2000 K at the warmest end and 6535 K at the coldest. The ends of the slider reach the ends of your strip. A number in the middle is a position on that scale, not a measured temperature, so a strip sold as 2700 K to 6000 K shows numbers that run wider than its specification.
+The integration maps the coldness byte onto Home Assistant's own default range, 2000 K at the warmest end and 6535 K at the coldest. The ends of the slider reach the ends of your strip. A number in the middle is a position on that scale rather than a measured temperature, so a strip sold as 2700 K to 6000 K shows numbers that run wider than its specification.
 
 Every position on the slider is stable. The same number always gives the same white, and an automation or a scene that stores one reproduces it.
 
