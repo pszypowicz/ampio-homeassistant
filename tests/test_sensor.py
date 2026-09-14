@@ -491,11 +491,12 @@ async def test_pulse_time_diagnostic(
 ) -> None:
     """The Designer time surfaces as a diagnostic sensor where writes honor it.
 
-    A timed RGBW gets none (set_colors has no timed form), a timed cover
-    gets none (czas is the travel time there), and a timeless bell gets
-    none.
+    A timed RGBW gets none (set_colors has no timed form), a timed CCT
+    light gets none (neither setWW nor setWWPower carries a time), a
+    timed cover gets none (czas is the travel time there), and a timeless
+    bell gets none.
     """
-    for oid in (72, 82):
+    for oid in (72, 76, 82):
         mock_client.objects[oid] = replace(mock_client.objects[oid], czas=500)
     await setup_integration(hass, mock_config_entry)
 
@@ -506,7 +507,7 @@ async def test_pulse_time_diagnostic(
     assert state is not None
     assert float(state.state) == 3.0
 
-    for object_id in (149, 72, 82):
+    for object_id in (149, 72, 76, 82):
         assert (
             entity_registry.async_get_entity_id(
                 "sensor", DOMAIN, unique_id(object_id, "_pulse")
