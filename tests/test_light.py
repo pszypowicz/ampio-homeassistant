@@ -1182,7 +1182,7 @@ async def test_cct_light_bare_turn_on_from_dark_uses_full_power(
 async def test_cct_light_turn_off_routes_through_the_client(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """The client sends ``setWWPower 0``, which holds the color temperature."""
+    """A CCT light's turn_off awaits client.turn_off, like every other color mode."""
     await setup_integration(hass, mock_config_entry)
 
     await hass.services.async_call(

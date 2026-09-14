@@ -60,7 +60,10 @@ def _kelvin_from_coldness(coldness: int, minimum: int, maximum: int) -> int:
 def _coldness_from_kelvin(kelvin: int, minimum: int, maximum: int) -> int:
     """The raw coldness byte a kelvin value writes, held inside 0-255.
 
-    ``set_ww`` raises ``AmpioValueError`` outside that range.
+    An out-of-range kelvin arrives from Home Assistant's unbounded
+    ``color_xy_to_temperature``, converting an rgb, hs, or xy color request
+    on this color-temperature-only light. The clamp keeps ``set_ww`` from
+    raising ``AmpioValueError`` on one.
     """
     return max(0, min(255, round((kelvin - minimum) * 255 / (maximum - minimum))))
 

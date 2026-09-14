@@ -165,7 +165,7 @@ def pulse_applies(obj: AmpioObject) -> bool:
     The ``czas`` column rides every component type and means other things
     elsewhere (a cover's travel time), so the diagnostic exists only for
     the populations whose writes send the pulse. RGBW and CCT outputs are
-    excluded: neither ``set_colors`` nor the two ``setWW`` verbs has a
+    excluded: neither ``set_colors`` nor the two ``setWW`` verbs have a
     timed form.
     """
     if obj.pulse_ms <= 0:

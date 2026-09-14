@@ -14,11 +14,11 @@ from .data import AmpioConfigEntry, AmpioData, eligible_objects
 TO_REDACT_ENTRY = {CONF_HOST, CONF_PASSWORD, CONF_USERNAME}
 # The snapshot carries no credentials by the library's contract, but the
 # server self-report inside it names the M-SERV's LAN address and serial,
-# masked for the same reason the entry's host is. The library masks the
-# raw ``info`` payload under ``last_payloads`` at the source, keeping a
-# safelist that holds the server MAC and the account's numeric user id.
-# Neither belongs in a bug report, and the parsed ``server_info`` keeps
-# the debugging value, so the whole payload is masked again here.
+# masked for the same reason the entry's host is. The raw ``info`` payload
+# under ``last_payloads`` is one JSON string, and key-based redaction
+# cannot reach inside a string, so a field the library's safelist does not
+# cover would ride through whole. The parsed ``server_info`` carries the
+# debugging value, so the string is masked here.
 TO_REDACT_SNAPSHOT = {"local_ip", "device_id", "info"}
 
 
