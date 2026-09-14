@@ -159,7 +159,8 @@ def make_object(
 # set and no leafId. The three input objects (a named flag, a system-typed
 # detection row that must never surface, a named wired-button input) feed
 # the binary_sensor and switch platforms the same way.
-# The four output objects (a named dimmer, an rgbw, a Matter-tagged relay
+# The five output objects (a named dimmer, an rgbw, a warm/cold white
+# whose state packs a power and a coldness byte, a Matter-tagged relay
 # light, an untagged relay for the switch platform) feed the light and
 # switch platforms, plus a plug-tagged relay for the switch platform's
 # outlet class. The three cover objects (a
@@ -263,6 +264,15 @@ DEFAULT_OBJECTS = (
         funkcja=4,
         opis_menu="Salon RGBW",
         state=str(60 | 120 << 8 | 180 << 16 | 240 << 24),
+    ),
+    make_object(
+        76,
+        "ledww",
+        0,
+        leaf_id="0_cb8f_81_0_1",
+        funkcja=14,
+        opis_menu="Sypialnia CCT",
+        state=str(84 | 85 << 8),
     ),
     make_object(
         73,

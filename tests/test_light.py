@@ -20,12 +20,20 @@ from pytest_homeassistant_custom_component.common import (
 from syrupy.assertion import SnapshotAssertion
 
 from custom_components.ampio.const import DOMAIN
-from custom_components.ampio.light import LIGHT_MATTER_TYPES
+from custom_components.ampio.light import (
+    LIGHT_MATTER_TYPES,
+    _coldness_from_kelvin,
+    _kelvin_from_coldness,
+)
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
+    ATTR_COLOR_MODE,
+    ATTR_COLOR_TEMP_KELVIN,
     ATTR_RGB_COLOR,
     ATTR_RGBW_COLOR,
+    ATTR_SUPPORTED_COLOR_MODES,
     DOMAIN as LIGHT_DOMAIN,
+    ColorMode,
 )
 from homeassistant.const import (
     ATTR_ASSUMED_STATE,
@@ -56,6 +64,7 @@ from .conftest import (
 DIMMER_ENTITY_ID = pinned_id("light", 71)
 RGBW_ENTITY_ID = pinned_id("light", 72)
 RELAY_ENTITY_ID = pinned_id("light", 73)
+CCT_ENTITY_ID = pinned_id("light", 76)
 BACKLIGHT_ENTITY_ID = module_pinned_id("light", 17, "_backlight")
 STATUS_LIGHT_ENTITY_ID = module_pinned_id("light", 17, "_status_light")
 
@@ -1045,3 +1054,141 @@ async def test_set_backlight_fields_still_refuses_past_the_wire_ceiling(
     assert excinfo.value.translation_key == "panel_field_out_of_range"
     assert excinfo.value.translation_placeholders == {"field": "99", "count": "24"}
     mock_client.set_panel_backlight.assert_not_awaited()
+
+
+def test_cct_kelvin_map_round_trips_every_byte() -> None:
+    """Every coldness byte survives the trip to kelvin and back.
+
+    Integer division does not: coldness 85 truncates to 3511 K, which
+    maps back to 84.
+    """
+    minimum, maximum = 2000, 6535
+    for coldness in range(256):
+        kelvin = _kelvin_from_coldness(coldness, minimum, maximum)
+        assert _coldness_from_kelvin(kelvin, minimum, maximum) == coldness
+
+    assert _kelvin_from_coldness(0, minimum, maximum) == 2000
+    assert _kelvin_from_coldness(85, minimum, maximum) == 3512
+    assert _kelvin_from_coldness(128, minimum, maximum) == 4276
+    assert _kelvin_from_coldness(255, minimum, maximum) == 6535
+
+
+def test_cct_kelvin_map_clamps_out_of_range_requests() -> None:
+    """A kelvin value outside the bounds writes a byte inside 0-255.
+
+    ``set_ww`` raises ``AmpioValueError`` outside that range.
+    """
+    assert _coldness_from_kelvin(1000, 2000, 6535) == 0
+    assert _coldness_from_kelvin(9000, 2000, 6535) == 255
+
+
+async def test_cct_light_reads_both_axes(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A warm/cold white object reports one color-temperature mode."""
+    await setup_integration(hass, mock_config_entry)
+
+    state = hass.states.get(CCT_ENTITY_ID)
+    assert state is not None
+    assert state.state == STATE_ON
+    assert state.attributes[ATTR_COLOR_MODE] is ColorMode.COLOR_TEMP
+    assert state.attributes[ATTR_SUPPORTED_COLOR_MODES] == [ColorMode.COLOR_TEMP]
+    assert state.attributes[ATTR_BRIGHTNESS] == 84
+    assert state.attributes[ATTR_COLOR_TEMP_KELVIN] == 3512
+
+
+async def test_cct_light_is_off_at_power_zero(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """An off CCT light holds its color temperature, so the raw state is not zero.
+
+    Proven on the wire: ``setWWPower 0`` moved the object from 65364 to
+    65280, and ``AmpioObject.is_on`` reads that as on.
+    """
+    mock_client.objects[76] = replace(mock_client.objects[76], state="65280")
+    await setup_integration(hass, mock_config_entry)
+
+    state = hass.states.get(CCT_ENTITY_ID)
+    assert state is not None
+    assert state.state == STATE_OFF
+
+
+async def test_cct_light_brightness_writes_the_power_axis(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A brightness with no temperature moves the power axis alone."""
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: CCT_ENTITY_ID, ATTR_BRIGHTNESS: 200},
+        blocking=True,
+    )
+    mock_client.set_ww_power.assert_awaited_once_with(76, 200)
+    mock_client.set_ww.assert_not_awaited()
+
+
+async def test_cct_light_temperature_writes_both_axes(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A requested color temperature writes both axes in one frame."""
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {
+            ATTR_ENTITY_ID: CCT_ENTITY_ID,
+            ATTR_BRIGHTNESS: 200,
+            ATTR_COLOR_TEMP_KELVIN: 4276,
+        },
+        blocking=True,
+    )
+    mock_client.set_ww.assert_awaited_once_with(76, 200, 128)
+
+
+async def test_cct_light_bare_turn_on_keeps_the_last_power(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A turn-on naming neither axis repeats the power the light stands at."""
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: CCT_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.set_ww_power.assert_awaited_once_with(76, 84)
+
+
+async def test_cct_light_bare_turn_on_from_dark_uses_full_power(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A dark CCT light turns on at full power rather than writing zero back."""
+    mock_client.objects[76] = replace(mock_client.objects[76], state="65280")
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: CCT_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.set_ww_power.assert_awaited_once_with(76, 255)
+
+
+async def test_cct_light_turn_off_routes_through_the_client(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The client sends ``setWWPower 0``, which holds the color temperature."""
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_OFF,
+        {ATTR_ENTITY_ID: CCT_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.turn_off.assert_awaited_once_with(76)

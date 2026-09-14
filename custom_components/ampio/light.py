@@ -15,6 +15,7 @@ import voluptuous as vol
 
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
+    ATTR_COLOR_TEMP_KELVIN,
     ATTR_RGB_COLOR,
     ATTR_RGBW_COLOR,
     ColorMode,
@@ -43,6 +44,26 @@ LIGHT_MATTER_TYPES = frozenset({0x0100, 0x0101, 0x010C, 0x010D})
 # A bare turn_on (no requested color) on an all-zero rgbw output raises the
 # white channel instead of writing back the dark state it started from.
 _DEFAULT_RGBW = (0, 0, 0, 255)
+
+
+def _kelvin_from_coldness(coldness: int, minimum: int, maximum: int) -> int:
+    """The kelvin value a raw coldness byte presents as.
+
+    A non-DALI object reports `min` 0 and `max` 255, so the scale is a
+    presentation choice rather than a measurement. Rounding is what keeps
+    the round trip stable: truncation sends coldness 85 to 3511 K, and
+    3511 K maps back to 84.
+    """
+    return minimum + round(coldness * (maximum - minimum) / 255)
+
+
+def _coldness_from_kelvin(kelvin: int, minimum: int, maximum: int) -> int:
+    """The raw coldness byte a kelvin value writes, held inside 0-255.
+
+    ``set_ww`` raises ``AmpioValueError`` outside that range.
+    """
+    return max(0, min(255, round((kelvin - minimum) * 255 / (maximum - minimum))))
+
 
 # The touch field numbers a per-field call colors. Validated against the
 # panel's own count in _AmpioPanelLight.async_set_fields, not here, because
@@ -74,7 +95,7 @@ def is_light(obj: AmpioObject) -> bool:
         return False
     if not isinstance(kind := obj.kind, OutputKind):
         return False
-    if kind.color or kind.dimmable:
+    if kind.color or kind.dimmable or kind.color_temp:
         return True
     return kind.key == "relay" and obj.matter_device_type in LIGHT_MATTER_TYPES
 
@@ -180,6 +201,8 @@ class AmpioLight(AmpioEntity, LightEntity):
         kind = obj.kind
         if isinstance(kind, OutputKind) and kind.color:
             mode = ColorMode.RGBW
+        elif isinstance(kind, OutputKind) and kind.color_temp:
+            mode = ColorMode.COLOR_TEMP
         elif isinstance(kind, OutputKind) and kind.dimmable:
             mode = ColorMode.BRIGHTNESS
         else:
@@ -190,19 +213,32 @@ class AmpioLight(AmpioEntity, LightEntity):
     @property
     @override
     def is_on(self) -> bool | None:
-        """Whether the light is on, or None once the object is gone."""
+        """Whether the light is on, or None once the object is gone.
+
+        A CCT light holds its color temperature while off, so its raw
+        state value stays non-zero and the power axis is the only honest
+        answer.
+        """
         if (obj := self._object) is None:
             return None
+        if self._attr_color_mode is ColorMode.COLOR_TEMP:
+            return None if (cct := obj.cct) is None else cct[0] > 0
         return obj.is_on
 
     @property
     @override
     def brightness(self) -> int | None:
-        """The 0-255 level for a dimmer, the peak channel for rgbw."""
+        """The 0-255 level a light reports.
+
+        A dimmer's own level, an rgbw output's peak channel, or a CCT
+        light's power axis.
+        """
         if (obj := self._object) is None:
             return None
         if self._attr_color_mode is ColorMode.RGBW:
             return None if (rgbw := obj.rgbw) is None else max(rgbw)
+        if self._attr_color_mode is ColorMode.COLOR_TEMP:
+            return None if (cct := obj.cct) is None else cct[0]
         if self._attr_color_mode is ColorMode.BRIGHTNESS:
             return None if (level := obj.numeric_value) is None else int(level)
         return None
@@ -215,13 +251,29 @@ class AmpioLight(AmpioEntity, LightEntity):
             return None
         return obj.rgbw
 
+    @property
+    @override
+    def color_temp_kelvin(self) -> int | None:
+        """The presented color temperature of a CCT output.
+
+        ``AmpioObject.cct`` reads None for every other kind, so no mode
+        check belongs here.
+        """
+        if (obj := self._object) is None or (cct := obj.cct) is None:
+            return None
+        return _kelvin_from_coldness(
+            cct[1], self.min_color_temp_kelvin, self.max_color_temp_kelvin
+        )
+
     @override
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn the light on, honoring brightness and rgbw color.
+        """Turn the light on, honoring brightness, rgbw color, and color temperature.
 
         Resolved rgbw channels that are all zero mean off; an explicit
         all-zero color is a request for darkness, and turn_off is its
-        honest execution.
+        honest execution. A CCT turn-on that names no temperature writes
+        the power axis alone, which leaves the temperature where it
+        stands.
         """
         client = self._data.client
         if self._attr_color_mode is ColorMode.RGBW:
@@ -239,6 +291,23 @@ class AmpioLight(AmpioEntity, LightEntity):
                 await self.async_turn_off()
                 return
             await client.set_colors(self._object_id, *rgbw)
+            return
+        if self._attr_color_mode is ColorMode.COLOR_TEMP:
+            current_cct = self._object.cct if self._object else None
+            power: int | None = kwargs.get(ATTR_BRIGHTNESS)
+            if power is None:
+                power = current_cct[0] if current_cct and current_cct[0] else 255
+            kelvin: int | None = kwargs.get(ATTR_COLOR_TEMP_KELVIN)
+            if kelvin is None:
+                await client.set_ww_power(self._object_id, power)
+                return
+            await client.set_ww(
+                self._object_id,
+                power,
+                _coldness_from_kelvin(
+                    kelvin, self.min_color_temp_kelvin, self.max_color_temp_kelvin
+                ),
+            )
             return
         obj = self._object
         if (
