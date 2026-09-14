@@ -100,14 +100,16 @@ async def _set_status_fields(
 def test_output_kind_vocabulary_is_split_or_deferred() -> None:
     """A library upgrade that adds an output kind forces a platform decision.
 
-    The light platform takes ``dimmer`` and ``rgbw`` outright, plus ``relay``
-    when its Matter tag is in ``LIGHT_MATTER_TYPES``. The cover kinds wait
-    for the cover platform, and untagged relays wait for the switch platform.
+    The light platform takes ``dimmer``, ``rgbw``, and ``cct`` outright,
+    plus ``relay`` when its Matter tag is in ``LIGHT_MATTER_TYPES``. The
+    cover kinds wait for the cover platform, and untagged relays wait for
+    the switch platform.
     """
     assert {
         "relay",
         "dimmer",
         "rgbw",
+        "cct",
         "cover",
         "cover_position",
         "cover_tilt",
