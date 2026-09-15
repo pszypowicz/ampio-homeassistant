@@ -276,7 +276,12 @@ class AmpioLight(AmpioEntity, LightEntity):
         all-zero color is a request for darkness, and turn_off is its
         honest execution. A CCT turn-on that names no temperature writes
         the power axis alone, which leaves the temperature where it
-        stands.
+        stands. One that names no brightness writes the temperature axis
+        alone, on top of whatever power the light already stands at, and
+        never reads that power back first - unless the light is off, in
+        which case a bare temperature must still turn it on, so the
+        write carries the full-power constant into the same setWW frame
+        instead of a stale or absent power byte.
         """
         client = self._data.client
         if self._attr_color_mode is ColorMode.RGBW:
@@ -296,20 +301,22 @@ class AmpioLight(AmpioEntity, LightEntity):
             await client.set_colors(self._object_id, *rgbw)
             return
         if self._attr_color_mode is ColorMode.COLOR_TEMP:
-            current_cct = self._object.cct if self._object else None
             power: int | None = kwargs.get(ATTR_BRIGHTNESS)
-            if power is None:
-                power = current_cct[0] if current_cct and current_cct[0] else 255
             kelvin: int | None = kwargs.get(ATTR_COLOR_TEMP_KELVIN)
             if kelvin is None:
+                if power is None:
+                    current_cct = self._object.cct if self._object else None
+                    power = current_cct[0] if current_cct and current_cct[0] else 255
                 await client.set_ww_power(self._object_id, power)
                 return
+            coldness = _coldness_from_kelvin(
+                kelvin, self.min_color_temp_kelvin, self.max_color_temp_kelvin
+            )
+            if power is None and self.is_on:
+                await client.set_ww_coldness(self._object_id, coldness)
+                return
             await client.set_ww(
-                self._object_id,
-                power,
-                _coldness_from_kelvin(
-                    kelvin, self.min_color_temp_kelvin, self.max_color_temp_kelvin
-                ),
+                self._object_id, 255 if power is None else power, coldness
             )
             return
         obj = self._object

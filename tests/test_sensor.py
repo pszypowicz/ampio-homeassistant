@@ -22,7 +22,11 @@ from pytest_homeassistant_custom_component.common import (
 from syrupy.assertion import SnapshotAssertion
 
 from custom_components.ampio.const import DOMAIN
-from custom_components.ampio.sensor import SENSOR_DESCRIPTIONS, VALUE_KEY_PREFIX
+from custom_components.ampio.sensor import (
+    SENSOR_DESCRIPTIONS,
+    VALUE_KEY_PREFIX,
+    pulse_applies,
+)
 from homeassistant.const import (
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
@@ -524,12 +528,15 @@ async def test_analog_flag_has_no_pulse_diagnostic(
 ) -> None:
     """A Designer turn-on time on an analog flag reaches no entity.
 
-    Object 164 carries one. The M-SERV ignores it on this type: a timed
-    write measured on hardware left the object holding the written value
-    long past the window, where the same form reverts a relay or a flag.
-    A diagnostic reporting a length nothing applies would be a lie.
+    Object 164 carries one in ``czas``. The library reports no pulse for
+    this kind: a timed write measured on hardware left the object holding
+    the written value long past the window, where the same form reverts
+    a relay or a flag. A diagnostic reporting a length nothing applies
+    would be a lie.
     """
-    assert mock_client.objects[164].pulse_ms > 0
+    assert mock_client.objects[164].czas == 50
+    assert mock_client.objects[164].pulse_ms == 0
+    assert not pulse_applies(replace(mock_client.objects[164], czas=50))
 
     await setup_integration(hass, mock_config_entry)
 

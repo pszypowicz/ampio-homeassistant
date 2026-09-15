@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Final, override
 
-from ampio_mqtt import AmpioModule, AmpioObject, ModuleUpdated, OutputKind, SensorKind
+from ampio_mqtt import AmpioModule, AmpioObject, ModuleUpdated, SensorKind
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -162,19 +162,15 @@ PULSE_TIME_DESCRIPTION = SensorEntityDescription(
 def pulse_applies(obj: AmpioObject) -> bool:
     """Whether the object's turn-on write honors the Designer time.
 
-    The ``czas`` column rides every component type and means other things
-    elsewhere (a cover's travel time), so the diagnostic exists only for
-    the populations whose writes send the pulse. RGBW and CCT outputs are
-    excluded: neither ``set_colors`` nor the two ``setWW`` verbs have a
-    timed form.
+    ``AmpioObject.pulse_ms`` already reads 0 for a kind whose write
+    discards the time, so the diagnostic follows the library's own
+    classification and adds no carve-out of its own. The remaining
+    button-or-switch-or-light check scopes the diagnostic to the
+    platforms that send a turn-on write at all.
     """
     if obj.pulse_ms <= 0:
         return False
-    if is_button(obj) or is_switch(obj):
-        return True
-    return is_light(obj) and not (
-        isinstance(obj.kind, OutputKind) and (obj.kind.color or obj.kind.color_temp)
-    )
+    return is_button(obj) or is_switch(obj) or is_light(obj)
 
 
 def build_sensors(data: AmpioData, obj: AmpioObject) -> list[SensorEntity]:
