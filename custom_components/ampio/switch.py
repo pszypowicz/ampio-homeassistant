@@ -199,7 +199,21 @@ class AmpioCoverLockSwitch(AmpioEntity, SwitchEntity):
     async def _write(
         self, call: Callable[[AmpioClient, int], Coroutine[Any, Any, None]]
     ) -> None:
-        """Send one lock frame, and say why the module refused it."""
+        """Send one lock frame, and say why the module refused it.
+
+        The lock write rides the raw tree, which the library reserves for
+        the administrator login and refuses with a bare ``RuntimeError``
+        on any other tier, the same way it refuses every other admin-only
+        surface: as a programming error, not a runtime condition to
+        report. So the tier is checked here, before the call, rather than
+        caught after it - the refusal is this entity's to explain, not a
+        library boundary to paper over.
+        """
+        if not self._data.is_admin:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="cover_lock_unavailable",
+            )
         try:
             await call(self._data.client, self._object_id)
         except AmpioValueError as err:

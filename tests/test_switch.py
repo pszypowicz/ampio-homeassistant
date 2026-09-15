@@ -361,8 +361,8 @@ async def test_cover_lock_refusal_names_both_causes(
 ) -> None:
     """A module without a roller channel count refuses, and the error says so.
 
-    The same raise covers a standard account, whose capability map stays
-    empty because the module catalogue is administrator-only.
+    The one translation key covers this cause and the tier gate alike, so
+    neither needs its own message.
     """
     await setup_integration(hass, mock_config_entry)
     mock_client.block_closing.side_effect = AmpioValueError("no roller count")
@@ -376,3 +376,46 @@ async def test_cover_lock_refusal_names_both_causes(
         )
 
     assert err.value.translation_key == "cover_lock_unavailable"
+
+
+async def test_cover_lock_write_refused_on_a_standard_account(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A standard account is refused before any client method runs.
+
+    The lock write rides the raw tree, which the library reserves for the
+    administrator login and refuses with a bare ``RuntimeError`` on any
+    other tier - a programming error in the library's own terms, not a
+    condition it expects a caller to catch. So the entity checks its own
+    tier first and never makes the call.
+    """
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(
+            SWITCH_DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: OPENING_LOCK_ENTITY_ID},
+            blocking=True,
+        )
+
+    assert err.value.translation_key == "cover_lock_unavailable"
+    mock_client.block_opening.assert_not_awaited()
+
+
+async def test_cover_lock_still_reads_on_a_standard_account(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The tier gate covers the write alone; the read keeps working.
+
+    ``block`` rides the object state push on both tiers, so a standard
+    account must see the same lock state an administrator does, even
+    though it cannot change one.
+    """
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    mock_client.objects[83] = replace(mock_client.objects[83], block=2)
+    await setup_integration(hass, mock_config_entry)
+
+    assert hass.states.get(OPENING_LOCK_ENTITY_ID).state == STATE_ON
+    assert hass.states.get(CLOSING_LOCK_ENTITY_ID).state == STATE_OFF
