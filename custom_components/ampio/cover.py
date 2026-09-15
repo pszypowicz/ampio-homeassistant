@@ -82,7 +82,7 @@ class AmpioCover(AmpioEntity, CoverEntity):
         and a rule holds the lock for as long as its trigger holds. The
         module then drops every command for the blocked direction, the
         ``/api`` verbs included, with no error and no reply. Dropping the
-        feature is what tells the difference, so the dashboard greys the
+        feature is what tells the difference, so the dashboard grays the
         arrow and core refuses the service call rather than reporting a
         move that will not happen.
 

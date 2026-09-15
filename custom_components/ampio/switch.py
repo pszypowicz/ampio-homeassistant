@@ -57,9 +57,13 @@ class AmpioCoverLockEntityDescription(SwitchEntityDescription):
     unblock_fn: Callable[[AmpioClient, int], Coroutine[Any, Any, None]]
 
 
-# The lock is configuration, not a control: a house-wide switch.turn_off
-# aimed at an area must not release every cover. EntityCategory.CONFIG is
-# what keeps these out of area targeting, Assist, and HomeKit.
+# The lock is configuration, not a control, because a house-wide
+# switch.turn_off aimed at an area must not release every cover.
+# EntityCategory.CONFIG keeps these out of area, device, and floor
+# targeting, and out of Assist and HomeKit. It does not filter a direct
+# entity id list, entity_id: all, or a template over states.switch, so a
+# script written either of those ways can still release a lock a Designer
+# alarm rule is holding. See docs/faq.md.
 COVER_LOCK_DESCRIPTIONS: Final = (
     AmpioCoverLockEntityDescription(
         key="lock_opening",
@@ -186,7 +190,7 @@ class AmpioCoverLockSwitch(AmpioEntity, SwitchEntity):
         if not super().available:
             return False
         obj = self._object
-        return obj is None or obj.block_writable is not False
+        return obj is not None and obj.block_writable is not False
 
     @property
     @override
@@ -203,11 +207,7 @@ class AmpioCoverLockSwitch(AmpioEntity, SwitchEntity):
 
         The lock write rides the raw tree, which the library reserves for
         the administrator login and refuses with a bare ``RuntimeError``
-        on any other tier, the same way it refuses every other admin-only
-        surface: as a programming error, not a runtime condition to
-        report. So the tier is checked here, before the call, rather than
-        caught after it - the refusal is this entity's to explain, not a
-        library boundary to paper over.
+        on any other tier.
         """
         if not self._data.is_admin:
             raise ServiceValidationError(

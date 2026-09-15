@@ -91,7 +91,9 @@ The lock covers the slats as well. On a blind, the tilt arrows and the tilt slid
 
 ## A cover's lock switch is unavailable, or does nothing when I turn it on
 
-**Check:** Each cover carries an Opening lock switch and a Closing lock switch, both under the cover device's Configuration section. If a switch reads `unavailable`, the administrator login has swept the module behind that cover and found no roller channel count in its capability map: an older module generation that accepts the same lock frame as an ordinary roller move and drops it without changing anything. On a standard account the same switches never turn `unavailable`, because that account never runs the sweep; pressing one instead raises an error naming the same two causes, the administrator-only write and the module generation.
+**Check:** Each cover carries an Opening lock switch and a Closing lock switch, both under the cover device's Configuration section. If a switch reads `unavailable`, the administrator login has swept the module behind that cover and found no roller channel count in its capability map: an older module generation that accepts the same lock frame as an ordinary roller move and drops it without changing anything.
+
+On a standard account the sweep never runs, so the switch is never held back for a missing capability. An `unavailable` state there means the connection or the object, the same as for any other Ampio entity. Pressing the switch on a standard account raises an error instead, because only the administrator login can write a lock. The same error also reaches an administrator login when the object behind the cover carries no leaf, or when the module stayed silent during the setup sweep, because a lock write still needs the module's answer to size its frame.
 
 **Fix:** None is required for the generation gap. That module never gains the lock. On a standard account, ask whoever holds the administrator login to set or release the lock.
 
@@ -143,6 +145,31 @@ A label works too. Apply one label to both entities of each panel, then reject `
 For `entity_id: all`, name your targets instead. Home Assistant turns off every light entity for that value, and the category changes nothing.
 
 The same reject belongs in every template that reads `states.light`. A sensor that counts the lights that are on, and a card that lists them, both include two entities per panel without it.
+
+## An "everything off" script released a cover's lock
+
+**Check:** Read the automation or the script that turns switches off. Two forms of it reach a cover's Opening lock and Closing lock switches, the same way the entry above reaches a touch panel's lights:
+
+- A template over `states.switch` whose result is passed as `entity_id`.
+- A call to `switch.turn_off` with `entity_id: all`.
+
+Every other way to target switches skips them already, because both lock switches carry the configuration category, and Home Assistant leaves an entity with that category out of area, device, and floor targeting, out of the voice assistants, and out of the HomeKit bridge.
+
+The two forms above are different. A template over `states.switch` sees every switch entity, and no template test reports an entity's category. A list of entity ids is a direct target, and a direct target is never filtered.
+
+A released lock matters more than a darkened panel. A Designer wind alarm or fire alarm rule can hold a cover's lock for as long as its trigger holds, and the rule clears the lock on the trailing edge of that trigger rather than reasserting it later. A script that turns the lock switch off while the rule still holds leaves the cover free to move until the rule fires again.
+
+**Fix:** Reject the lock entities inside the template. The entity ids are pinned, so this pattern holds:
+
+```jinja
+{{ states.switch
+   | rejectattr('entity_id', 'search', '^switch[.]ampio_obj_[0-9]+_lock_(opening|closing)$')
+   | map(attribute='entity_id') | list }}
+```
+
+A label works too. Apply one label to every lock switch, then reject `label_entities('<your label>')`.
+
+For `entity_id: all`, name your targets instead. Home Assistant turns off every switch entity for that value, and the category changes nothing.
 
 ## The administrator-only entities are gone
 

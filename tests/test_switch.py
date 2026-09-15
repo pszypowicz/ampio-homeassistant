@@ -302,7 +302,7 @@ async def test_cover_lock_switches_read_both_directions(
 async def test_cover_lock_is_unavailable_where_the_firmware_has_no_lock(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
 ) -> None:
-    """A module whose firmware drops the lock gets a greyed control.
+    """A module whose firmware drops the lock gets a grayed control.
 
     ``block_writable`` False is the sweep's answer that the three lock
     sub-functions are absent from that module's firmware. None is not an
@@ -322,12 +322,35 @@ async def test_cover_lock_with_no_sweep_stays_available(
     """``block_writable`` None means no sweep covered the module, not a refusal.
 
     A restricted account never receives a sweep, so its covers must read
-    None forever, never False, or every one of them would grey out.
+    None forever, never False, or every one of them would gray out.
     """
     mock_client.objects[83] = replace(mock_client.objects[83], block_writable=None)
     await setup_integration(hass, mock_config_entry)
 
     assert hass.states.get(OPENING_LOCK_ENTITY_ID).state != STATE_UNAVAILABLE
+
+
+@pytest.mark.usefixtures("mock_client")
+async def test_cover_lock_swept_true_stays_available_and_writes(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
+) -> None:
+    """``block_writable`` True is the sweep confirming the module carries the lock.
+
+    This is the realistic administrator path: the switch stays available,
+    and a write reaches the client.
+    """
+    mock_client.objects[83] = replace(mock_client.objects[83], block_writable=True)
+    await setup_integration(hass, mock_config_entry)
+
+    assert hass.states.get(OPENING_LOCK_ENTITY_ID).state != STATE_UNAVAILABLE
+
+    await hass.services.async_call(
+        SWITCH_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: OPENING_LOCK_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.block_opening.assert_awaited_once_with(83)
 
 
 @pytest.mark.usefixtures("mock_client")
