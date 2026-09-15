@@ -89,6 +89,16 @@ The lock covers the slats as well. On a blind, the tilt arrows and the tilt slid
 
 **Fix:** None is required. The arrow returns once the Designer rule's trigger clears. An automation that targets the cover through an area, a device, or a label skips it silently while the lock holds. An automation that names the cover by its entity id raises and halts the rest of the sequence unless the action sets `continue_on_error: true`.
 
+## A warm/cold white light's color temperature does not match my strip
+
+The slider works, and the numbers are a scale rather than a measurement.
+
+Ampio serves a warm/cold white output as two raw bytes, a power level and a coldness level, each 0 to 255. The M-SERV publishes no kelvin range for such an object, and its `min` and `max` columns read 0 and 255. So nothing on the wire says what white 3512 K is.
+
+The integration maps the coldness byte onto Home Assistant's own default range, 2000 K at the warmest end and 6535 K at the coldest. The ends of the slider reach the ends of your strip. A number in the middle is a position on that scale rather than a measured temperature, so a strip sold as 2700 K to 6000 K shows numbers that run wider than its specification.
+
+Every position on the slider is stable. The same number always gives the same white, and an automation or a scene that stores one reproduces it.
+
 ## A module shows no last-seen time in the diagnostics
 
 **Check:** Find the module's row under `snapshot.modules` in the diagnostics download, as described in [debugging.md](debugging.md). Look at `supply_voltage` in the same row. If that value is empty too, the module sends no health broadcast, and its last-seen time moves only when one of its objects changes. On the reference install the roller modules, the M-SERV row, and an M-CON-s on old firmware send none. The library lists every type and firmware in [raw-channel-bridge.md](https://github.com/pszypowicz/ampio-mqtt/blob/main/docs/raw-channel-bridge.md). A module that shows a voltage does send the broadcast. Its last-seen time can still lag by a few minutes after a restart, because the broadcast comes on a change of the reading only.

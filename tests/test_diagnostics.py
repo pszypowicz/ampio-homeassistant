@@ -66,9 +66,9 @@ DIAGNOSTICS_SNAPSHOT = {
             "temperature": None,
         },
     ],
-    # The raw server reply embeds location facts key-based redaction cannot
-    # reach inside a string; the fixture carries fake ones so the snapshot
-    # proves the whole payload is masked.
+    # The library masks this payload at the source and keeps a safelist.
+    # The fixture carries fake location facts outside that safelist so the
+    # snapshot proves the integration masks the whole string again.
     "last_payloads": {
         "info": '{"protocol": 1, "local_ip": "192.0.2.1", '
         '"lat": "0.0", "lon": "0.0", "city": "Example City 1"}'

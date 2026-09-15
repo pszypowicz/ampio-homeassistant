@@ -164,14 +164,17 @@ def pulse_applies(obj: AmpioObject) -> bool:
 
     The ``czas`` column rides every component type and means other things
     elsewhere (a cover's travel time), so the diagnostic exists only for
-    the populations whose writes send the pulse. RGBW outputs are
-    excluded: ``set_colors`` has no timed form.
+    the populations whose writes send the pulse. RGBW and CCT outputs are
+    excluded: neither ``set_colors`` nor the two ``setWW`` verbs have a
+    timed form.
     """
     if obj.pulse_ms <= 0:
         return False
     if is_button(obj) or is_switch(obj):
         return True
-    return is_light(obj) and not (isinstance(obj.kind, OutputKind) and obj.kind.color)
+    return is_light(obj) and not (
+        isinstance(obj.kind, OutputKind) and (obj.kind.color or obj.kind.color_temp)
+    )
 
 
 def build_sensors(data: AmpioData, obj: AmpioObject) -> list[SensorEntity]:
