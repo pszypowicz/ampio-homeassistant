@@ -128,6 +128,12 @@
     "switch": {
       "flag": {
         "name": "Flag"
+      },
+      "lock_closing": {
+        "name": "Closing lock"
+      },
+      "lock_opening": {
+        "name": "Opening lock"
       }
     }
   },
@@ -148,10 +154,13 @@
       "message": "Cannot connect to the Ampio server."
     },
     "cover_blocked_closing": {
-      "message": "This cover is blocked from closing. A rule in Ampio Designer holds the lock. The module refuses every command in that direction, the slats included, until the rule releases it."
+      "message": "This cover is blocked from closing. The module refuses every command in that direction, the slats included, until the lock is released. Use the cover's Closing lock switch, or the rule in Ampio Designer that set it."
     },
     "cover_blocked_opening": {
-      "message": "This cover is blocked from opening. A rule in Ampio Designer holds the lock. The module refuses every command in that direction, the slats included, until the rule releases it."
+      "message": "This cover is blocked from opening. The module refuses every command in that direction, the slats included, until the lock is released. Use the cover's Opening lock switch, or the rule in Ampio Designer that set it."
+    },
+    "cover_lock_unavailable": {
+      "message": "This cover's lock cannot be set. Only the Ampio administrator login can write a lock, and only a module that reports a roller channel count carries the feature."
     },
     "discovery_timeout": {
       "message": "Connected to the Ampio server, but it did not finish reporting its configuration."

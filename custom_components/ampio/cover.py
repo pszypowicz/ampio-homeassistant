@@ -22,11 +22,15 @@ from .entity import AmpioEntity
 PARALLEL_UPDATES = 0
 
 
+def is_cover(obj: AmpioObject) -> bool:
+    """Whether the object belongs to the cover platform."""
+    kind = obj.kind
+    return isinstance(kind, OutputKind) and kind.cover
+
+
 def build_covers(data: AmpioData, obj: AmpioObject) -> list[AmpioCover]:
     """The cover platform's entities for one object."""
-    if isinstance(obj.kind, OutputKind) and obj.kind.cover:
-        return [AmpioCover(data, obj)]
-    return []
+    return [AmpioCover(data, obj)] if is_cover(obj) else []
 
 
 async def async_setup_entry(
