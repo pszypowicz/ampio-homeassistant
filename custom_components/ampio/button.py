@@ -24,7 +24,12 @@ from homeassistant.helpers.typing import VolDictType
 
 from .const import DOMAIN, MAX_WIRE_SECONDS
 from .data import AmpioConfigEntry, AmpioData
-from .entity import AmpioEntity, AmpioModuleEntity, async_turn_on_honoring_pulse
+from .entity import (
+    AmpioEntity,
+    AmpioModuleEntity,
+    async_turn_on_honoring_pulse,
+    raise_if_read_only,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -141,11 +146,7 @@ class AmpioButton(AmpioEntity, ButtonEntity):
         silently drop.
         """
         obj = self._object
-        if obj is not None and obj.read_only:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="read_only_object",
-            )
+        raise_if_read_only(obj)
         await async_turn_on_honoring_pulse(self._data.client, obj, self._object_id)
 
 

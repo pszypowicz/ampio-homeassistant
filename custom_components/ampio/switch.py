@@ -6,12 +6,10 @@ from ampio_mqtt import AmpioObject, InputKind, OutputKind
 
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN
 from .data import AmpioConfigEntry, AmpioData
-from .entity import AmpioEntity, async_turn_on_honoring_pulse
+from .entity import AmpioEntity, async_turn_on_honoring_pulse, raise_if_read_only
 from .light import LIGHT_MATTER_TYPES
 
 PARALLEL_UPDATES = 0
@@ -79,23 +77,10 @@ class AmpioSwitch(AmpioEntity, SwitchEntity):
             return None
         return obj.is_on
 
-    def _check_writable(self) -> None:
-        """Reject a write the M-SERV would silently drop.
-
-        Designer's read-only marker is enforced server-side on both account
-        tiers; the entity keeps its platform because the checkbox can change
-        at any time.
-        """
-        if (obj := self._object) is not None and obj.read_only:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="read_only_object",
-            )
-
     @override
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the object on, timed when Designer configures a pulse."""
-        self._check_writable()
+        raise_if_read_only(self._object)
         await async_turn_on_honoring_pulse(
             self._data.client, self._object, self._object_id
         )
@@ -103,5 +88,5 @@ class AmpioSwitch(AmpioEntity, SwitchEntity):
     @override
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the object off."""
-        self._check_writable()
+        raise_if_read_only(self._object)
         await self._data.client.turn_off(self._object_id)

@@ -18,6 +18,7 @@ PARALLEL_UPDATES = 0
 
 # Descriptions for the read-only input kinds, keyed by ``InputKind.key``.
 # Switchable inputs (the writable flags) belong to the switch platform, the
+# ranged inputs (the analog flags) belong to the number platform, the
 # system kinds (the M-SERV's own detection and simulation objects) never
 # reach a platform, and objects classified into any other kind are not
 # exposed.
@@ -27,6 +28,22 @@ BINARY_SENSOR_DESCRIPTIONS: dict[str, BinarySensorEntityDescription] = {
         BinarySensorEntityDescription(
             key="wej",
             translation_key="input",
+        ),
+        # The alarm partition. No half takes a device class: the alarmed
+        # half also reads on through the panel's exit delay, so it is not a
+        # safety indicator on its own. The base kind is what a partition
+        # object reads as once Designer clears its leaf.
+        BinarySensorEntityDescription(
+            key="alarm",
+            translation_key="alarm",
+        ),
+        BinarySensorEntityDescription(
+            key="alarm_armed",
+            translation_key="alarm_armed",
+        ),
+        BinarySensorEntityDescription(
+            key="alarm_alarmed",
+            translation_key="alarm_alarmed",
         ),
     )
 }

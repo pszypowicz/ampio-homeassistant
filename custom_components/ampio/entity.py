@@ -12,6 +12,7 @@ from ampio_mqtt import (
 )
 
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.device_registry import ChildDeviceInfo, DeviceInfo
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import EntityPlatform
@@ -34,6 +35,20 @@ async def async_turn_on_honoring_pulse(
         await client.set_value(object_id, 255, pulse_ms=obj.pulse_ms)
     else:
         await client.turn_on(object_id)
+
+
+def raise_if_read_only(obj: AmpioObject | None) -> None:
+    """Raise before a write the M-SERV would silently drop.
+
+    Designer's read-only marker is enforced server-side on both account
+    tiers, which drops such a write with no error and no echo. The entity
+    keeps its platform because the checkbox can change at any time.
+    """
+    if obj is not None and obj.read_only:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="read_only_object",
+        )
 
 
 class AmpioPinnedEntity(Entity):

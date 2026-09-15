@@ -516,6 +516,32 @@ async def test_pulse_time_diagnostic(
         )
 
 
+async def test_analog_flag_has_no_pulse_diagnostic(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """A Designer turn-on time on an analog flag reaches no entity.
+
+    Object 164 carries one. The M-SERV ignores it on this type: a timed
+    write measured on hardware left the object holding the written value
+    long past the window, where the same form reverts a relay or a flag.
+    A diagnostic reporting a length nothing applies would be a lie.
+    """
+    assert mock_client.objects[164].pulse_ms > 0
+
+    await setup_integration(hass, mock_config_entry)
+
+    for object_id in (164, 165):
+        assert (
+            entity_registry.async_get_entity_id(
+                "sensor", DOMAIN, unique_id(object_id, "_pulse")
+            )
+            is None
+        )
+
+
 MODULE_VOLTAGE_ID = "sensor.ampio_module_17_voltage"
 MODULE_TEMPERATURE_ID = "sensor.ampio_module_17_temperature"
 

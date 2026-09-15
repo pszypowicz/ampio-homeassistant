@@ -167,6 +167,8 @@ def make_object(
 # plain roleta without feedback, a percent roleta, a lamella blind) feed the
 # cover platform. The thermostat object feeds the climate platform; its value
 # is the running flag. Four integer sensor slots feed the value sensor path.
+# Two analog flags feed the number platform, and three alarm-shaped objects
+# feed the binary_sensor platform's alarm partition descriptions.
 # The named flag on module mac 1 (the M-SERV itself) is server-owned, so its
 # child device parents to the hub instead of a module device like every
 # other module-owned object's child.
@@ -383,6 +385,61 @@ DEFAULT_OBJECTS = (
         state="42",
     ),
     make_object(163, "bit32", 4, leaf_id="0_cb8f_1005_0_2", funkcja=17, params=16),
+    # The two analog flags, the module's own u8 and signed 16-bit variables.
+    # The u8 flag carries a Designer turn-on time the M-SERV ignores on this
+    # type, which is what keeps the no-pulse guard honest. The 16-bit flag
+    # holds a negative value, which its wider field allows and the u8 field
+    # cannot.
+    make_object(
+        164,
+        "flaga_liniowa",
+        0,
+        leaf_id="0_cb8f_afu8_0_1",
+        funkcja=18,
+        opis_menu="Poziom jasnosci",
+        state="120",
+        czas=50,
+    ),
+    make_object(
+        165,
+        "flaga_liniowa16",
+        0,
+        leaf_id="0_cb8f_afi16_0_2",
+        funkcja=19,
+        opis_menu="Korekta temperatury",
+        state="-44",
+    ),
+    # The three alarm shapes. All three carry the same component type, and
+    # the leaf sub-function is what separates them: 3 armed, 4 alarmed, and
+    # an empty leaf the base kind, which is what Designer leaves behind when
+    # an object's Matter box is unchecked.
+    make_object(
+        166,
+        "satel_alarm",
+        0,
+        leaf_id="0_cb8f_296_3_1",
+        funkcja=20,
+        opis_menu="Alarm strefa parter",
+        state="1",
+    ),
+    make_object(
+        167,
+        "satel_alarm",
+        0,
+        leaf_id="0_cb8f_296_4_1",
+        funkcja=21,
+        opis_menu="Alarm naruszenie parter",
+        state="0",
+    ),
+    make_object(
+        168,
+        "satel_alarm",
+        0,
+        leaf_id="",
+        funkcja=22,
+        opis_menu="Alarm strefa garaz",
+        state="0",
+    ),
 )
 
 # The default module catalogue an administrator account receives.
