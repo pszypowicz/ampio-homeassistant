@@ -1169,6 +1169,28 @@ async def test_cct_light_temperature_alone_writes_the_coldness_axis(
     mock_client.set_ww_power.assert_not_awaited()
 
 
+async def test_cct_light_temperature_alone_from_dark_uses_full_power(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A dark CCT light asked for a color temperature alone still turns on.
+
+    The coldness-alone verb holds the power axis, so it cannot be the one
+    that turns a dark light on; the write falls back to ``set_ww`` with
+    the full-power constant instead of a stale or absent power byte.
+    """
+    mock_client.objects[76] = replace(mock_client.objects[76], state="65280")
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: CCT_ENTITY_ID, ATTR_COLOR_TEMP_KELVIN: 4276},
+        blocking=True,
+    )
+    mock_client.set_ww.assert_awaited_once_with(76, 255, 128)
+    mock_client.set_ww_coldness.assert_not_awaited()
+
+
 async def test_cct_light_bare_turn_on_keeps_the_last_power(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:

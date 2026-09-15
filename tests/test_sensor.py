@@ -22,7 +22,11 @@ from pytest_homeassistant_custom_component.common import (
 from syrupy.assertion import SnapshotAssertion
 
 from custom_components.ampio.const import DOMAIN
-from custom_components.ampio.sensor import SENSOR_DESCRIPTIONS, VALUE_KEY_PREFIX
+from custom_components.ampio.sensor import (
+    SENSOR_DESCRIPTIONS,
+    VALUE_KEY_PREFIX,
+    pulse_applies,
+)
 from homeassistant.const import (
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
@@ -532,6 +536,7 @@ async def test_analog_flag_has_no_pulse_diagnostic(
     """
     assert mock_client.objects[164].czas == 50
     assert mock_client.objects[164].pulse_ms == 0
+    assert not pulse_applies(replace(mock_client.objects[164], czas=50))
 
     await setup_integration(hass, mock_config_entry)
 

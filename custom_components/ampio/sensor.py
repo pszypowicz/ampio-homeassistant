@@ -164,7 +164,9 @@ def pulse_applies(obj: AmpioObject) -> bool:
 
     ``AmpioObject.pulse_ms`` already reads 0 for a kind whose write
     discards the time, so the diagnostic follows the library's own
-    classification and adds no carve-out of its own.
+    classification and adds no carve-out of its own. The remaining
+    button-or-switch-or-light check scopes the diagnostic to the
+    platforms that send a turn-on write at all.
     """
     if obj.pulse_ms <= 0:
         return False

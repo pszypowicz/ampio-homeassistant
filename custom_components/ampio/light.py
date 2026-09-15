@@ -277,8 +277,11 @@ class AmpioLight(AmpioEntity, LightEntity):
         honest execution. A CCT turn-on that names no temperature writes
         the power axis alone, which leaves the temperature where it
         stands. One that names no brightness writes the temperature axis
-        alone, which leaves the power where it stands and never reads it
-        back first.
+        alone, on top of whatever power the light already stands at, and
+        never reads that power back first - unless the light is off, in
+        which case a bare temperature must still turn it on, so the
+        write carries the full-power constant into the same setWW frame
+        instead of a stale or absent power byte.
         """
         client = self._data.client
         if self._attr_color_mode is ColorMode.RGBW:
@@ -309,10 +312,12 @@ class AmpioLight(AmpioEntity, LightEntity):
             coldness = _coldness_from_kelvin(
                 kelvin, self.min_color_temp_kelvin, self.max_color_temp_kelvin
             )
-            if power is None:
+            if power is None and self.is_on:
                 await client.set_ww_coldness(self._object_id, coldness)
                 return
-            await client.set_ww(self._object_id, power, coldness)
+            await client.set_ww(
+                self._object_id, 255 if power is None else power, coldness
+            )
             return
         obj = self._object
         if (
