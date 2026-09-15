@@ -516,6 +516,23 @@ async def test_pulse_time_diagnostic(
         )
 
 
+@pytest.mark.usefixtures("mock_client")
+async def test_analog_flag_has_no_pulse_diagnostic(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """A Designer turn-on time on an analog flag reaches no entity.
+
+    Object 164 carries one. The M-SERV ignores it on this type: a timed
+    write measured on hardware left the object holding the written value
+    long past the window, where the same form reverts a relay or a flag.
+    A diagnostic reporting a length nothing applies would be a lie.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    assert hass.states.get(pinned_id("sensor", 164, "_pulse")) is None
+    assert hass.states.get(pinned_id("sensor", 165, "_pulse")) is None
+
+
 MODULE_VOLTAGE_ID = "sensor.ampio_module_17_voltage"
 MODULE_TEMPERATURE_ID = "sensor.ampio_module_17_temperature"
 

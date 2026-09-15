@@ -105,6 +105,14 @@ All three cases below were seen on **virtual devices**, and each one misleads in
 
 So do not trust the toast in either direction. Refresh the Designer page instead. It asks for confirmation and then asks for the password again, even when the browser has it stored, and what it shows afterwards is what the server holds.
 
+## An analog flag's turn-on time is ignored
+
+Designer's turn-on time column drives a pulse on a relay, a flag, a dimmer, and a bell object, so its "Description in device" panel offers the same field on an analog flag. The M-SERV does not honor it there.
+
+On 2026-09-15, against a live M-SERV, `set_value` on a `flaga_liniowa` carrying a Designer time of 500 (5 seconds) sent `/api/set/<id>/setValue/120/500` on the wire, the same timed form that reverts a relay or a flag. The object still read 120 fifty-three seconds later, with no further state push. A second write of 255 with the same time did not revert after 8 seconds either, so the write reached the module and the module kept the value on this component type regardless of the value written.
+
+The integration's number entity writes the value alone and sends no time, because a time it cannot honor buys nothing and the diagnostic sensor that would otherwise report a pulse length is built only for the types that honor one. This repo filed `ampio-mqtt#248` against the library for the M-SERV behavior.
+
 ## The stability contract
 
 Ampio accounts upgrade and downgrade between the admin login and app-created users. The integration therefore derives everything that defines an entity's platform or the device topology from data the restricted tier receives.
