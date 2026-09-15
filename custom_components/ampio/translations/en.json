@@ -160,7 +160,7 @@
             "message": "This cover is blocked from opening. The module refuses every command in that direction, the slats included, until the lock is released. Use the rule in Ampio Designer that set it, or the cover's Opening lock switch where the module supports one."
         },
         "cover_lock_unavailable": {
-            "message": "This cover's lock cannot be set. Only the Ampio administrator login can write a lock, and not every module carries the feature."
+            "message": "This cover's lock cannot be set. Only the Ampio administrator login can write a lock. If you are the administrator, either this cover's object carries no leaf in Ampio Designer, or its module did not answer the last description sweep, so reloading the integration may help."
         },
         "discovery_timeout": {
             "message": "Connected to the Ampio server, but it did not finish reporting its configuration."
