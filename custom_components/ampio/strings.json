@@ -302,7 +302,7 @@
       "fields": {
         "message": {
           "name": "Message",
-          "description": "The text the app shows. Spaces and accented characters arrive unchanged."
+          "description": "The text the app shows. Spaces and accented characters arrive unchanged, but a slash is not allowed."
         }
       }
     },
