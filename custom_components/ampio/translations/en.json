@@ -66,6 +66,15 @@
     },
     "entity": {
         "binary_sensor": {
+            "alarm": {
+                "name": "Alarm"
+            },
+            "alarm_alarmed": {
+                "name": "Triggered"
+            },
+            "alarm_armed": {
+                "name": "Armed"
+            },
             "input": {
                 "name": "Input"
             }
@@ -84,6 +93,11 @@
             },
             "status_light": {
                 "name": "Status light"
+            }
+        },
+        "number": {
+            "analog_flag": {
+                "name": "Analog flag"
             }
         },
         "sensor": {
