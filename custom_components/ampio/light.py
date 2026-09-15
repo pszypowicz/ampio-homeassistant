@@ -276,7 +276,9 @@ class AmpioLight(AmpioEntity, LightEntity):
         all-zero color is a request for darkness, and turn_off is its
         honest execution. A CCT turn-on that names no temperature writes
         the power axis alone, which leaves the temperature where it
-        stands.
+        stands. One that names no brightness writes the temperature axis
+        alone, which leaves the power where it stands and never reads it
+        back first.
         """
         client = self._data.client
         if self._attr_color_mode is ColorMode.RGBW:
@@ -296,21 +298,21 @@ class AmpioLight(AmpioEntity, LightEntity):
             await client.set_colors(self._object_id, *rgbw)
             return
         if self._attr_color_mode is ColorMode.COLOR_TEMP:
-            current_cct = self._object.cct if self._object else None
             power: int | None = kwargs.get(ATTR_BRIGHTNESS)
-            if power is None:
-                power = current_cct[0] if current_cct and current_cct[0] else 255
             kelvin: int | None = kwargs.get(ATTR_COLOR_TEMP_KELVIN)
             if kelvin is None:
+                if power is None:
+                    current_cct = self._object.cct if self._object else None
+                    power = current_cct[0] if current_cct and current_cct[0] else 255
                 await client.set_ww_power(self._object_id, power)
                 return
-            await client.set_ww(
-                self._object_id,
-                power,
-                _coldness_from_kelvin(
-                    kelvin, self.min_color_temp_kelvin, self.max_color_temp_kelvin
-                ),
+            coldness = _coldness_from_kelvin(
+                kelvin, self.min_color_temp_kelvin, self.max_color_temp_kelvin
             )
+            if power is None:
+                await client.set_ww_coldness(self._object_id, coldness)
+                return
+            await client.set_ww(self._object_id, power, coldness)
             return
         obj = self._object
         if (

@@ -1148,6 +1148,27 @@ async def test_cct_light_temperature_writes_both_axes(
     mock_client.set_ww.assert_awaited_once_with(76, 200, 128)
 
 
+async def test_cct_light_temperature_alone_writes_the_coldness_axis(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A color temperature with no brightness moves the coldness axis alone.
+
+    The power axis is never read back and never sent, so a concurrent
+    power change cannot be reasserted stale.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: CCT_ENTITY_ID, ATTR_COLOR_TEMP_KELVIN: 4276},
+        blocking=True,
+    )
+    mock_client.set_ww_coldness.assert_awaited_once_with(76, 128)
+    mock_client.set_ww.assert_not_awaited()
+    mock_client.set_ww_power.assert_not_awaited()
+
+
 async def test_cct_light_bare_turn_on_keeps_the_last_power(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
