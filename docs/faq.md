@@ -81,13 +81,23 @@ See [designer-quirks.md](designer-quirks.md). That page explains why Home Assist
 
 **Check:** On the dashboard, the cover card offers only the arrow for the direction that still works and drops the other one, with no toast and no notification explaining why. An automation that names the cover by its entity id fails instead, with a message such as "Entity cover.ampio_obj_82 does not support action cover.open_cover."
 
-A rule in Ampio Designer is locking the cover's travel through one of its roller actions: "Disable movement", "Disable closing", or "Disable opening". The rule holds the lock for as long as its trigger holds, so a wind alarm or a fire alarm can hold it for a long time, and the lock clears on its own once the trigger clears.
+A rule in Ampio Designer, or this integration's own Opening lock or Closing lock switch, is locking the cover's travel. A Designer rule holds the lock through one of the roller actions, "Disable movement", "Disable closing", or "Disable opening", for as long as its trigger holds, so a wind alarm or a fire alarm can hold it for a long time, and the lock clears on its own once the trigger clears. A lock switch holds until something turns it off.
 
-The module drops the blocked command with no error and no reply, so the integration removes the control instead of letting a press do nothing. The cover keeps reporting its position the whole time. The position slider still works in the direction that is not locked, and refuses the other with a message naming the Designer rule that holds it. `cover.toggle` needs both directions, so locking either one disables it entirely.
+The module drops the blocked command with no error and no reply, so the integration removes the control instead of letting a press do nothing. The cover keeps reporting its position the whole time. The position slider still works in the direction that is not locked, and refuses the other with a message naming the lock switch and the Designer rule that can hold it. `cover.toggle` needs both directions, so locking either one disables it entirely.
 
-The lock covers the slats as well. On a blind, the tilt arrows and the tilt slider follow the same two directions as the travel, so a rule that blocks opening also stops a slat turn toward open and leaves a turn toward closed working.
+The lock covers the slats as well. On a blind, the tilt arrows and the tilt slider follow the same two directions as the travel, so a lock on opening also stops a slat turn toward open and leaves a turn toward closed working.
 
-**Fix:** None is required. The arrow returns once the Designer rule's trigger clears. An automation that targets the cover through an area, a device, or a label skips it silently while the lock holds. An automation that names the cover by its entity id raises and halts the rest of the sequence unless the action sets `continue_on_error: true`.
+**Fix:** None is required. The arrow returns once the lock clears, whether that is a Designer rule's trigger or the matching lock switch. An automation that targets the cover through an area, a device, or a label skips it silently while the lock holds. An automation that names the cover by its entity id raises and halts the rest of the sequence unless the action sets `continue_on_error: true`.
+
+## A cover's lock switch is unavailable, or does nothing when I turn it on
+
+**Check:** Each cover carries an Opening lock switch and a Closing lock switch, both under the cover device's Configuration section. If a switch reads `unavailable`, the administrator login has swept the module behind that cover and found no roller channel count in its capability map: an older module generation that accepts the same lock frame as an ordinary roller move and drops it without changing anything.
+
+On a standard account the sweep never runs, so the switch is never held back for a missing capability. An `unavailable` state there means the connection or the object, the same as for any other Ampio entity. Pressing the switch on a standard account raises an error instead, because only the administrator login can write a lock. The same error also reaches an administrator login when the object behind the cover carries no leaf, or when the module stayed silent during the setup sweep, because a lock write still needs the module's answer to size its frame.
+
+**Fix:** None is required for the generation gap. That module never gains the lock. On a standard account, ask whoever holds the administrator login to set or release the lock.
+
+A lock set through either switch never expires on its own. Whichever account sets one owns releasing it: turn the same switch off, or clear it from wherever it was set, such as an automation.
 
 ## A warm/cold white light's color temperature does not match my strip
 
@@ -135,6 +145,31 @@ A label works too. Apply one label to both entities of each panel, then reject `
 For `entity_id: all`, name your targets instead. Home Assistant turns off every light entity for that value, and the category changes nothing.
 
 The same reject belongs in every template that reads `states.light`. A sensor that counts the lights that are on, and a card that lists them, both include two entities per panel without it.
+
+## An "everything off" script released a cover's lock
+
+**Check:** Read the automation or the script that turns switches off. Two forms of it reach a cover's Opening lock and Closing lock switches, the same way the entry above reaches a touch panel's lights:
+
+- A template over `states.switch` whose result is passed as `entity_id`.
+- A call to `switch.turn_off` with `entity_id: all`.
+
+Every other way to target switches skips them already, because both lock switches carry the configuration category, and Home Assistant leaves an entity with that category out of area, device, and floor targeting, out of the voice assistants, and out of the HomeKit bridge.
+
+The two forms above are different. A template over `states.switch` sees every switch entity, and no template test reports an entity's category. A list of entity ids is a direct target, and a direct target is never filtered.
+
+A released lock matters more than a darkened panel. A Designer wind alarm or fire alarm rule can hold a cover's lock for as long as its trigger holds, and the rule clears the lock on the trailing edge of that trigger rather than reasserting it later. A script that turns the lock switch off while the rule still holds leaves the cover free to move until the rule fires again.
+
+**Fix:** Reject the lock entities inside the template. The entity ids are pinned, so this pattern holds:
+
+```jinja
+{{ states.switch
+   | rejectattr('entity_id', 'search', '^switch[.]ampio_obj_[0-9]+_lock_(opening|closing)$')
+   | map(attribute='entity_id') | list }}
+```
+
+A label works too. Apply one label to every lock switch, then reject `label_entities('<your label>')`.
+
+For `entity_id: all`, name your targets instead. Home Assistant turns off every switch entity for that value, and the category changes nothing.
 
 ## The administrator-only entities are gone
 

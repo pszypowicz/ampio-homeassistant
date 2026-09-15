@@ -22,11 +22,15 @@ from .entity import AmpioEntity
 PARALLEL_UPDATES = 0
 
 
+def is_cover(obj: AmpioObject) -> bool:
+    """Whether the object belongs to the cover platform."""
+    kind = obj.kind
+    return isinstance(kind, OutputKind) and kind.cover
+
+
 def build_covers(data: AmpioData, obj: AmpioObject) -> list[AmpioCover]:
     """The cover platform's entities for one object."""
-    if isinstance(obj.kind, OutputKind) and obj.kind.cover:
-        return [AmpioCover(data, obj)]
-    return []
+    return [AmpioCover(data, obj)] if is_cover(obj) else []
 
 
 async def async_setup_entry(
@@ -78,7 +82,7 @@ class AmpioCover(AmpioEntity, CoverEntity):
         and a rule holds the lock for as long as its trigger holds. The
         module then drops every command for the blocked direction, the
         ``/api`` verbs included, with no error and no reply. Dropping the
-        feature is what tells the difference, so the dashboard greys the
+        feature is what tells the difference, so the dashboard grays the
         arrow and core refuses the service call rather than reporting a
         move that will not happen.
 

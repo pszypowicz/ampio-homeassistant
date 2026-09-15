@@ -4,7 +4,7 @@ from collections.abc import Generator
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
-from ampio_mqtt import AccessTier, ObjectUpdated
+from ampio_mqtt import AccessTier, AmpioValueError, ObjectUpdated
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -19,6 +19,8 @@ from homeassistant.const import (
     SERVICE_TURN_ON,
     STATE_OFF,
     STATE_ON,
+    STATE_UNAVAILABLE,
+    EntityCategory,
     Platform,
 )
 from homeassistant.core import HomeAssistant
@@ -38,6 +40,8 @@ from .conftest import (
 PLAIN_ENTITY_ID = pinned_id("switch", 74)
 OUTLET_ENTITY_ID = pinned_id("switch", 75)
 FLAG_ENTITY_ID = pinned_id("switch", 61)
+OPENING_LOCK_ENTITY_ID = pinned_id("switch", 83, "_lock_opening")
+CLOSING_LOCK_ENTITY_ID = pinned_id("switch", 83, "_lock_closing")
 
 
 @pytest.fixture(autouse=True)
@@ -88,9 +92,9 @@ async def test_light_tagged_relay_is_not_a_switch(
     """A relay whose Matter tag says light belongs to the light platform."""
     await setup_integration(hass, mock_config_entry)
 
-    # Two relays plus the two writable flags.
+    # Two relays, the two writable flags, and two lock switches per cover.
     states = [s for s in hass.states.async_all() if s.domain == "switch"]
-    assert len(states) == 4
+    assert len(states) == 10
     assert not any("kinkiet" in s.entity_id for s in states)
 
 
@@ -262,3 +266,179 @@ async def test_leafless_server_object_parents_to_the_hub(
     child = device_registry.async_get(entry.device_id)
     assert isinstance(child, dr.ChildDeviceEntry)
     assert child.parent_device_id == hub.id
+
+
+@pytest.mark.usefixtures("mock_client")
+async def test_cover_lock_switches_read_both_directions(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_client: MagicMock,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """Each direction reads its own bit, and both are configuration entities.
+
+    ``block`` rides the object state push, which both account tiers
+    receive, so the read needs no administrator login.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    assert hass.states.get(OPENING_LOCK_ENTITY_ID).state == STATE_OFF
+    assert hass.states.get(CLOSING_LOCK_ENTITY_ID).state == STATE_OFF
+
+    entry = entity_registry.async_get(OPENING_LOCK_ENTITY_ID)
+    assert entry is not None
+    assert entry.entity_category is EntityCategory.CONFIG
+
+    locked = replace(mock_client.objects[83], block=2)
+    mock_client.objects[83] = locked
+    emit(mock_client, ObjectUpdated(object=locked))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(OPENING_LOCK_ENTITY_ID).state == STATE_ON
+    assert hass.states.get(CLOSING_LOCK_ENTITY_ID).state == STATE_OFF
+
+
+@pytest.mark.usefixtures("mock_client")
+async def test_cover_lock_is_unavailable_where_the_firmware_has_no_lock(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
+) -> None:
+    """A module whose firmware drops the lock gets a grayed control.
+
+    ``block_writable`` False is the sweep's answer that the three lock
+    sub-functions are absent from that module's firmware. None is not an
+    answer, so a standard account, which never receives the sweep, keeps
+    the switch available and learns from the refusal instead.
+    """
+    mock_client.objects[83] = replace(mock_client.objects[83], block_writable=False)
+    await setup_integration(hass, mock_config_entry)
+
+    assert hass.states.get(OPENING_LOCK_ENTITY_ID).state == STATE_UNAVAILABLE
+
+
+@pytest.mark.usefixtures("mock_client")
+async def test_cover_lock_with_no_sweep_stays_available(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
+) -> None:
+    """``block_writable`` None means no sweep covered the module, not a refusal.
+
+    A restricted account never receives a sweep, so its covers must read
+    None forever, never False, or every one of them would gray out.
+    """
+    mock_client.objects[83] = replace(mock_client.objects[83], block_writable=None)
+    await setup_integration(hass, mock_config_entry)
+
+    assert hass.states.get(OPENING_LOCK_ENTITY_ID).state != STATE_UNAVAILABLE
+
+
+@pytest.mark.usefixtures("mock_client")
+async def test_cover_lock_swept_true_stays_available_and_writes(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
+) -> None:
+    """``block_writable`` True is the sweep confirming the module carries the lock.
+
+    This is the realistic administrator path: the switch stays available,
+    and a write reaches the client.
+    """
+    mock_client.objects[83] = replace(mock_client.objects[83], block_writable=True)
+    await setup_integration(hass, mock_config_entry)
+
+    assert hass.states.get(OPENING_LOCK_ENTITY_ID).state != STATE_UNAVAILABLE
+
+    await hass.services.async_call(
+        SWITCH_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: OPENING_LOCK_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.block_opening.assert_awaited_once_with(83)
+
+
+@pytest.mark.usefixtures("mock_client")
+async def test_cover_lock_writes_reach_the_matching_verb(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
+) -> None:
+    """Each switch writes its own direction and leaves the other alone."""
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        SWITCH_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: OPENING_LOCK_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.block_opening.assert_awaited_once_with(83)
+
+    await hass.services.async_call(
+        SWITCH_DOMAIN,
+        SERVICE_TURN_OFF,
+        {ATTR_ENTITY_ID: CLOSING_LOCK_ENTITY_ID},
+        blocking=True,
+    )
+    mock_client.unblock_closing.assert_awaited_once_with(83)
+    mock_client.unblock_opening.assert_not_awaited()
+
+
+@pytest.mark.usefixtures("mock_client")
+async def test_cover_lock_refusal_names_both_causes(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
+) -> None:
+    """A module without a roller channel count refuses, and the error says so.
+
+    The one translation key covers this cause and the tier gate alike, so
+    neither needs its own message.
+    """
+    await setup_integration(hass, mock_config_entry)
+    mock_client.block_closing.side_effect = AmpioValueError("no roller count")
+
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(
+            SWITCH_DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: CLOSING_LOCK_ENTITY_ID},
+            blocking=True,
+        )
+
+    assert err.value.translation_key == "cover_lock_unavailable"
+
+
+async def test_cover_lock_write_refused_on_a_standard_account(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A standard account is refused before any client method runs.
+
+    The lock write rides the raw tree, which the library reserves for the
+    administrator login and refuses with a bare ``RuntimeError`` on any
+    other tier - a programming error in the library's own terms, not a
+    condition it expects a caller to catch. So the entity checks its own
+    tier first and never makes the call.
+    """
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(
+            SWITCH_DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: OPENING_LOCK_ENTITY_ID},
+            blocking=True,
+        )
+
+    assert err.value.translation_key == "cover_lock_unavailable"
+    mock_client.block_opening.assert_not_awaited()
+
+
+async def test_cover_lock_still_reads_on_a_standard_account(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The tier gate covers the write alone; the read keeps working.
+
+    ``block`` rides the object state push on both tiers, so a standard
+    account must see the same lock state an administrator does, even
+    though it cannot change one.
+    """
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    mock_client.objects[83] = replace(mock_client.objects[83], block=2)
+    await setup_integration(hass, mock_config_entry)
+
+    assert hass.states.get(OPENING_LOCK_ENTITY_ID).state == STATE_ON
+    assert hass.states.get(CLOSING_LOCK_ENTITY_ID).state == STATE_OFF

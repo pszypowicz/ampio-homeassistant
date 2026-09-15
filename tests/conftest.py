@@ -506,14 +506,27 @@ def emit(client: MagicMock, event: Any) -> None:
 # the library stopped allowing, so the mock raises the way the library does.
 GATED_ON_ADMIN: Final = ("modules", "mserv")
 
+# The client calls the library reserves for the administrator login: the
+# module lookup, and the four lock-write verbs behind the raw tree. Each
+# raises ``RuntimeError`` on a standard account, the same way the library
+# does.
+GATED_METHODS_ON_ADMIN: Final = (
+    "module_for",
+    "block_opening",
+    "block_closing",
+    "unblock_opening",
+    "unblock_closing",
+)
+
 
 def set_access_tier(client: MagicMock, tier: AccessTier) -> None:
     """Set the account tier on the mocked client, with the library's gate.
 
-    ``modules``, ``mserv``, and ``module_for()`` raise ``RuntimeError`` on a
-    standard account, because the M-SERV serves the module catalogue to the
-    reserved admin login alone. Every tier change in the suite goes through
-    here, so a read the integration forgets to gate fails a test instead of
+    ``modules``, ``mserv``, ``module_for()``, and the four lock-write verbs
+    raise ``RuntimeError`` on a standard account, because the M-SERV serves
+    the module catalogue and the raw tree writes to the reserved admin
+    login alone. Every tier change in the suite goes through here, so a
+    read or a write the integration forgets to gate fails a test instead of
     reading as an install with no modules.
 
     The property mock lands on the mock's own class, which ``patch`` builds
@@ -526,7 +539,8 @@ def set_access_tier(client: MagicMock, tier: AccessTier) -> None:
     if tier is AccessTier.ADMIN:
         client.modules = {module.id: module for module in DEFAULT_MODULES}
         client.mserv = client.modules[1]
-        client.module_for.side_effect = None
+        for name in GATED_METHODS_ON_ADMIN:
+            getattr(client, name).side_effect = None
         return
     for name in GATED_ON_ADMIN:
         setattr(
@@ -534,7 +548,10 @@ def set_access_tier(client: MagicMock, tier: AccessTier) -> None:
             name,
             PropertyMock(side_effect=RuntimeError(f"{name} needs the admin login")),
         )
-    client.module_for.side_effect = RuntimeError("module_for needs the admin login")
+    for name in GATED_METHODS_ON_ADMIN:
+        getattr(client, name).side_effect = RuntimeError(
+            f"{name} needs the admin login"
+        )
 
 
 @pytest.fixture
