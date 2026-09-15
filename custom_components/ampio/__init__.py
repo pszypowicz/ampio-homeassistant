@@ -27,6 +27,7 @@ from homeassistant.core import Event, HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryNotReady,
+    HomeAssistantError,
     ServiceValidationError,
 )
 from homeassistant.helpers import (
@@ -64,6 +65,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         except AmpioValueError as err:
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="notification_rejected"
+            ) from err
+        except (AmpioConnectionError, AmpioTimeoutError) as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="notification_failed"
             ) from err
 
     hass.services.async_register(

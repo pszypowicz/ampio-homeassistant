@@ -32,7 +32,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import (
     area_registry as ar,
     device_registry as dr,
@@ -1048,3 +1048,19 @@ async def test_send_notification_translates_the_library_refusal(
         )
 
     assert err.value.translation_key == "notification_rejected"
+
+
+@pytest.mark.usefixtures("mock_client")
+async def test_send_notification_translates_a_broker_failure(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
+) -> None:
+    """An entry can stay loaded through an outage, so the publish itself can fail."""
+    await setup_integration(hass, mock_config_entry)
+    mock_client.send_notification.side_effect = AmpioConnectionError("no session")
+
+    with pytest.raises(HomeAssistantError) as err:
+        await hass.services.async_call(
+            DOMAIN, "send_notification", {"message": "Brama otwarta"}, blocking=True
+        )
+
+    assert err.value.translation_key == "notification_failed"
