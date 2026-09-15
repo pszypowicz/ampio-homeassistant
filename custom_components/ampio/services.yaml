@@ -106,3 +106,10 @@ set_status_fields:
       example: "[255, 100, 100]"
       selector:
         color_rgb:
+send_notification:
+  fields:
+    message:
+      required: true
+      example: Brama otwarta
+      selector:
+        text:

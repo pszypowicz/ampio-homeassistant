@@ -9,6 +9,7 @@ from ampio_mqtt import (
     AmpioAuthError,
     AmpioConnectionError,
     AmpioTimeoutError,
+    AmpioValueError,
     AuthFailed,
     AvailabilityChanged,
     ConnectionDied,
@@ -31,11 +32,13 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import (
     area_registry as ar,
     device_registry as dr,
     entity_registry as er,
 )
+from homeassistant.setup import async_setup_component
 
 from . import setup_integration
 from .conftest import (
@@ -992,3 +995,56 @@ async def test_moved_object_is_repaired_by_a_delete(
     assert moved.name_by_user == "Przekaznik piwnica"
     assert moved.area_id == piwnica.id
     assert hass.states.get(pinned_id("switch", 74)).state == STATE_ON
+
+
+async def test_send_notification_is_registered_before_any_entry(
+    hass: HomeAssistant,
+) -> None:
+    """The action addresses the install, so it exists without a loaded entry."""
+    assert await async_setup_component(hass, DOMAIN, {})
+
+    assert hass.services.has_service(DOMAIN, "send_notification")
+
+
+async def test_send_notification_without_an_entry_refuses(
+    hass: HomeAssistant,
+) -> None:
+    """With nothing loaded there is no server to reach, and the error says so."""
+    assert await async_setup_component(hass, DOMAIN, {})
+
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(
+            DOMAIN, "send_notification", {"message": "Brama otwarta"}, blocking=True
+        )
+
+    assert err.value.translation_key == "not_loaded"
+
+
+@pytest.mark.usefixtures("mock_client")
+async def test_send_notification_reaches_the_client(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
+) -> None:
+    """The message goes out verbatim, with no escaping of its own."""
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        DOMAIN, "send_notification", {"message": "Brama otwarta 100%"}, blocking=True
+    )
+
+    mock_client.send_notification.assert_awaited_once_with("Brama otwarta 100%")
+
+
+@pytest.mark.usefixtures("mock_client")
+async def test_send_notification_translates_the_library_refusal(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
+) -> None:
+    """A slash truncates the text on the wire, so the library refuses it."""
+    await setup_integration(hass, mock_config_entry)
+    mock_client.send_notification.side_effect = AmpioValueError("slash")
+
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(
+            DOMAIN, "send_notification", {"message": "a/b"}, blocking=True
+        )
+
+    assert err.value.translation_key == "notification_rejected"

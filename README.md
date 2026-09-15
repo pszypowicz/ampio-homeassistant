@@ -71,6 +71,16 @@ The backlight's white channel drives the panel's own white LEDs rather than blen
 
 Target these two actions at the entity by name, not at an area or a device, and not at `entity_id: all`. Any of those reaches every Ampio light the target matches and sends the field colors to each one. A module device gets no seeded area, only an object child device does, so an area target usually reaches only object lights, colors nothing at all, and returns exactly one error, since Home Assistant re-raises just the first exception rather than one per light. That error is Home Assistant's own handling of an action not every targeted entity supports, and there is no way to filter it out.
 
+`ampio.send_notification` pushes a message to every user of the Ampio mobile app on this installation, on either account tier:
+
+```yaml
+action: ampio.send_notification
+data:
+  message: Brama otwarta
+```
+
+The Ampio server answers on no topic, so a successful call means the message was sent, not that it arrived. A message cannot contain a slash: the server reads what follows one as a user name and drops the rest, and the action refuses such a message before it reaches the wire.
+
 ## Installation
 
 [![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=pszypowicz&repository=ampio-homeassistant&category=integration)
