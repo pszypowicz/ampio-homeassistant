@@ -77,6 +77,9 @@ def test_input_kind_vocabulary_is_mapped_or_excluded() -> None:
         # A key that no longer names its own type must fail here rather
         # than pass while testing some other object.
         assert obj.kind.key == key
+        # The switch and number platforms partition on these two checks as
+        # mutually exclusive branches, so no kind may satisfy both.
+        assert not (obj.kind.switchable and obj.kind.value_range is not None)
         if obj.is_system:
             assert key not in BINARY_SENSOR_DESCRIPTIONS
         elif obj.kind.switchable:

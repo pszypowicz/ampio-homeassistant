@@ -516,9 +516,11 @@ async def test_pulse_time_diagnostic(
         )
 
 
-@pytest.mark.usefixtures("mock_client")
 async def test_analog_flag_has_no_pulse_diagnostic(
-    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
 ) -> None:
     """A Designer turn-on time on an analog flag reaches no entity.
 
@@ -527,10 +529,17 @@ async def test_analog_flag_has_no_pulse_diagnostic(
     long past the window, where the same form reverts a relay or a flag.
     A diagnostic reporting a length nothing applies would be a lie.
     """
+    assert mock_client.objects[164].pulse_ms > 0
+
     await setup_integration(hass, mock_config_entry)
 
-    assert hass.states.get(pinned_id("sensor", 164, "_pulse")) is None
-    assert hass.states.get(pinned_id("sensor", 165, "_pulse")) is None
+    for object_id in (164, 165):
+        assert (
+            entity_registry.async_get_entity_id(
+                "sensor", DOMAIN, unique_id(object_id, "_pulse")
+            )
+            is None
+        )
 
 
 MODULE_VOLTAGE_ID = "sensor.ampio_module_17_voltage"

@@ -107,7 +107,7 @@ So do not trust the toast in either direction. Refresh the Designer page instead
 
 ## An analog flag's turn-on time is ignored
 
-Designer's turn-on time column drives a pulse on a relay, a flag, a dimmer, and a bell object, so its "Description in device" panel offers the same field on an analog flag. The M-SERV does not honor it there.
+Designer's turn-on time column pulses a relay or a flag, and this repo has measured only that. Its editor also offers the same field on a dimmer, the RGB kinds, and a bell object, which is a relay or a flag carrying the bell bit rather than a fourth type. Designer's "Description in device" panel offers the field on an analog flag too, and the M-SERV does not honor it there.
 
 On 2026-09-15, against a live M-SERV, `set_value` on a `flaga_liniowa` carrying a Designer time of 500 (5 seconds) sent `/api/set/<id>/setValue/120/500` on the wire, the same timed form that reverts a relay or a flag. The object still read 120 fifty-three seconds later, with no further state push. A second write of 255 with the same time did not revert after 8 seconds either, so the write reached the module and the module kept the value on this component type regardless of the value written.
 

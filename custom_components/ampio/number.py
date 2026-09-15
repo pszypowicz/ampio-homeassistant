@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .data import AmpioConfigEntry, AmpioData
-from .entity import AmpioEntity
+from .entity import AmpioEntity, raise_if_read_only
 
 PARALLEL_UPDATES = 0
 
@@ -94,5 +94,9 @@ class AmpioNumber(AmpioEntity, NumberEntity):
         analog flag, and the M-SERV ignores it: a timed write measured on
         hardware left the object holding the written value long past the
         configured window, where the same form reverts a relay or a flag.
+
+        A Designer read-only object raises instead of sending a write the
+        M-SERV would silently drop.
         """
+        raise_if_read_only(self._object)
         await self._data.client.set_value(self._object_id, round(value))

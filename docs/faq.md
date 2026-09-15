@@ -101,7 +101,7 @@ Every position on the slider is stable. The same number always gives the same wh
 
 ## My analog flag ignores the turn-on time I set in Designer
 
-Ampio Designer offers a turn-on time on an analog flag, the same column that gives a relay, a flag, a dimmer, and a bell object their pulse. Home Assistant does not send it here, because the M-SERV does not apply it to this object type. A measurement against a live M-SERV, on 2026-09-15, wrote a value to an analog flag with that time attached, and the flag still held the written value fifty-three seconds later, with no reversion. See [designer-quirks.md](designer-quirks.md) for the numbers behind it.
+Ampio Designer offers a turn-on time on an analog flag, the same column its editor offers on a relay, a flag, a dimmer, and the RGB kinds. This repo has measured the pulse itself only on a relay and a flag. Home Assistant does not send it here, because the M-SERV does not apply it to this object type. A measurement against a live M-SERV, on 2026-09-15, wrote a value to an analog flag with that time attached, and the flag still held the written value fifty-three seconds later, with no reversion. See [designer-quirks.md](designer-quirks.md) for the numbers behind it.
 
 The value you write to the number entity stays where you wrote it until something writes another one. If you want a value to fall back after a delay, build that timing in an automation, because Designer's turn-on time field does nothing for this object type.
 

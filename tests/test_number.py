@@ -1,6 +1,7 @@
 """Tests for the Ampio number platform."""
 
 from collections.abc import Generator
+from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
 from ampio_mqtt import ObjectUpdated
@@ -20,6 +21,7 @@ from homeassistant.components.number import (
 )
 from homeassistant.const import ATTR_ENTITY_ID, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
@@ -76,6 +78,10 @@ async def test_write_rounds_to_the_field_integer(
 
     Object 164 carries a Designer turn-on time. The M-SERV ignores it on
     an analog flag, measured on hardware, so the write must not send it.
+
+    The assertion's ``==`` would also accept a float like ``201.0``;
+    ``mypy --strict`` is what holds the value an integer, through the
+    library's ``set_value(value: int)`` signature.
     """
     await setup_integration(hass, mock_config_entry)
 
@@ -104,6 +110,30 @@ async def test_write_carries_a_negative_value(
     )
 
     mock_client.set_value.assert_awaited_once_with(165, -300)
+
+
+@pytest.mark.usefixtures("mock_client")
+async def test_read_only_object_rejects_writes(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
+) -> None:
+    """A Designer read-only object raises instead of sending a doomed write.
+
+    The M-SERV drops such writes silently on both account tiers, so the
+    entity rejects them up front and keeps its platform.
+    """
+    obj = mock_client.objects[164]
+    # Designer's read-only checkbox is params bit 6; ``read_only`` derives.
+    mock_client.objects[164] = replace(obj, params=obj.params | (1 << 6))
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            NUMBER_DOMAIN,
+            SERVICE_SET_VALUE,
+            {ATTR_ENTITY_ID: U8_ENTITY_ID, ATTR_VALUE: 200.6},
+            blocking=True,
+        )
+    mock_client.set_value.assert_not_called()
 
 
 @pytest.mark.usefixtures("mock_client")
