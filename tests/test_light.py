@@ -163,6 +163,29 @@ async def test_relay_light_turn_on_off(
     mock_client.turn_off.assert_awaited_once_with(73)
 
 
+async def test_read_only_object_rejects_writes(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A Designer read-only object raises instead of sending a doomed write.
+
+    The M-SERV drops such writes silently on both account tiers, so the
+    entity rejects them up front and keeps its platform.
+    """
+    obj = mock_client.objects[73]
+    # Designer's read-only checkbox is params bit 6; ``read_only`` derives.
+    mock_client.objects[73] = replace(obj, params=obj.params | (1 << 6))
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            LIGHT_DOMAIN,
+            SERVICE_TURN_ON,
+            {ATTR_ENTITY_ID: RELAY_ENTITY_ID},
+            blocking=True,
+        )
+    mock_client.turn_on.assert_not_called()
+
+
 async def test_dimmer_brightness_maps_to_set_value(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
