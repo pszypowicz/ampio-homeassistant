@@ -167,7 +167,7 @@ def pulse_applies(obj: AmpioObject) -> bool:
     classification and adds no carve-out of its own. The
     button-or-switch-or-light check is belt and braces rather than a
     filter this code relies on: every pulsable kind in the library's
-    classification table today (the writable flag, the relay, the dimmer)
+    classification table today (the flag, the relay, the dimmer)
     already lands in one of the three platforms on its own, so nothing
     reaches this line carrying a pulse and none of the three. It stands
     against a future kind that pairs ``pulsable`` with a platform of its

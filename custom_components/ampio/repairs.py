@@ -1,7 +1,5 @@
 """Repair flows for the Ampio integration."""
 
-import logging
-
 import voluptuous as vol
 
 from homeassistant.components.repairs import RepairsFlow, RepairsFlowResult
@@ -12,8 +10,6 @@ from homeassistant.helpers import issue_registry as ir
 from .const import ADMIN_ONLY_RECORDS_ISSUE, DOMAIN, STALE_RECORDS_ISSUE
 from .data import AmpioConfigEntry
 from .stale import async_remove_stale_records
-
-_LOGGER = logging.getLogger(__name__)
 
 
 class StaleRecordsRepairFlow(RepairsFlow):
@@ -47,20 +43,17 @@ class StaleRecordsRepairFlow(RepairsFlow):
             # records itself deletes. A repair id neither of them recognizes
             # deletes no record, so there is nothing here for a reload to
             # rebuild.
-            match self.issue_id:
-                case _ if self.issue_id == STALE_RECORDS_ISSUE:
-                    # A moved object's child is rebuilt under its new parent.
-                    self.hass.config_entries.async_schedule_reload(self._entry.entry_id)
-                case _ if self.issue_id == ADMIN_ONLY_RECORDS_ISSUE:
-                    # A withheld record rebuilds nothing: the account is
-                    # still a standard one, so its entities stay withheld.
-                    pass
-                case _:
-                    _LOGGER.error(
-                        "Fix flow confirmed for unrecognized repair issue id "
-                        "%s; nothing was removed",
-                        self.issue_id,
-                    )
+            if self.issue_id == STALE_RECORDS_ISSUE:
+                # A moved object's child is rebuilt under its new parent.
+                self.hass.config_entries.async_schedule_reload(self._entry.entry_id)
+            elif self.issue_id == ADMIN_ONLY_RECORDS_ISSUE:
+                # A withheld record rebuilds nothing: the account is
+                # still a standard one, so its entities stay withheld.
+                pass
+            else:
+                # async_remove_stale_records already logged that nothing
+                # was removed for this id.
+                pass
             return self.async_create_entry(data={})
         issue = ir.async_get(self.hass).async_get_issue(DOMAIN, self.issue_id)
         return self.async_show_form(

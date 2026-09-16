@@ -174,20 +174,19 @@ def async_remove_stale_records(
     """
     stale = find_stale_records(hass, entry)
     entity_registry = er.async_get(hass)
-    match issue_id:
-        case _ if issue_id == ADMIN_ONLY_RECORDS_ISSUE:
-            for entity in stale.withheld:
-                entity_registry.async_remove(entity.entity_id)
-        case _ if issue_id == STALE_RECORDS_ISSUE:
-            device_registry = dr.async_get(hass)
-            for device in stale.devices:
-                # A module's removal already took its children.
-                if device_registry.async_get(device.id) is not None:
-                    device_registry.async_remove_device(device.id)
-            for entity in stale.entities:
-                entity_registry.async_remove(entity.entity_id)
-        case _:
-            _LOGGER.error(
-                "Not removing any record for unrecognized repair issue id %s",
-                issue_id,
-            )
+    if issue_id == ADMIN_ONLY_RECORDS_ISSUE:
+        for entity in stale.withheld:
+            entity_registry.async_remove(entity.entity_id)
+    elif issue_id == STALE_RECORDS_ISSUE:
+        device_registry = dr.async_get(hass)
+        for device in stale.devices:
+            # A module's removal already took its children.
+            if device_registry.async_get(device.id) is not None:
+                device_registry.async_remove_device(device.id)
+        for entity in stale.entities:
+            entity_registry.async_remove(entity.entity_id)
+    else:
+        _LOGGER.error(
+            "Not removing any record for unrecognized repair issue id %s",
+            issue_id,
+        )

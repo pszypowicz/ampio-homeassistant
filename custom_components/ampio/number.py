@@ -53,8 +53,10 @@ class AmpioNumber(AmpioEntity, NumberEntity):
 
     _attr_native_step = 1
     # An unnamed 8-bit flag reads the translated name; a named one takes the
-    # device name the base class assigns. The 16-bit width overrides this in
-    # __init__, so the two widths read apart in the entity list.
+    # device name the base class assigns instead. The 16-bit width overrides
+    # this key in __init__, but that only tells the two unnamed widths apart
+    # in the entity list, since a named flag of either width reads its
+    # device name regardless.
     _attr_translation_key = "analog_flag"
 
     def __init__(
