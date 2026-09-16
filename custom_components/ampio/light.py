@@ -312,6 +312,12 @@ class AmpioLight(AmpioEntity, LightEntity):
             coldness = _coldness_from_kelvin(
                 kelvin, self.min_color_temp_kelvin, self.max_color_temp_kelvin
             )
+            # self.is_on reads the same cached object state as every
+            # property here, so a coldness-only write can land with no
+            # power byte if the object has already gone dark through
+            # another path, such as a Designer rule, a scene, or a
+            # physical override. Local push closes that window in
+            # milliseconds, so no read-back guards this write.
             if power is None and self.is_on:
                 await client.set_ww_coldness(self._object_id, coldness)
                 return
