@@ -77,9 +77,9 @@ See [designer-quirks.md](designer-quirks.md). That page tells you how to check t
 
 See [designer-quirks.md](designer-quirks.md). That page explains why Home Assistant cannot move a child device, and how the repair puts the object under its new module.
 
-## A cover's arrow is missing, or an automation that names it fails
+## A cover's arrow is missing, every control is gone, or an automation that names it fails
 
-**Check:** On the dashboard, the cover card offers only the arrow for the direction that still works and drops the other one, with no toast and no notification explaining why. An automation that names the cover by its entity id fails instead, with a message such as "Entity cover.ampio_obj_82 does not support action cover.open_cover."
+**Check:** On the dashboard, the cover card offers only the arrow for the direction that still works and drops the other one, with no toast and no notification explaining why, or the card offers no control at all and reports only the position. An automation that names the cover by its entity id fails instead, with a message such as "Entity cover.ampio_obj_82 does not support action cover.open_cover."
 
 A rule in Ampio Designer, or this integration's own Opening lock or Closing lock switch, is locking the cover's travel. A Designer rule holds the lock through one of the roller actions, "Disable movement", "Disable closing", or "Disable opening", for as long as its trigger holds, so a wind alarm or a fire alarm can hold it for a long time, and the lock clears on its own once the trigger clears. A lock switch holds until something turns it off.
 
@@ -87,7 +87,11 @@ The module drops the blocked command with no error and no reply, so the integrat
 
 The lock covers the slats as well. On a blind, the tilt arrows and the tilt slider follow the same two directions as the travel, so a lock on opening also stops a slat turn toward open and leaves a turn toward closed working.
 
-**Fix:** None is required. The arrow returns once the lock clears, whether that is a Designer rule's trigger or the matching lock switch. An automation that targets the cover through an area, a device, or a label skips it silently while the lock holds. An automation that names the cover by its entity id raises and halts the rest of the sequence unless the action sets `continue_on_error: true`.
+A third cause takes every control at once, arrows, slider, and both stop buttons together, and the tell is exactly that completeness. A lock in both directions still leaves the stop buttons working, because a stop is not a move and the module never blocks it. If the stops are gone too, the object is marked read-only in Ampio Designer, and the server refuses every verb behind it, on every axis, so there is nothing left for this integration to offer.
+
+An administrator can still hold or release this cover's lock switches while it is read-only, because the lock write rides the raw tree rather than the path the read-only marker gates. Doing so changes nothing about the cover itself. Only the lock switch's own state moves, since the read-only refusal already applies above where the lock bits are read. A scene that captured this cover before it went read-only stops restoring it, silently, with no warning and no error.
+
+**Fix:** For a lock, none is required. The arrow returns once the lock clears, whether that is a Designer rule's trigger or the matching lock switch. For read-only, clear the checkbox in Ampio Designer if you want the cover to take commands again. An automation that targets the cover through an area, a device, or a label skips it silently while either cause holds. An automation that names the cover by its entity id raises and halts the rest of the sequence unless the action sets `continue_on_error: true`.
 
 ## A cover's lock switch is unavailable, or does nothing when I turn it on
 

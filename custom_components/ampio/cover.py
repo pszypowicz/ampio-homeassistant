@@ -97,12 +97,23 @@ class AmpioCover(AmpioEntity, CoverEntity):
         features stay: a stop is not a move, and the allowed direction can
         still be running.
 
-        A Designer read-only object refuses every verb the same way the
-        server refuses a locked direction, but on every axis at once, so
-        every feature drops rather than the one direction a lock takes.
+        A Designer read-only object drops every feature too, on every axis
+        at once rather than the one direction a lock takes. The read-only
+        marker is enforced per object at the ``/api`` layer regardless of
+        kind, which is what the library documents, not a measurement this
+        repo has made on a live cover the way the lock bits above are.
         With no control left to offer, there is nothing to raise on, which
         is why this reaches for the same mechanism a lock uses instead of
         the error a switch or a light raises.
+
+        Dropping the feature protects a cover only because Home Assistant
+        already refuses a service call whenever the feature is absent,
+        true for all ten cover services today. That is a core-side
+        guarantee this integration does not own. ``climate.async_set_hvac_mode``
+        ships with no feature gate at all, which is proof core does not
+        always provide one, so a future write method added to this entity
+        needs its own ``raise_if_read_only`` rather than assuming the
+        feature drop already covers it.
         """
         features = self._unblocked_features
         if (obj := self._object) is None:

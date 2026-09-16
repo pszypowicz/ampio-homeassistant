@@ -78,7 +78,17 @@ class AmpioClimate(AmpioEntity, ClimateEntity):
     @property
     @override
     def hvac_modes(self) -> list[HVACMode]:
-        """The single mode the readback currently selects."""
+        """The single mode the readback currently selects.
+
+        Reporting one mode is what keeps ``async_set_hvac_mode`` from ever
+        landing a live write. Core validates a requested mode against this
+        list before it calls the entity, so every mode but the current one
+        fails validation there, and a call for the current mode reaches
+        the unimplemented base method instead, which raises rather than
+        writing anything. A later change that adds a mode and implements
+        this method needs its own ``raise_if_read_only`` call, since no
+        existing test would catch one missing there.
+        """
         return [self.hvac_mode]
 
     @property

@@ -182,13 +182,27 @@ def test_every_entity_translation_key_the_code_requests_is_declared() -> None:
     )
 
 
+def _is_device_info_subscript(node: ast.expr) -> bool:
+    """Whether a subscript target's own name ends in ``device_info``.
+
+    Narrows the subscript shape below to the variable this integration
+    actually uses (``device_info["translation_key"] = ...``), so an
+    unrelated mapping that happens to carry a ``"translation_key"`` entry
+    elsewhere in the package does not read as a device key.
+    """
+    if isinstance(node, ast.Name):
+        return node.id.endswith("device_info")
+    return isinstance(node, ast.Attribute) and node.attr.endswith("device_info")
+
+
 def _requested_device_translation_keys(source: str) -> set[str]:
     """The literal device translation keys one module's source asks for.
 
-    Matches a ``translation_key`` assigned into a ``DeviceInfo`` or
-    ``ChildDeviceInfo`` mapping, whether by subscript (``device_info[...] =
-    ...``) or by constructor keyword. A key built at run time from anything
-    but a string literal is invisible to this scan.
+    Matches a ``translation_key`` assigned into a variable named (or
+    attributed) ``device_info``, by subscript (``device_info["translation_key"]
+    = ...``), and a ``translation_key`` keyword passed to a call named
+    ``DeviceInfo`` or ``ChildDeviceInfo``. A key built at run time from
+    anything but a string literal is invisible to this scan.
     """
     keys: set[str] = set()
     for node in ast.walk(ast.parse(source)):
@@ -200,6 +214,7 @@ def _requested_device_translation_keys(source: str) -> set[str]:
                     isinstance(target, ast.Subscript)
                     and isinstance(target.slice, ast.Constant)
                     and target.slice.value == "translation_key"
+                    and _is_device_info_subscript(target.value)
                 ):
                     keys.add(node.value.value)
         elif isinstance(node, ast.Call):
