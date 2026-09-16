@@ -30,6 +30,7 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
@@ -191,6 +192,38 @@ async def test_preset_round_trip(
         blocking=True,
     )
     mock_client.set_heating_mode.assert_awaited_once_with(91, letter)
+
+
+async def test_read_only_object_rejects_writes(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A Designer read-only object raises instead of sending a doomed write.
+
+    The M-SERV drops such writes silently on both account tiers, so the
+    entity rejects them up front and keeps its platform.
+    """
+    obj = mock_client.objects[91]
+    # Designer's read-only checkbox is params bit 6; ``read_only`` derives.
+    mock_client.objects[91] = replace(obj, params=obj.params | (1 << 6))
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            CLIMATE_DOMAIN,
+            SERVICE_SET_TEMPERATURE,
+            {ATTR_ENTITY_ID: THERMOSTAT_ENTITY_ID, ATTR_TEMPERATURE: 21.5},
+            blocking=True,
+        )
+    mock_client.set_temperature.assert_not_called()
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            CLIMATE_DOMAIN,
+            SERVICE_SET_PRESET_MODE,
+            {ATTR_ENTITY_ID: THERMOSTAT_ENTITY_ID, ATTR_PRESET_MODE: "manual"},
+            blocking=True,
+        )
+    mock_client.set_heating_mode.assert_not_called()
 
 
 async def test_removed_object_becomes_unavailable(

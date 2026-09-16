@@ -15,7 +15,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .data import AmpioConfigEntry, AmpioData
-from .entity import AmpioEntity
+from .entity import AmpioEntity, raise_if_read_only
 
 PARALLEL_UPDATES = 0
 
@@ -119,14 +119,24 @@ class AmpioClimate(AmpioEntity, ClimateEntity):
 
     @override
     async def async_set_temperature(self, **kwargs: Any) -> None:
-        """Send the setpoint; the state follows the readback echo."""
+        """Send the setpoint; the state follows the readback echo.
+
+        A Designer read-only object raises instead of sending a write the
+        M-SERV would silently drop.
+        """
+        raise_if_read_only(self._object)
         await self._data.client.set_temperature(
             self._object_id, kwargs[ATTR_TEMPERATURE]
         )
 
     @override
     async def async_set_preset_mode(self, preset_mode: str) -> None:
-        """Send the operating mode matching the chosen preset."""
+        """Send the operating mode matching the chosen preset.
+
+        A Designer read-only object raises instead of sending a write the
+        M-SERV would silently drop.
+        """
+        raise_if_read_only(self._object)
         await self._data.client.set_heating_mode(
             self._object_id, MODE_BY_PRESET[preset_mode]
         )
