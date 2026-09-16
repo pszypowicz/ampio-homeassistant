@@ -4,7 +4,7 @@ from collections.abc import Generator
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
-from ampio_mqtt import ObjectUpdated
+from ampio_mqtt import ObjectRemoved, ObjectUpdated
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -31,6 +31,7 @@ from homeassistant.const import (
     SERVICE_STOP_COVER,
     SERVICE_STOP_COVER_TILT,
     STATE_CLOSED,
+    STATE_UNAVAILABLE,
     Platform,
 )
 from homeassistant.core import HomeAssistant
@@ -505,3 +506,16 @@ async def test_a_blocked_travel_service_is_not_supported(
             blocking=True,
         )
     getattr(mock_client, verb).assert_not_awaited()
+
+
+async def test_removed_object_becomes_unavailable(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Evicting the backing object makes the entity unavailable."""
+    await setup_integration(hass, mock_config_entry)
+
+    obj = mock_client.objects.pop(81)
+    emit(mock_client, ObjectRemoved(object=obj))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(PLAIN_ENTITY_ID).state == STATE_UNAVAILABLE
