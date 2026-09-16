@@ -507,11 +507,13 @@ def emit(client: MagicMock, event: Any) -> None:
 GATED_ON_ADMIN: Final = ("modules", "mserv")
 
 # The client calls the library reserves for the administrator login: the
-# module lookup, and the four lock-write verbs behind the raw tree. Each
-# raises ``RuntimeError`` on a standard account, the same way the library
-# does.
+# module lookup, the locations table and the record sweep built on it, and
+# the four lock-write verbs behind the raw tree. Each raises
+# ``RuntimeError`` on a standard account, the same way the library does.
 GATED_METHODS_ON_ADMIN: Final = (
     "module_for",
+    "fetch_locations",
+    "resolve_records",
     "block_opening",
     "block_closing",
     "unblock_opening",
@@ -522,12 +524,13 @@ GATED_METHODS_ON_ADMIN: Final = (
 def set_access_tier(client: MagicMock, tier: AccessTier) -> None:
     """Set the account tier on the mocked client, with the library's gate.
 
-    ``modules``, ``mserv``, ``module_for()``, and the four lock-write verbs
-    raise ``RuntimeError`` on a standard account, because the M-SERV serves
-    the module catalogue and the raw tree writes to the reserved admin
-    login alone. Every tier change in the suite goes through here, so a
-    read or a write the integration forgets to gate fails a test instead of
-    reading as an install with no modules.
+    ``modules``, ``mserv``, ``module_for()``, ``fetch_locations()``,
+    ``resolve_records()``, and the four lock-write verbs raise
+    ``RuntimeError`` on a standard account, because the M-SERV serves the
+    module catalogue, the locations table, the record sweep, and the raw
+    tree writes to the reserved admin login alone. Every tier change in the
+    suite goes through here, so a read or a write the integration forgets
+    to gate fails a test instead of reading as an install with no modules.
 
     The property mock lands on the mock's own class, which ``patch`` builds
     fresh for each test, so nothing leaks between tests.
