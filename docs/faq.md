@@ -77,9 +77,9 @@ See [designer-quirks.md](designer-quirks.md). That page tells you how to check t
 
 See [designer-quirks.md](designer-quirks.md). That page explains why Home Assistant cannot move a child device, and how the repair puts the object under its new module.
 
-## A cover's arrow is missing, or an automation that names it fails
+## A cover's arrow is missing, every control is gone, or an automation that names it fails
 
-**Check:** On the dashboard, the cover card offers only the arrow for the direction that still works and drops the other one, with no toast and no notification explaining why. An automation that names the cover by its entity id fails instead, with a message such as "Entity cover.ampio_obj_82 does not support action cover.open_cover."
+**Check:** On the dashboard, the cover card offers only the arrow for the direction that still works and drops the other one, with no toast and no notification explaining why, or the card offers no control at all and reports only the position. An automation that names the cover by its entity id fails instead, with a message such as "Entity cover.ampio_obj_82 does not support action cover.open_cover."
 
 A rule in Ampio Designer, or this integration's own Opening lock or Closing lock switch, is locking the cover's travel. A Designer rule holds the lock through one of the roller actions, "Disable movement", "Disable closing", or "Disable opening", for as long as its trigger holds, so a wind alarm or a fire alarm can hold it for a long time, and the lock clears on its own once the trigger clears. A lock switch holds until something turns it off.
 
@@ -87,7 +87,11 @@ The module drops the blocked command with no error and no reply, so the integrat
 
 The lock covers the slats as well. On a blind, the tilt arrows and the tilt slider follow the same two directions as the travel, so a lock on opening also stops a slat turn toward open and leaves a turn toward closed working.
 
-**Fix:** None is required. The arrow returns once the lock clears, whether that is a Designer rule's trigger or the matching lock switch. An automation that targets the cover through an area, a device, or a label skips it silently while the lock holds. An automation that names the cover by its entity id raises and halts the rest of the sequence unless the action sets `continue_on_error: true`.
+A third cause takes every control at once, arrows, slider, and both stop buttons together, and the tell is exactly that completeness. A lock in both directions still leaves the stop buttons working, because a stop is not a move and the module never blocks it. If the stops are gone too, the object is marked read-only in Ampio Designer, and the server refuses every verb behind it, on every axis, so there is nothing left for this integration to offer.
+
+An administrator can still hold or release this cover's lock switches while it is read-only, because the lock write rides the raw tree rather than the path the read-only marker gates. Doing so changes nothing about the cover itself. Only the lock switch's own state moves, since the read-only refusal already applies above where the lock bits are read. A scene that captured this cover before it went read-only stops restoring it, silently, with no warning and no error.
+
+**Fix:** For a lock, none is required. The arrow returns once the lock clears, whether that is a Designer rule's trigger or the matching lock switch. For read-only, clear the checkbox in Ampio Designer if you want the cover to take commands again. An automation that targets the cover through an area, a device, or a label skips it silently while either cause holds. An automation that names the cover by its entity id raises and halts the rest of the sequence unless the action sets `continue_on_error: true`.
 
 ## A cover's lock switch is unavailable, or does nothing when I turn it on
 
@@ -114,6 +118,14 @@ Every position on the slider is stable. The same number always gives the same wh
 Ampio Designer offers a turn-on time on an analog flag, the same column its editor offers on a relay, a flag, a dimmer, and the RGB kinds. This repo has measured the pulse itself only on a relay and a flag. Home Assistant does not send it here, because the M-SERV does not apply it to this object type. A measurement against a live M-SERV, on 2026-09-15, wrote a value to an analog flag with that time attached, and the flag still held the written value fifty-three seconds later, with no reversion. See [designer-quirks.md](designer-quirks.md) for the numbers behind it.
 
 The value you write to the number entity stays where you wrote it until something writes another one. If you want a value to fall back after a delay, build that timing in an automation, because Designer's turn-on time field does nothing for this object type.
+
+## A read-only object still shows a Pulse time reading
+
+**Check:** Open Settings, then Devices and services, then Entities, and find the object's Pulse time diagnostic sensor. If the switch, button, or light beside it refuses every command with an error naming the read-only marker, open the object in Ampio Designer and confirm its read-only checkbox is set.
+
+Ampio Designer's read-only checkbox blocks a write to the object at the server, on both account tiers, not only from Home Assistant. A relay, a flag, or a light marked read-only keeps its Pulse time diagnostic sensor, and the sensor keeps reporting whatever turn-on time Designer stores for it, even though the server drops every write to the object and that time never actually times anything. The reading is accurate, and it reports the time a turn-on write would carry if the checkbox were cleared.
+
+**Fix:** None is required. Clear the read-only checkbox in Ampio Designer to let the object accept writes again. The pulse time then applies to the next turn-on the same as it would for any object with a Designer time.
 
 ## A module shows no last-seen time in the diagnostics
 

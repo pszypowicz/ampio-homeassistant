@@ -30,7 +30,12 @@ from homeassistant.helpers.typing import VolDictType
 
 from .const import DOMAIN
 from .data import AmpioConfigEntry, AmpioData
-from .entity import AmpioEntity, AmpioModuleEntity, async_turn_on_honoring_pulse
+from .entity import (
+    AmpioEntity,
+    AmpioModuleEntity,
+    async_turn_on_honoring_pulse,
+    raise_if_read_only,
+)
 
 PARALLEL_UPDATES = 0
 
@@ -282,7 +287,11 @@ class AmpioLight(AmpioEntity, LightEntity):
         which case a bare temperature must still turn it on, so the
         write carries the full-power constant into the same setWW frame
         instead of a stale or absent power byte.
+
+        A Designer read-only object raises instead of sending a write the
+        M-SERV would silently drop.
         """
+        raise_if_read_only(self._object)
         client = self._data.client
         if self._attr_color_mode is ColorMode.RGBW:
             rgbw: tuple[int, int, int, int] | None = kwargs.get(ATTR_RGBW_COLOR)
@@ -340,7 +349,12 @@ class AmpioLight(AmpioEntity, LightEntity):
 
     @override
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn the light off; the client routes rgbw off to setColors."""
+        """Turn the light off; the client routes rgbw off to setColors.
+
+        A Designer read-only object raises instead of sending a write the
+        M-SERV would silently drop.
+        """
+        raise_if_read_only(self._object)
         await self._data.client.turn_off(self._object_id)
 
 

@@ -508,6 +508,57 @@ async def test_a_blocked_travel_service_is_not_supported(
     getattr(mock_client, verb).assert_not_awaited()
 
 
+@pytest.mark.parametrize("read_only", [False, True], ids=["writable", "read-only"])
+async def test_read_only_object_drops_every_feature(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    read_only: bool,
+) -> None:
+    """A read-only object drops every feature and refuses every service.
+
+    Designer's read-only checkbox refuses every verb behind the object, on
+    every axis at once, unlike a lock rule that refuses one direction. With
+    no control left to offer, the feature set empties rather than one
+    direction dropping out, so a service call raises the same way core
+    already raises for a locked direction, and the client verb it would
+    have sent is never awaited. The writable case pushes the same update
+    with its params unchanged, so it exercises the same rebuild rather than
+    reading the state the entity started with.
+    """
+    await setup_integration(hass, mock_config_entry)
+    unblocked = hass.states.get(POSITION_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
+    assert unblocked
+
+    obj = mock_client.objects[82]
+    params = obj.params | (1 << 6) if read_only else obj.params
+    mock_client.objects[82] = replace(obj, params=params)
+    emit(mock_client, ObjectUpdated(object=mock_client.objects[82]))
+    await hass.async_block_till_done()
+
+    features = hass.states.get(POSITION_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
+
+    if read_only:
+        assert features == CoverEntityFeature(0)
+        with pytest.raises(ServiceNotSupported):
+            await hass.services.async_call(
+                COVER_DOMAIN,
+                SERVICE_OPEN_COVER,
+                {ATTR_ENTITY_ID: POSITION_ENTITY_ID},
+                blocking=True,
+            )
+        mock_client.open.assert_not_awaited()
+    else:
+        assert features == unblocked
+        await hass.services.async_call(
+            COVER_DOMAIN,
+            SERVICE_OPEN_COVER,
+            {ATTR_ENTITY_ID: POSITION_ENTITY_ID},
+            blocking=True,
+        )
+        mock_client.open.assert_awaited_once_with(82)
+
+
 async def test_removed_object_becomes_unavailable(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:

@@ -1,17 +1,27 @@
-"""Contract tests for the English translation.
+"""Contract tests for the translation files.
 
 ``translations/en.json`` mirrors ``strings.json``. A person maintains it by
 hand, expanding each ``[%key:...%]`` reference to its English text.
 hassfest does not compare the two files. These tests do.
+
+A separate contract runs the other direction: that a translation key a
+platform module asks for by domain is declared in ``strings.json`` in the
+first place. Neither of the two file-to-file tests above would catch a key
+removed from both files together, which is exactly the gap that leaves an
+entity showing its object id in the UI with nothing to say so.
 """
 
+import ast
 import json
 from pathlib import Path
 from typing import Any
 
+from custom_components.ampio.const import PLATFORMS
+
 ROOT = Path(__file__).parent.parent
 STRINGS = ROOT / "custom_components/ampio/strings.json"
 ENGLISH = ROOT / "custom_components/ampio/translations/en.json"
+PLATFORM_DIR = ROOT / "custom_components/ampio"
 
 # A value of this shape points at a Home Assistant common string. The
 # hand-maintained file carries the resolved English text, so the two
@@ -94,4 +104,157 @@ def test_the_generated_translation_resolves_every_reference() -> None:
         f"{ENGLISH} still carries the raw reference for {unexpanded}; edit "
         f"it in place and expand the [%key:...%] reference to its English "
         f"text"
+    )
+
+
+def _requested_translation_keys(source: str) -> set[str]:
+    """The literal entity translation keys one platform module's source asks for.
+
+    Matches two shapes: a ``translation_key`` keyword passed to a call whose
+    name ends in ``EntityDescription``, and an assignment to
+    ``_attr_translation_key``, whether at class level or on ``self``. A key
+    built at run time from anything but a string literal is invisible to
+    this scan.
+    """
+    keys: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = (
+                func.attr
+                if isinstance(func, ast.Attribute)
+                else getattr(func, "id", "")
+            )
+            if not name.endswith("EntityDescription"):
+                continue
+            for kw in node.keywords:
+                if (
+                    kw.arg == "translation_key"
+                    and isinstance(kw.value, ast.Constant)
+                    and isinstance(kw.value.value, str)
+                ):
+                    keys.add(kw.value.value)
+        elif isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
+            if not isinstance(node.value.value, str):
+                continue
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    target_name = target.id
+                elif isinstance(target, ast.Attribute):
+                    target_name = target.attr
+                else:
+                    continue
+                if target_name == "_attr_translation_key":
+                    keys.add(node.value.value)
+    return keys
+
+
+def test_every_entity_translation_key_the_code_requests_is_declared() -> None:
+    """A translation key a platform module asks for exists under its domain.
+
+    Static: this parses each platform module's source text and never
+    imports a platform module or builds an entity, which is what lets it
+    see the entities the default test fixtures never construct, such as
+    the administrator-only module entities (the Identify button, the
+    module sensors, the buzzer, the panel entities). What it cannot see is
+    a key assembled from anything other than a string literal; every
+    entity translation key in this integration is a literal today.
+    """
+    declared: dict[str, set[str]] = {
+        domain: set(names)
+        for domain, names in json.loads(STRINGS.read_text(encoding="utf-8"))[
+            "entity"
+        ].items()
+    }
+
+    missing: list[str] = []
+    for platform in PLATFORMS:
+        domain = platform.value
+        source = (PLATFORM_DIR / f"{domain}.py").read_text(encoding="utf-8")
+        undeclared = sorted(
+            _requested_translation_keys(source) - declared.get(domain, set())
+        )
+        missing.extend(f"entity.{domain}.{key}" for key in undeclared)
+
+    assert not missing, (
+        f"strings.json declares no entity name for {missing}; add it under "
+        f"'entity' so the entity does not fall back to showing its object id"
+    )
+
+
+def _is_device_info_subscript(node: ast.expr) -> bool:
+    """Whether a subscript target's own name ends in ``device_info``.
+
+    Narrows the subscript shape below to the variable this integration
+    actually uses (``device_info["translation_key"] = ...``), so an
+    unrelated mapping that happens to carry a ``"translation_key"`` entry
+    elsewhere in the package does not read as a device key.
+    """
+    if isinstance(node, ast.Name):
+        return node.id.endswith("device_info")
+    return isinstance(node, ast.Attribute) and node.attr.endswith("device_info")
+
+
+def _requested_device_translation_keys(source: str) -> set[str]:
+    """The literal device translation keys one module's source asks for.
+
+    Matches a ``translation_key`` assigned into a variable named (or
+    attributed) ``device_info``, by subscript (``device_info["translation_key"]
+    = ...``), and a ``translation_key`` keyword passed to a call named
+    ``DeviceInfo`` or ``ChildDeviceInfo``. A key built at run time from
+    anything but a string literal is invisible to this scan.
+    """
+    keys: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
+            if not isinstance(node.value.value, str):
+                continue
+            for target in node.targets:
+                if (
+                    isinstance(target, ast.Subscript)
+                    and isinstance(target.slice, ast.Constant)
+                    and target.slice.value == "translation_key"
+                    and _is_device_info_subscript(target.value)
+                ):
+                    keys.add(node.value.value)
+        elif isinstance(node, ast.Call):
+            func = node.func
+            name = (
+                func.attr
+                if isinstance(func, ast.Attribute)
+                else getattr(func, "id", "")
+            )
+            if name not in {"DeviceInfo", "ChildDeviceInfo"}:
+                continue
+            for kw in node.keywords:
+                if (
+                    kw.arg == "translation_key"
+                    and isinstance(kw.value, ast.Constant)
+                    and isinstance(kw.value.value, str)
+                ):
+                    keys.add(kw.value.value)
+    return keys
+
+
+def test_every_device_translation_key_the_code_requests_is_declared() -> None:
+    """A device translation key the code asks for exists under 'device'.
+
+    The entity contract above is scoped to one platform module per domain,
+    and a device translation key does not follow that shape, since
+    ``entity.py`` sets one for an unnamed object's child device, on no
+    platform of its own. This scans every module in the integration for
+    the same two literal shapes, so it catches the one place this key is
+    set today and any other module that starts setting one.
+    """
+    declared = set(json.loads(STRINGS.read_text(encoding="utf-8"))["device"])
+
+    missing: list[str] = []
+    for path in sorted(PLATFORM_DIR.glob("*.py")):
+        source = path.read_text(encoding="utf-8")
+        undeclared = sorted(_requested_device_translation_keys(source) - declared)
+        missing.extend(f"device.{key}" for key in undeclared)
+
+    assert not missing, (
+        f"strings.json declares no device name for {missing}; add it under "
+        f"'device' so the device does not fall back to showing its raw id"
     )

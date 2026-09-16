@@ -145,9 +145,9 @@ VALUE_KEY_PREFIX = "value_"
 
 
 # Designer's per-object time, shown where the integration honors it. The
-# M-SERV never applies the time server-side, so this is the length of the
-# pulse a turn-on write sends - the one behavior a user cannot otherwise
-# see from Home Assistant.
+# M-SERV never applies the time server-side, so this is the time Designer
+# stores and what a turn-on write would carry - the one behavior a user
+# cannot otherwise see from Home Assistant.
 PULSE_TIME_DESCRIPTION = SensorEntityDescription(
     key="pulse_time",
     translation_key="pulse_time",
@@ -160,18 +160,21 @@ PULSE_TIME_DESCRIPTION = SensorEntityDescription(
 
 
 def pulse_applies(obj: AmpioObject) -> bool:
-    """Whether the object's turn-on write honors the Designer time.
+    """Whether a turn-on write to the object would carry the Designer time.
 
     ``AmpioObject.pulse_ms`` already reads 0 for a kind whose write
     discards the time, so the diagnostic follows the library's own
-    classification and adds no carve-out of its own. The
-    button-or-switch-or-light check is belt and braces rather than a
-    filter this code relies on: every pulsable kind in the library's
-    classification table today (the flag, the relay, the dimmer)
-    already lands in one of the three platforms on its own, so nothing
-    reaches this line carrying a pulse and none of the three. It stands
-    against a future kind that pairs ``pulsable`` with a platform of its
-    own.
+    classification and adds no carve-out of its own. Read-only plays no
+    part in this check: Designer's read-only marker blocks the write
+    itself, at the server, without changing what kind of write it would
+    have been, so a read-only object with a configured time still gets
+    this diagnostic. The button-or-switch-or-light check is belt and
+    braces rather than a filter this code relies on: every pulsable kind
+    in the library's classification table today (the flag, the relay,
+    the dimmer) already lands in one of the three platforms on its own,
+    so nothing reaches this line carrying a pulse and none of the three.
+    It stands against a future kind that pairs ``pulsable`` with a
+    platform of its own.
     """
     if obj.pulse_ms <= 0:
         return False
