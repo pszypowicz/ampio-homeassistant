@@ -180,3 +180,66 @@ def test_every_entity_translation_key_the_code_requests_is_declared() -> None:
         f"strings.json declares no entity name for {missing}; add it under "
         f"'entity' so the entity does not fall back to showing its object id"
     )
+
+
+def _requested_device_translation_keys(source: str) -> set[str]:
+    """The literal device translation keys one module's source asks for.
+
+    Matches a ``translation_key`` assigned into a ``DeviceInfo`` or
+    ``ChildDeviceInfo`` mapping, whether by subscript (``device_info[...] =
+    ...``) or by constructor keyword. A key built at run time from anything
+    but a string literal is invisible to this scan.
+    """
+    keys: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
+            if not isinstance(node.value.value, str):
+                continue
+            for target in node.targets:
+                if (
+                    isinstance(target, ast.Subscript)
+                    and isinstance(target.slice, ast.Constant)
+                    and target.slice.value == "translation_key"
+                ):
+                    keys.add(node.value.value)
+        elif isinstance(node, ast.Call):
+            func = node.func
+            name = (
+                func.attr
+                if isinstance(func, ast.Attribute)
+                else getattr(func, "id", "")
+            )
+            if name not in {"DeviceInfo", "ChildDeviceInfo"}:
+                continue
+            for kw in node.keywords:
+                if (
+                    kw.arg == "translation_key"
+                    and isinstance(kw.value, ast.Constant)
+                    and isinstance(kw.value.value, str)
+                ):
+                    keys.add(kw.value.value)
+    return keys
+
+
+def test_every_device_translation_key_the_code_requests_is_declared() -> None:
+    """A device translation key the code asks for exists under 'device'.
+
+    The entity contract above is scoped to one platform module per domain,
+    and a device translation key does not follow that shape, since
+    ``entity.py`` sets one for an unnamed object's child device, on no
+    platform of its own. This scans every module in the integration for
+    the same two literal shapes, so it catches the one place this key is
+    set today and any other module that starts setting one.
+    """
+    declared = set(json.loads(STRINGS.read_text(encoding="utf-8"))["device"])
+
+    missing: list[str] = []
+    for path in sorted(PLATFORM_DIR.glob("*.py")):
+        source = path.read_text(encoding="utf-8")
+        undeclared = sorted(_requested_device_translation_keys(source) - declared)
+        missing.extend(f"device.{key}" for key in undeclared)
+
+    assert not missing, (
+        f"strings.json declares no device name for {missing}; add it under "
+        f"'device' so the device does not fall back to showing its raw id"
+    )
