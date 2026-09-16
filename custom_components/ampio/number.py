@@ -52,8 +52,9 @@ class AmpioNumber(AmpioEntity, NumberEntity):
     """A number backed by an Ampio analog flag object."""
 
     _attr_native_step = 1
-    # An unnamed flag reads the translated name; a named one takes the
-    # device name the base class assigns.
+    # An unnamed 8-bit flag reads the translated name; a named one takes the
+    # device name the base class assigns. The 16-bit width overrides this in
+    # __init__, so the two widths read apart in the entity list.
     _attr_translation_key = "analog_flag"
 
     def __init__(
@@ -67,6 +68,12 @@ class AmpioNumber(AmpioEntity, NumberEntity):
         """
         super().__init__(data, obj)
         self._attr_native_min_value, self._attr_native_max_value = value_range
+        # The kind's own key tells the two widths apart; a typ_komponentu
+        # string would carry the same protocol knowledge the library
+        # already classified.
+        kind = obj.kind
+        if isinstance(kind, InputKind) and kind.key == "flaga_liniowa16":
+            self._attr_translation_key = "analog_flag_16bit"
 
     @property
     @override

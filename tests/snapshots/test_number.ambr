@@ -95,7 +95,7 @@
     'previous_unique_id': None,
     'suggested_object_id': 'ampio_obj_165',
     'supported_features': 0,
-    'translation_key': 'analog_flag',
+    'translation_key': 'analog_flag_16bit',
     'unique_id': 'obj_165',
     'unit_of_measurement': None,
   })
