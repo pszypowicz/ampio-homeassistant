@@ -185,6 +185,15 @@ async def test_read_only_object_rejects_writes(
         )
     mock_client.turn_on.assert_not_called()
 
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            LIGHT_DOMAIN,
+            SERVICE_TURN_OFF,
+            {ATTR_ENTITY_ID: RELAY_ENTITY_ID},
+            blocking=True,
+        )
+    mock_client.turn_off.assert_not_called()
+
 
 async def test_dimmer_brightness_maps_to_set_value(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
