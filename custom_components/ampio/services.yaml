@@ -74,6 +74,13 @@ lock_touch:
           step: 0.01
           unit_of_measurement: s
           mode: box
+send_notification:
+  fields:
+    message:
+      required: true
+      example: Brama otwarta
+      selector:
+        text:
 set_backlight_fields:
   target:
     entity:

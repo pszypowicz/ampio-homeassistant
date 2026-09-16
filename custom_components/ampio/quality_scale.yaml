@@ -1,10 +1,6 @@
 rules:
   # Bronze
-  action-setup:
-    status: exempt
-    comment: |
-      Every action this integration provides is an entity service, which
-      has to be registered by its platform rather than in async_setup.
+  action-setup: done
   appropriate-polling:
     status: exempt
     comment: |

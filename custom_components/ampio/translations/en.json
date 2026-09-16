@@ -180,6 +180,15 @@
         "not_a_touch_panel": {
             "message": "This button does not drive a touch panel. Target the Unlock touch button of the panel you want to lock."
         },
+        "not_loaded": {
+            "message": "The Ampio integration is not loaded, so there is no server to send the message to."
+        },
+        "notification_failed": {
+            "message": "The Ampio server could not be reached, so the notification was not sent."
+        },
+        "notification_rejected": {
+            "message": "The Ampio server cannot carry this message. A message must not be empty and must not contain a slash."
+        },
         "panel_field_out_of_range": {
             "message": "Field {field} is outside this panel's touch fields, which run from 1 to {count}."
         },
@@ -284,6 +293,16 @@
                 "seconds": {
                     "name": "Length",
                     "description": "How long the panel ignores touches, in seconds, from 0.01 to 655.35."
+                }
+            }
+        },
+        "send_notification": {
+            "name": "Send a notification to the Ampio app",
+            "description": "Pushes a message to every user of the Ampio mobile app on this installation. The Ampio server answers on no topic, so a successful call means the message was sent and not that it arrived. A message cannot contain a slash: the server reads what follows one as a user name and drops the rest.",
+            "fields": {
+                "message": {
+                    "name": "Message",
+                    "description": "The text the app shows. Spaces and accented characters arrive unchanged, but a slash is not allowed."
                 }
             }
         },

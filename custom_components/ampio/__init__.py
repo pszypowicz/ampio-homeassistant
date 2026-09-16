@@ -2,6 +2,7 @@
 
 from functools import partial
 import logging
+from typing import cast
 
 from ampio_mqtt import (
     AccessTier,
@@ -9,10 +10,12 @@ from ampio_mqtt import (
     AmpioClient,
     AmpioConnectionError,
     AmpioTimeoutError,
+    AmpioValueError,
     AuthFailed,
     AvailabilityChanged,
     ConnectionDied,
 )
+import voluptuous as vol
 
 from homeassistant.const import (
     CONF_HOST,
@@ -20,15 +23,61 @@ from homeassistant.const import (
     CONF_USERNAME,
     EVENT_HOMEASSISTANT_STOP,
 )
-from homeassistant.core import Event, HomeAssistant, callback
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers import device_registry as dr, issue_registry as ir
+from homeassistant.core import Event, HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ConfigEntryNotReady,
+    HomeAssistantError,
+    ServiceValidationError,
+)
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    issue_registry as ir,
+)
+from homeassistant.helpers.typing import ConfigType
 
 from .const import ADMIN_ONLY_RECORDS_ISSUE, DOMAIN, PLATFORMS, STALE_RECORDS_ISSUE
 from .data import AmpioConfigEntry, AmpioData, eligible_objects
 from .stale import async_report_stale_records
 
 _LOGGER = logging.getLogger(__name__)
+
+SERVICE_SEND_NOTIFICATION = "send_notification"
+ATTR_MESSAGE = "message"
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the actions that address the install rather than an entity."""
+
+    async def send_notification(call: ServiceCall) -> None:
+        """Push a message to every user of the install's mobile app."""
+        entries = hass.config_entries.async_loaded_entries(DOMAIN)
+        if not entries:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="not_loaded"
+            )
+        # The manifest allows a single config entry, and only its runtime
+        # data type carries the client.
+        entry = cast(AmpioConfigEntry, entries[0])
+        try:
+            await entry.runtime_data.client.send_notification(call.data[ATTR_MESSAGE])
+        except AmpioValueError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="notification_rejected"
+            ) from err
+        except (AmpioConnectionError, AmpioTimeoutError) as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="notification_failed"
+            ) from err
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SEND_NOTIFICATION,
+        send_notification,
+        schema=vol.Schema({vol.Required(ATTR_MESSAGE): cv.string}),
+    )
+    return True
 
 
 async def _async_sweep_records(client: AmpioClient) -> None:
