@@ -117,9 +117,9 @@ The value you write to the number entity stays where you wrote it until somethin
 
 ## A read-only object still shows a Pulse time reading
 
-Ampio Designer's read-only checkbox blocks a write to the object at the server, on both account tiers, not only from Home Assistant. A relay, a flag, or a light marked read-only keeps its Pulse time diagnostic sensor, and the sensor keeps reporting whatever turn-on time Designer stores for it, even though the server drops every write to the object and that time never actually times anything.
+**Check:** Open Settings, then Devices and services, then Entities, and find the object's Pulse time diagnostic sensor. If the switch, button, or light beside it refuses every command with an error naming the read-only marker, open the object in Ampio Designer and confirm its read-only checkbox is set.
 
-The reading is accurate. It reports the time a turn-on write would carry if the checkbox were cleared. Turning the entity on raises an error naming the read-only marker instead, because the server refuses the write and this integration reports that refusal rather than working around it.
+Ampio Designer's read-only checkbox blocks a write to the object at the server, on both account tiers, not only from Home Assistant. A relay, a flag, or a light marked read-only keeps its Pulse time diagnostic sensor, and the sensor keeps reporting whatever turn-on time Designer stores for it, even though the server drops every write to the object and that time never actually times anything. The reading is accurate, and it reports the time a turn-on write would carry if the checkbox were cleared.
 
 **Fix:** None is required. Clear the read-only checkbox in Ampio Designer to let the object accept writes again. The pulse time then applies to the next turn-on the same as it would for any object with a Designer time.
 

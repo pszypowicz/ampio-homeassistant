@@ -147,9 +147,7 @@ VALUE_KEY_PREFIX = "value_"
 # Designer's per-object time, shown where the integration honors it. The
 # M-SERV never applies the time server-side, so this is the time Designer
 # stores and what a turn-on write would carry - the one behavior a user
-# cannot otherwise see from Home Assistant. A read-only object reports the
-# same time and keeps this entity, because Designer's checkbox blocks the
-# write itself rather than changing what the write would have been.
+# cannot otherwise see from Home Assistant.
 PULSE_TIME_DESCRIPTION = SensorEntityDescription(
     key="pulse_time",
     translation_key="pulse_time",

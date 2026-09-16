@@ -152,13 +152,13 @@ def _requested_translation_keys(source: str) -> set[str]:
 def test_every_entity_translation_key_the_code_requests_is_declared() -> None:
     """A translation key a platform module asks for exists under its domain.
 
-    Static: this parses each platform module's source and never imports
-    Home Assistant or builds an entity, so it covers every entity a platform
-    file can build, including the administrator-only module entities (the
-    Identify button, the module sensors, the buzzer, the panel entities)
-    that the default test fixtures never construct. What it cannot see is a
-    key assembled from anything other than a string literal; every entity
-    translation key in this integration is a literal today.
+    Static: this parses each platform module's source text and never
+    imports a platform module or builds an entity, which is what lets it
+    see the entities the default test fixtures never construct, such as
+    the administrator-only module entities (the Identify button, the
+    module sensors, the buzzer, the panel entities). What it cannot see is
+    a key assembled from anything other than a string literal; every
+    entity translation key in this integration is a literal today.
     """
     declared: dict[str, set[str]] = {
         domain: set(names)
