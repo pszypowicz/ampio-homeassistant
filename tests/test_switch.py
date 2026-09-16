@@ -4,7 +4,7 @@ from collections.abc import Generator
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
-from ampio_mqtt import AccessTier, AmpioValueError, ObjectUpdated
+from ampio_mqtt import AccessTier, AmpioValueError, ObjectRemoved, ObjectUpdated
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -268,7 +268,6 @@ async def test_leafless_server_object_parents_to_the_hub(
     assert child.parent_device_id == hub.id
 
 
-@pytest.mark.usefixtures("mock_client")
 async def test_cover_lock_switches_read_both_directions(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
@@ -298,7 +297,6 @@ async def test_cover_lock_switches_read_both_directions(
     assert hass.states.get(CLOSING_LOCK_ENTITY_ID).state == STATE_OFF
 
 
-@pytest.mark.usefixtures("mock_client")
 async def test_cover_lock_is_unavailable_where_the_firmware_has_no_lock(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
 ) -> None:
@@ -315,7 +313,6 @@ async def test_cover_lock_is_unavailable_where_the_firmware_has_no_lock(
     assert hass.states.get(OPENING_LOCK_ENTITY_ID).state == STATE_UNAVAILABLE
 
 
-@pytest.mark.usefixtures("mock_client")
 async def test_cover_lock_with_no_sweep_stays_available(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
 ) -> None:
@@ -330,7 +327,6 @@ async def test_cover_lock_with_no_sweep_stays_available(
     assert hass.states.get(OPENING_LOCK_ENTITY_ID).state != STATE_UNAVAILABLE
 
 
-@pytest.mark.usefixtures("mock_client")
 async def test_cover_lock_swept_true_stays_available_and_writes(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
 ) -> None:
@@ -353,7 +349,6 @@ async def test_cover_lock_swept_true_stays_available_and_writes(
     mock_client.block_opening.assert_awaited_once_with(83)
 
 
-@pytest.mark.usefixtures("mock_client")
 async def test_cover_lock_writes_reach_the_matching_verb(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
 ) -> None:
@@ -378,7 +373,6 @@ async def test_cover_lock_writes_reach_the_matching_verb(
     mock_client.unblock_opening.assert_not_awaited()
 
 
-@pytest.mark.usefixtures("mock_client")
 async def test_cover_lock_refusal_names_both_causes(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
 ) -> None:
@@ -442,3 +436,16 @@ async def test_cover_lock_still_reads_on_a_standard_account(
 
     assert hass.states.get(OPENING_LOCK_ENTITY_ID).state == STATE_ON
     assert hass.states.get(CLOSING_LOCK_ENTITY_ID).state == STATE_OFF
+
+
+async def test_removed_object_becomes_unavailable(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """Evicting the backing object makes the entity unavailable."""
+    await setup_integration(hass, mock_config_entry)
+
+    obj = mock_client.objects.pop(74)
+    emit(mock_client, ObjectRemoved(object=obj))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(PLAIN_ENTITY_ID).state == STATE_UNAVAILABLE

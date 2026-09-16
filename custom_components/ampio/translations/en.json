@@ -98,6 +98,9 @@
         "number": {
             "analog_flag": {
                 "name": "Analog flag"
+            },
+            "analog_flag_16bit": {
+                "name": "Analog flag (16-bit)"
             }
         },
         "sensor": {

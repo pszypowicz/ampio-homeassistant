@@ -4,7 +4,7 @@ from collections.abc import Generator
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
-from ampio_mqtt import ObjectUpdated
+from ampio_mqtt import ObjectRemoved, ObjectUpdated
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -19,7 +19,7 @@ from homeassistant.components.number import (
     DOMAIN as NUMBER_DOMAIN,
     SERVICE_SET_VALUE,
 )
-from homeassistant.const import ATTR_ENTITY_ID, Platform
+from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
@@ -70,7 +70,6 @@ async def test_all_entities(
     await snapshot_platform(hass, entity_registry, snapshot, mock_config_entry.entry_id)
 
 
-@pytest.mark.usefixtures("mock_client")
 async def test_write_rounds_to_the_field_integer(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
 ) -> None:
@@ -95,7 +94,6 @@ async def test_write_rounds_to_the_field_integer(
     mock_client.set_value.assert_awaited_once_with(164, 201)
 
 
-@pytest.mark.usefixtures("mock_client")
 async def test_write_carries_a_negative_value(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
 ) -> None:
@@ -112,7 +110,6 @@ async def test_write_carries_a_negative_value(
     mock_client.set_value.assert_awaited_once_with(165, -300)
 
 
-@pytest.mark.usefixtures("mock_client")
 async def test_read_only_object_rejects_writes(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
 ) -> None:
@@ -136,7 +133,6 @@ async def test_read_only_object_rejects_writes(
     mock_client.set_value.assert_not_called()
 
 
-@pytest.mark.usefixtures("mock_client")
 async def test_value_follows_a_state_push(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
 ) -> None:
@@ -160,3 +156,16 @@ async def test_value_follows_a_state_push(
     state = hass.states.get(U8_ENTITY_ID)
     assert state is not None
     assert state.state == "7"
+
+
+async def test_removed_object_becomes_unavailable(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
+) -> None:
+    """Evicting the backing object makes the entity unavailable."""
+    await setup_integration(hass, mock_config_entry)
+
+    obj = mock_client.objects.pop(164)
+    emit(mock_client, ObjectRemoved(object=obj))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(U8_ENTITY_ID).state == STATE_UNAVAILABLE

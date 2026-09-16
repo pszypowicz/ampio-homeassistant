@@ -111,7 +111,7 @@ Designer's turn-on time column pulses a relay or a flag, and this repo has measu
 
 On 2026-09-15, against a live M-SERV, `set_value` on a `flaga_liniowa` carrying a Designer time of 500 (5 seconds) sent `/api/set/<id>/setValue/120/500` on the wire, the same timed form that reverts a relay or a flag. The object still read 120 fifty-three seconds later, with no further state push. A second write of 255 with the same time did not revert after 8 seconds either, so the write reached the module and the module kept the value on this component type regardless of the value written.
 
-The integration's number entity writes the value alone and sends no time, because a time it cannot honor buys nothing and the diagnostic sensor that would otherwise report a pulse length is built only for the types that honor one. This repo filed `ampio-mqtt#248` against the library for the M-SERV behavior.
+The integration's number entity writes the value alone and sends no time, because a time it cannot honor buys nothing and the diagnostic sensor that would otherwise report a pulse length is built only for the types that honor one. Since ampio-mqtt 0.67.0, `AmpioObject.pulse_ms` classifies which kinds a timed write actually pulses and reports 0 for an analog flag instead of echoing the Designer column.
 
 ## The stability contract
 

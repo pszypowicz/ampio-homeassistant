@@ -164,9 +164,14 @@ def pulse_applies(obj: AmpioObject) -> bool:
 
     ``AmpioObject.pulse_ms`` already reads 0 for a kind whose write
     discards the time, so the diagnostic follows the library's own
-    classification and adds no carve-out of its own. The remaining
-    button-or-switch-or-light check scopes the diagnostic to the
-    platforms that send a turn-on write at all.
+    classification and adds no carve-out of its own. The
+    button-or-switch-or-light check is belt and braces rather than a
+    filter this code relies on: every pulsable kind in the library's
+    classification table today (the flag, the relay, the dimmer)
+    already lands in one of the three platforms on its own, so nothing
+    reaches this line carrying a pulse and none of the three. It stands
+    against a future kind that pairs ``pulsable`` with a platform of its
+    own.
     """
     if obj.pulse_ms <= 0:
         return False

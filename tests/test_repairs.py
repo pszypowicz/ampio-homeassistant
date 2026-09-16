@@ -9,6 +9,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 
 from custom_components.ampio.const import DOMAIN
+from custom_components.ampio.stale import async_remove_stale_records
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
@@ -371,3 +372,79 @@ async def test_admin_only_fix_leaves_the_other_records_alone(
     # The other card and every record it names are untouched.
     assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is not None
     assert entity_registry.async_get(SCENE_ENTITY_ID) is not None
+
+
+async def test_unrecognized_issue_id_removes_nothing(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """An id neither dispatch branch names deletes no device and no entity.
+
+    Guards against a future third repair id, raised under the same domain,
+    falling into the stale-records delete by default.
+    """
+    await setup_integration(hass, mock_config_entry)
+    _leave_records_behind(mock_client)
+    await _reload(hass, mock_config_entry)
+
+    async_remove_stale_records(hass, mock_config_entry, "some_future_issue")
+
+    entry_id = mock_config_entry.entry_id
+    for oid in (71, 74):
+        assert (
+            device_registry.async_get_child_device_by_identifier(
+                (DOMAIN, unique_id(oid)), entry_id
+            )
+            is not None
+        )
+    assert entity_registry.async_get(pinned_id("switch", 74)) is not None
+    assert entity_registry.async_get(pinned_id("light", 71)) is not None
+    assert entity_registry.async_get(SCENE_ENTITY_ID) is not None
+
+
+async def test_fix_flow_for_unrecognized_issue_removes_nothing(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """A repair id this integration does not know still runs the same flow.
+
+    Flows are keyed on the domain rather than the issue id, so a fix
+    confirmation for an unrelated repair under this domain must not reach
+    either delete branch.
+    """
+    assert await async_setup_component(hass, "repairs", {})
+    await setup_integration(hass, mock_config_entry)
+    _leave_records_behind(mock_client)
+    await _reload(hass, mock_config_entry)
+    unrelated_issue_id = "some_future_issue"
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        unrelated_issue_id,
+        is_fixable=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="stale_records_deleted",
+        translation_placeholders={"count": "0", "names": ""},
+    )
+
+    await _submit_fix(hass, hass_client, unrelated_issue_id)
+
+    entry_id = mock_config_entry.entry_id
+    for oid in (71, 74):
+        assert (
+            device_registry.async_get_child_device_by_identifier(
+                (DOMAIN, unique_id(oid)), entry_id
+            )
+            is not None
+        )
+    assert entity_registry.async_get(pinned_id("switch", 74)) is not None
+    assert entity_registry.async_get(pinned_id("light", 71)) is not None
+    assert entity_registry.async_get(SCENE_ENTITY_ID) is not None
+    assert mock_config_entry.state is ConfigEntryState.LOADED

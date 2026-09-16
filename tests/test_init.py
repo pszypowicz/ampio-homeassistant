@@ -1020,7 +1020,6 @@ async def test_send_notification_without_an_entry_refuses(
     assert err.value.translation_key == "not_loaded"
 
 
-@pytest.mark.usefixtures("mock_client")
 async def test_send_notification_reaches_the_client(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
 ) -> None:
@@ -1034,7 +1033,6 @@ async def test_send_notification_reaches_the_client(
     mock_client.send_notification.assert_awaited_once_with("Brama otwarta 100%")
 
 
-@pytest.mark.usefixtures("mock_client")
 async def test_send_notification_translates_the_library_refusal(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
 ) -> None:
@@ -1050,7 +1048,6 @@ async def test_send_notification_translates_the_library_refusal(
     assert err.value.translation_key == "notification_rejected"
 
 
-@pytest.mark.usefixtures("mock_client")
 async def test_send_notification_translates_a_broker_failure(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
 ) -> None:

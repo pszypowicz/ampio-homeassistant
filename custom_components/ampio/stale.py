@@ -2,6 +2,7 @@
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+import logging
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import (
@@ -13,6 +14,8 @@ from homeassistant.helpers import (
 
 from .const import ADMIN_ONLY_RECORDS_ISSUE, DOMAIN, STALE_RECORDS_ISSUE
 from .data import AmpioConfigEntry
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -163,18 +166,27 @@ def async_remove_stale_records(
     """Delete the records the issue covers, as they stand now.
 
     Read again at submit time, because the list in the issue is as old as
-    the last setup.
+    the last setup. The dispatch names both known issue ids and removes
+    nothing for any other, because a repair that deletes registry records
+    must be asked for by the id it was raised under, not by falling through
+    to whichever branch happens to be last. That keeps a future third issue
+    id inert here until this function is taught what it means.
     """
     stale = find_stale_records(hass, entry)
     entity_registry = er.async_get(hass)
     if issue_id == ADMIN_ONLY_RECORDS_ISSUE:
         for entity in stale.withheld:
             entity_registry.async_remove(entity.entity_id)
-        return
-    device_registry = dr.async_get(hass)
-    for device in stale.devices:
-        # A module's removal already took its children.
-        if device_registry.async_get(device.id) is not None:
-            device_registry.async_remove_device(device.id)
-    for entity in stale.entities:
-        entity_registry.async_remove(entity.entity_id)
+    elif issue_id == STALE_RECORDS_ISSUE:
+        device_registry = dr.async_get(hass)
+        for device in stale.devices:
+            # A module's removal already took its children.
+            if device_registry.async_get(device.id) is not None:
+                device_registry.async_remove_device(device.id)
+        for entity in stale.entities:
+            entity_registry.async_remove(entity.entity_id)
+    else:
+        _LOGGER.error(
+            "Not removing any record for unrecognized repair issue id %s",
+            issue_id,
+        )
