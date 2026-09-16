@@ -75,7 +75,7 @@ class AmpioCover(AmpioEntity, CoverEntity):
     @property
     @override
     def supported_features(self) -> CoverEntityFeature:
-        """The feature set, minus whatever the module's lock refuses.
+        """The feature set, minus whatever the module's lock or read-only marker refuses.
 
         A Designer logic rule locks a cover's travel through its "Disable
         movement", "Disable closing" and "Disable opening" roller actions,
@@ -96,10 +96,19 @@ class AmpioCover(AmpioEntity, CoverEntity):
         that case on the direction of the requested move. Both stop
         features stay: a stop is not a move, and the allowed direction can
         still be running.
+
+        A Designer read-only object refuses every verb the same way the
+        server refuses a locked direction, but on every axis at once, so
+        every feature drops rather than the one direction a lock takes.
+        With no control left to offer, there is nothing to raise on, which
+        is why this reaches for the same mechanism a lock uses instead of
+        the error a switch or a light raises.
         """
         features = self._unblocked_features
         if (obj := self._object) is None:
             return features
+        if obj.read_only:
+            return CoverEntityFeature(0)
         if obj.blocks_opening:
             features &= ~(CoverEntityFeature.OPEN | CoverEntityFeature.OPEN_TILT)
         if obj.blocks_closing:

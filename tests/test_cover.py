@@ -508,6 +508,41 @@ async def test_a_blocked_travel_service_is_not_supported(
     getattr(mock_client, verb).assert_not_awaited()
 
 
+@pytest.mark.parametrize(
+    ("read_only", "expected"),
+    [
+        pytest.param(False, None, id="writable"),
+        pytest.param(True, CoverEntityFeature(0), id="read-only"),
+    ],
+)
+async def test_read_only_object_drops_every_feature(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    read_only: bool,
+    expected: CoverEntityFeature | None,
+) -> None:
+    """A read-only object drops every feature; a writable one keeps its set.
+
+    Designer's read-only checkbox refuses every verb behind the object, on
+    every axis at once, unlike a lock rule that refuses one direction. With
+    no control left to offer, the feature set empties rather than one
+    direction dropping out, so there is nothing left to raise on.
+    """
+    await setup_integration(hass, mock_config_entry)
+    unblocked = hass.states.get(POSITION_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
+    assert unblocked
+
+    if read_only:
+        obj = mock_client.objects[82]
+        mock_client.objects[82] = replace(obj, params=obj.params | (1 << 6))
+        emit(mock_client, ObjectUpdated(object=mock_client.objects[82]))
+        await hass.async_block_till_done()
+
+    features = hass.states.get(POSITION_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
+    assert features == (unblocked if expected is None else expected)
+
+
 async def test_removed_object_becomes_unavailable(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
