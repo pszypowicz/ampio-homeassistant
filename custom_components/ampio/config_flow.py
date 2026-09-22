@@ -10,6 +10,7 @@ from ampio_mqtt import (
     AmpioClient,
     AmpioConnectionError,
     AmpioServerInfo,
+    format_mac,
 )
 import voluptuous as vol
 
@@ -21,7 +22,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 
-from .const import ADMIN_USERNAME, DEFAULT_HOST, DOMAIN, format_mac
+from .const import ADMIN_USERNAME, DEFAULT_HOST, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 

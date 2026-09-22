@@ -67,7 +67,7 @@
         dict({
           'id': 3,
           'last_seen': 1782108300.0,
-          'mac': 48770,
+          'mac': '0xBE82',
           'model': 'M-REL-8s',
           'supply_voltage': 13.9,
           'temperature': 31.5,
@@ -76,7 +76,7 @@
         dict({
           'id': 17,
           'last_seen': None,
-          'mac': 52111,
+          'mac': '0xCB8F',
           'model': 'M-SENS',
           'supply_voltage': None,
           'temperature': None,

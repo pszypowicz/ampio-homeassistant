@@ -11,6 +11,7 @@ from ampio_mqtt import (
     AmpioTimeoutError,
     AmpioValueError,
     ModuleFunction,
+    format_mac,
 )
 import voluptuous as vol
 
@@ -27,7 +28,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import VolDictType
 
-from .const import DOMAIN, MAX_WIRE_SECONDS, format_mac
+from .const import DOMAIN, MAX_WIRE_SECONDS
 from .data import AmpioConfigEntry, AmpioData
 from .entity import AmpioModuleEntity
 

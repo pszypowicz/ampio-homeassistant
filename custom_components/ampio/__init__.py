@@ -17,6 +17,7 @@ from ampio_mqtt import (
     AvailabilityChanged,
     ConnectionDied,
     NotConfigured,
+    format_mac,
 )
 import voluptuous as vol
 
@@ -47,7 +48,6 @@ from .const import (
     NOT_CONFIGURED_ISSUE,
     PLATFORMS,
     STALE_RECORDS_ISSUE,
-    format_mac,
 )
 from .data import AmpioConfigEntry, AmpioData, RefusedRows
 from .stale import async_report_not_configured, async_report_stale_records

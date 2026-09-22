@@ -51,7 +51,7 @@ DIAGNOSTICS_SNAPSHOT = {
     "modules": [
         {
             "id": 3,
-            "mac": 48770,
+            "mac": "0xBE82",
             "typ_urzadzenia": 4,
             "model": "M-REL-8s",
             "last_seen": 1782108300.0,
@@ -60,7 +60,7 @@ DIAGNOSTICS_SNAPSHOT = {
         },
         {
             "id": 17,
-            "mac": 52111,
+            "mac": "0xCB8F",
             "typ_urzadzenia": 44,
             "model": "M-SENS",
             "last_seen": None,

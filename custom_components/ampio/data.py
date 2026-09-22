@@ -17,6 +17,7 @@ from ampio_mqtt import (
     NotConfigured,
     ObjectRemoved,
     ObjectUpdated,
+    format_mac,
 )
 
 from homeassistant.config_entries import ConfigEntry
@@ -30,7 +31,7 @@ from homeassistant.helpers.entity_platform import (
     async_get_current_platform,
 )
 
-from .const import DOMAIN, MODULE_KEY_STEM, format_mac
+from .const import DOMAIN, MODULE_KEY_STEM
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,14 +50,16 @@ type Fingerprint = tuple[str, int, int | None, int, int, int, int, int]
 def fingerprint(obj: AmpioObject) -> Fingerprint:
     """The catalogue fields that decide an object's platforms and its parent.
 
-    A state push changes none of them, and neither does a rename, because
-    no name composes an id. Three of the address's four fields are in, so
-    a leaf edit in Designer queues a batch: the mac decides the parent
-    device, and the sub-function decides how an alarm row is classified,
-    with the function class beside it because the two read together. The
-    fourth, ``address.channel``, stays out: it routes the object's raw
-    channel events inside the library, and no platform choice and no
-    parent reads it.
+    A state push changes none of them, and neither does a rename: a
+    name-only catalogue change needs no rebuild, because the device
+    registry picks the new name up when the device registers again.
+    Three of the address's four fields are in, so a leaf edit in Designer
+    queues a batch: the mac decides the parent device, and the
+    sub-function decides how an alarm row is classified, with the
+    function class beside it because the two read together. The fourth,
+    ``address.channel``, stays out: it routes the object's raw channel
+    events inside the library, and no platform choice and no parent
+    reads it.
     """
     return (
         obj.typ_komponentu,
@@ -330,8 +333,9 @@ class AmpioData:
         the tree holds still across a tier change and across a module swap.
         The admin catalogue names the module and decorates the model, the
         versions, and the serial; a standard account gets the mac in the
-        name and no decoration. None of those reaches an entity id.
-
+        name and no decoration. The device name reaches the ids of the
+        entities on it, at first registration; the model, the versions, and
+        the serial do not.
         """
         mac = obj.address.mac
         if obj.is_server_owned or mac in self.module_device_ids:

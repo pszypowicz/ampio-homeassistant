@@ -50,8 +50,3 @@ NOT_CONFIGURED_ISSUE: Final = "not_configured"
 # drift apart, and so the stale report can tell a record of this shape from
 # one that predates it.
 MODULE_KEY_STEM: Final = "module_mac"
-
-
-def format_mac(mac: int) -> str:
-    """The one written form of an Ampio bus mac."""
-    return f"0x{mac:X}"

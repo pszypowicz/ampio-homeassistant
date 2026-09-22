@@ -8,6 +8,7 @@ from ampio_mqtt import (
     AvailabilityChanged,
     ObjectRemoved,
     ObjectUpdated,
+    format_mac,
 )
 
 from homeassistant.core import callback
@@ -15,7 +16,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.device_registry import ChildDeviceInfo, DeviceInfo
 from homeassistant.helpers.entity import Entity
 
-from .const import DOMAIN, MODULE_KEY_STEM, format_mac
+from .const import DOMAIN, MODULE_KEY_STEM
 from .data import AmpioData, module_identifier
 
 
@@ -78,9 +79,10 @@ class AmpioEntity(AmpioBaseEntity):
         """Initialize from the discovery-time object snapshot.
 
         ``key_suffix`` separates a second entity built from one object, and
-        it lands in the unique id and the entity id alike, because the two
-        are the same string. No server scope: object ids are unique per
-        M-SERV, and one M-SERV is allowed.
+        it reaches the unique id alone: Home Assistant composes the entity
+        id from the area name, the device name and the entity name. No
+        server scope: object ids are unique per M-SERV, and one M-SERV is
+        allowed.
         """
         self._data = data
         self._object_id = obj.id
@@ -174,10 +176,10 @@ class AmpioModuleEntity(AmpioBaseEntity):
         """Attach to the module device on override mac ``mac``.
 
         ``key_suffix`` names what the entity does on the module, and it
-        lands in the unique id and the entity id alike, because the two are
-        the same string. The key is built from ``MODULE_KEY_STEM``, which
-        is also what the stale-record report matches a withheld module
-        entity on.
+        reaches the unique id alone: Home Assistant composes the entity id
+        from the area name, the device name and the entity name. The key is
+        built from ``MODULE_KEY_STEM``, which is also what the stale-record
+        report matches a withheld module entity on.
         """
         self._data = data
         self._mac = mac
@@ -193,8 +195,9 @@ class AmpioModuleEntity(AmpioBaseEntity):
         admitted row on this entity's mac, which is the right answer to a
         press that cannot reach the module and the wrong answer to a read:
         a surface that reports module data asks
-        ``AmpioData.module_row_for`` with ``self._mac`` instead and goes
-        unavailable on None.
+        ``AmpioData.module_row_for`` with ``self._mac`` instead and reports
+        an unknown reading on None. Losing the connection is what makes the
+        entity unavailable; a missing catalogue row does not.
 
         Never cached. The row id is reassigned when a module is replaced,
         while the mac this entity keys on survives the swap.

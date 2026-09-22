@@ -14,6 +14,7 @@ from ampio_mqtt import (
     ObjectAdded,
     ObjectRemoved,
     ObjectUpdated,
+    format_mac,
     parse_module_address,
 )
 import pytest
@@ -24,7 +25,7 @@ from pytest_homeassistant_custom_component.common import (
 from syrupy.assertion import SnapshotAssertion
 
 from custom_components.ampio import async_remove_config_entry_device
-from custom_components.ampio.const import DOMAIN, MODULE_KEY_STEM, format_mac
+from custom_components.ampio.const import DOMAIN, MODULE_KEY_STEM
 from custom_components.ampio.data import AmpioData, module_identifier
 from homeassistant.const import ATTR_RESTORED, STATE_OFF, STATE_ON, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant

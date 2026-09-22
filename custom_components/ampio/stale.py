@@ -10,6 +10,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 import logging
 
+from ampio_mqtt import format_mac
+
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import (
     device_registry as dr,
@@ -24,7 +26,6 @@ from .const import (
     MODULE_KEY_STEM,
     NOT_CONFIGURED_ISSUE,
     STALE_RECORDS_ISSUE,
-    format_mac,
 )
 from .data import AmpioConfigEntry, RefusedRows
 

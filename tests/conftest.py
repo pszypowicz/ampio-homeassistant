@@ -25,6 +25,7 @@ from ampio_mqtt import (
     PanelSettings,
     RecordSweep,
     ThermostatState,
+    format_mac,
     parse_module_address,
 )
 import pytest
@@ -32,7 +33,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.syrupy import HomeAssistantSnapshotExtension
 from syrupy.assertion import SnapshotAssertion
 
-from custom_components.ampio.const import DOMAIN, MODULE_KEY_STEM, format_mac
+from custom_components.ampio.const import DOMAIN, MODULE_KEY_STEM
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er

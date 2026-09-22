@@ -2,7 +2,13 @@
 
 from unittest.mock import MagicMock
 
-from ampio_mqtt import AccessTier, AmpioClient, AmpioNotConfigured, NotConfigured
+from ampio_mqtt import (
+    AccessTier,
+    AmpioClient,
+    AmpioNotConfigured,
+    NotConfigured,
+    format_mac,
+)
 from ampio_mqtt.testing import AmpioStore, apply_reply, build_store
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -11,7 +17,6 @@ from custom_components.ampio.const import (
     DOMAIN,
     NOT_CONFIGURED_ISSUE,
     STALE_RECORDS_ISSUE,
-    format_mac,
 )
 from custom_components.ampio.stale import find_stale_records
 from homeassistant.config_entries import ConfigEntryState
