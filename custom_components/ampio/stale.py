@@ -79,7 +79,7 @@ class _RefusedRecords:
     objects: frozenset[str]
     # ``module_mac_<mac>_`` for each colliding mac: the prefix of every
     # module entity's unique id on it. The trailing separator is what
-    # keeps mac 123 from claiming ``module_mac_1234_buzzer``.
+    # keeps mac 0xCB8 from claiming ``module_mac_0xCB8F_buzzer``.
     module_prefixes: tuple[str, ...]
 
     def holds_entity(self, unique_id: str) -> bool:

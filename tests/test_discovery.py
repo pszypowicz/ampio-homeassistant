@@ -748,7 +748,7 @@ async def test_an_unnamed_object_takes_its_device_translation(
 
 
 def test_one_function_writes_every_module_mac() -> None:
-    """The identifier, the unique id and the withheld prefix share a form."""
+    """format_mac's text is exactly what module_identifier embeds, with no decimal leftover."""
     mac = 52111
     text = format_mac(mac)
     assert text == "0xCB8F"
@@ -761,15 +761,20 @@ async def test_a_module_entity_keys_on_the_hex_mac(
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
 ) -> None:
-    """A module entity's unique id and its device identifier agree."""
+    """A module entity's unique id and its device identifier carry the same mac text."""
     with_buzzer(mock_client)
     mock_config_entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
     await hass.async_block_till_done()
 
-    key = f"{MODULE_KEY_STEM}_{format_mac(52111)}_buzzer"
-    assert er.async_get(hass).async_get_entity_id("siren", DOMAIN, key) is not None
-    device = dr.async_get(hass).async_get_device_by_identifier(
-        module_identifier(52111), mock_config_entry.entry_id
-    )
+    text = format_mac(52111)
+    key = f"{MODULE_KEY_STEM}_{text}_buzzer"
+    entity_registry = er.async_get(hass)
+    entity_id = entity_registry.async_get_entity_id("siren", DOMAIN, key)
+    assert entity_id is not None
+    entity = entity_registry.async_get(entity_id)
+    assert entity is not None
+    assert entity.device_id is not None
+    device = dr.async_get(hass).async_get(entity.device_id)
     assert device is not None
+    assert (DOMAIN, f"{MODULE_KEY_STEM}:{text}") in device.identifiers

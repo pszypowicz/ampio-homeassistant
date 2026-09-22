@@ -18,6 +18,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
     device_registry as dr,
+    entity_platform,
     entity_registry as er,
     issue_registry as ir,
 )
@@ -32,6 +33,7 @@ from .conftest import (
     module_unique_id,
     set_access_tier,
     unique_id,
+    with_buzzer,
 )
 
 # A module mac no seeded object carries, so the objects put on it here are
@@ -359,3 +361,50 @@ async def test_a_dead_entity_on_a_held_module_is_still_offered(
     assert issue is not None
     for entity_id in on_the_module:
         assert f"- {entity_id}" in issue.translation_placeholders["names"]
+
+
+async def test_collision_keeps_the_colliding_macs_module_entities_out_of_the_stale_offer(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """A collision on a still-live mac keeps that mac's module records out of both stale lists.
+
+    A colliding mac empties the capability map, so a capability-gated
+    module entity such as the buzzer stops being built on the next
+    connect, and its registry record would otherwise read as an ordinary
+    unclaimed leftover. The module device itself stays live, because an
+    object still resolves to it, so nothing else keeps the record out of
+    the offer.
+    """
+    with_buzzer(mock_client)
+    await setup_integration(hass, mock_config_entry)
+    buzzer_key = module_unique_id(52111, "_buzzer")
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id("siren", DOMAIN, buzzer_key)
+    assert entity_id is not None
+
+    def _claimed() -> set[str]:
+        return {
+            claimed_id
+            for platform in entity_platform.async_get_platforms(hass, DOMAIN)
+            for claimed_id in platform.entities
+        }
+
+    assert entity_id in _claimed()
+
+    mock_client.capabilities[52111] = {}
+    mock_client.connect.side_effect = AmpioNotConfigured(
+        collisions=((52111, (17, 18)),)
+    )
+    await _reload(hass, mock_config_entry)
+
+    # The registry record survives the reload, but the capability gate
+    # keeps the buzzer platform from rebuilding it, so no loaded platform
+    # claims it, which is what makes it a stale-list candidate at all.
+    assert entity_id not in _claimed()
+    stale = find_stale_records(hass, mock_config_entry)
+    offered = {entity.unique_id for entity in stale.entities} | {
+        entity.unique_id for entity in stale.withheld
+    }
+    assert buzzer_key not in offered

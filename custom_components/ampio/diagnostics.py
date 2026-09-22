@@ -63,11 +63,14 @@ def _designer_config(data: AmpioData) -> dict[str, Any]:
     counts, an override mac, and a module or object ``id`` fill this
     section, and none of them is masked: an ``id`` here is the same local
     Designer row number the ``snapshot`` block already carries unredacted
-    in its own ``modules`` list, and the mac beside it is the bus address
-    that list carries too. Neither the record's ``desc`` nor its
-    ``location`` is read: those are the installer's own module name and
-    mounting note, which docs/debugging.md promises the download leaves
-    behind.
+    in its own ``modules`` list, and the mac beside it is the same bus
+    address that list carries. The two write it differently: this section
+    formats it through ``format_mac``, while ``snapshot`` is the library's
+    own report, carried verbatim, and reformatting someone else's report is
+    not this repo's to do (ampio-mqtt#281). Neither the record's ``desc``
+    nor its ``location`` is read: those are the installer's own module name
+    and mounting note, which docs/debugging.md promises the download
+    leaves behind.
 
     ``AmpioData.module_row_for()`` is the codebase-wide route for a
     module-catalogue read, but it answers for one mac, and this section

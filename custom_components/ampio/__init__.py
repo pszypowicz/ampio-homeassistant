@@ -47,6 +47,7 @@ from .const import (
     NOT_CONFIGURED_ISSUE,
     PLATFORMS,
     STALE_RECORDS_ISSUE,
+    format_mac,
 )
 from .data import AmpioConfigEntry, AmpioData, RefusedRows
 from .stale import async_report_not_configured, async_report_stale_records
@@ -167,10 +168,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     # entry takes the new server as its own.
     if info.server_key != entry.unique_id:
         _LOGGER.warning(
-            "The Ampio server at %s reports mac %s, and this entry was set up "
-            "with mac %s; taking the new server over",
+            "The Ampio server at %s reports mac %s; this entry was set up "
+            "under server key %s, and is taking the new server over",
             entry.data[CONF_HOST],
-            info.server_key,
+            format_mac(info.mac),
             entry.unique_id,
         )
         hass.config_entries.async_update_entry(entry, unique_id=info.server_key)
