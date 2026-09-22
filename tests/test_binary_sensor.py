@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from ampio_mqtt import (
     INPUT_KIND_KEYS,
+    AccessTier,
     AmpioObject,
     InputKind,
     ObjectRemoved,
@@ -34,7 +35,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import emit, make_object, pinned_id
+from .conftest import emit, make_object, pinned_id, set_access_tier
 
 SYSTEM_ENTITY_ID = pinned_id("binary_sensor", 62)
 WEJ_ENTITY_ID = pinned_id("binary_sensor", 146)
@@ -151,36 +152,55 @@ async def test_all_entities(
     await snapshot_platform(hass, entity_registry, snapshot, mock_config_entry.entry_id)
 
 
-@pytest.mark.usefixtures("mock_client")
+@pytest.mark.parametrize("restricted", [False, True], ids=["admin", "restricted"])
 async def test_cover_lock_sensors_exist_on_both_tiers(
-    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    restricted: bool,
 ) -> None:
-    """A cover reports both lock directions as diagnostic binary sensors."""
+    """A cover reports both lock directions as diagnostic binary sensors, on either tier."""
+    if restricted:
+        set_access_tier(mock_client, AccessTier.RESTRICTED)
     await setup_integration(hass, mock_config_entry)
 
     assert hass.states.get(LOCK_OPENING_ENTITY_ID) is not None
     assert hass.states.get(LOCK_CLOSING_ENTITY_ID) is not None
 
 
+@pytest.mark.parametrize("restricted", [False, True], ids=["admin", "restricted"])
 async def test_cover_lock_sensor_reads_the_state_bit(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    restricted: bool,
 ) -> None:
-    """The sensor follows the object's block bits.
+    """The sensor follows the object's block bits, on either tier.
 
     ``block`` rides the object state push, which both account tiers
     receive, so the read needs no administrator login.
     """
+    if restricted:
+        set_access_tier(mock_client, AccessTier.RESTRICTED)
     await setup_integration(hass, mock_config_entry)
     assert hass.states.get(LOCK_OPENING_ENTITY_ID).state == STATE_OFF
     assert hass.states.get(LOCK_CLOSING_ENTITY_ID).state == STATE_OFF
 
-    locked = replace(mock_client.objects[82], block=2)
-    mock_client.objects[82] = locked
-    emit(mock_client, ObjectUpdated(object=locked))
+    opening_blocked = replace(mock_client.objects[82], block=2)
+    mock_client.objects[82] = opening_blocked
+    emit(mock_client, ObjectUpdated(object=opening_blocked))
     await hass.async_block_till_done()
 
     assert hass.states.get(LOCK_OPENING_ENTITY_ID).state == STATE_ON
     assert hass.states.get(LOCK_CLOSING_ENTITY_ID).state == STATE_OFF
+
+    closing_blocked = replace(mock_client.objects[82], block=1)
+    mock_client.objects[82] = closing_blocked
+    emit(mock_client, ObjectUpdated(object=closing_blocked))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(LOCK_OPENING_ENTITY_ID).state == STATE_OFF
+    assert hass.states.get(LOCK_CLOSING_ENTITY_ID).state == STATE_ON
 
 
 @pytest.mark.usefixtures("mock_client")

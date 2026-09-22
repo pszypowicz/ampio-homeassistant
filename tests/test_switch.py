@@ -265,8 +265,9 @@ async def test_leafless_server_object_parents_to_the_hub(
     assert child.parent_device_id == hub.id
 
 
+@pytest.mark.usefixtures("mock_client")
 async def test_cover_builds_no_switch(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
 ) -> None:
     """The lock switches are gone; the lock reads through binary sensors."""
     await setup_integration(hass, mock_config_entry)
