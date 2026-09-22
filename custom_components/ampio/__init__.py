@@ -152,21 +152,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
         # exception is not read again.
         not_configured = RefusedRows.from_error(err)
         discovered = True
-        if not_configured.objects:
-            _LOGGER.warning(
-                "Ampio objects %s carry no Designer leaf, so the integration "
-                "cannot address them and left them out. Restore each in Ampio "
-                "Designer and save",
-                sorted(not_configured.objects),
-            )
-        for mac, ids in not_configured.collisions:
-            _LOGGER.warning(
-                "Ampio module rows %s share override mac %s, so the integration "
-                "cannot tell their frames apart and left them out. Give each "
-                "module its own mac in Ampio Designer and save",
-                sorted(ids),
-                mac,
-            )
     except AmpioConnectionError as err:
         raise ConfigEntryNotReady(
             translation_domain=DOMAIN, translation_key="cannot_connect"
@@ -263,9 +248,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     entry.runtime_data.async_mark_ready(
         partial(async_report_stale_records, hass, entry)
     )
-    # The report reads what the door refuses, which is recorded above
-    # before any platform loads, so a row the door refused is named by the
-    # installer repair and left out of the leftovers, and no two repairs
+    # The report reads what the door refuses, which async_report_not_configured
+    # records before any platform loads, so a row the door refused is named by
+    # the installer repair and left out of the leftovers, and no two repairs
     # ask for opposite things about one record.
     async_report_stale_records(hass, entry)
     return True

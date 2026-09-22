@@ -93,7 +93,6 @@ async def test_stale_records_raise_a_fixable_issue(
     assert issue.severity is ir.IssueSeverity.WARNING
     assert issue.translation_key == "stale_records_deleted"
     assert issue.translation_placeholders == {
-        "count": "3",
         "names": "- Object 74\n- scene.m_serv_wieczor\n- Taras LED",
     }
 
@@ -282,7 +281,6 @@ async def test_downgrade_raises_the_admin_only_issue(
     assert issue.severity is ir.IssueSeverity.WARNING
     assert issue.translation_key == "admin_only_records"
     assert issue.translation_placeholders == {
-        "count": "3",
         "names": (
             "- button.ampio_module_mac_52111_identify\n"
             "- sensor.ampio_module_mac_52111_temperature\n"
@@ -334,7 +332,6 @@ async def test_the_two_issues_split_their_records(
     admin_issue = issue_registry.async_get_issue(DOMAIN, ADMIN_ISSUE_ID)
     assert admin_issue is not None
     assert admin_issue.translation_placeholders == {
-        "count": "3",
         "names": (
             "- button.ampio_module_mac_52111_identify\n"
             "- sensor.ampio_module_mac_52111_temperature\n"
@@ -345,7 +342,6 @@ async def test_the_two_issues_split_their_records(
     assert stale_issue is not None
     assert stale_issue.translation_key == "stale_records_not_served"
     assert stale_issue.translation_placeholders == {
-        "count": "3",
         "names": "- Object 74\n- scene.m_serv_wieczor\n- Taras LED",
     }
 
@@ -430,7 +426,7 @@ async def test_fix_flow_for_unrecognized_issue_removes_nothing(
         is_fixable=True,
         severity=ir.IssueSeverity.WARNING,
         translation_key="stale_records_deleted",
-        translation_placeholders={"count": "0", "names": ""},
+        translation_placeholders={"names": ""},
     )
 
     await _submit_fix(hass, hass_client, unrelated_issue_id)

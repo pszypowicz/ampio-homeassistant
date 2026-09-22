@@ -252,7 +252,6 @@ def _async_report(
         severity=ir.IssueSeverity.WARNING,
         translation_key=translation_key,
         translation_placeholders={
-            "count": str(len(names)),
             "names": "\n".join(f"- {name}" for name in names),
         },
     )
@@ -309,11 +308,30 @@ def async_report_not_configured(
     Either fault can stand without the other, so the text follows which of
     the two the door reports. An account that is not the administrator is
     served no module list and therefore meets the object fault alone.
+
+    Both callers, the connect-time catch and the subscription, reach the
+    warning through here, so a fault logs identically regardless of when
+    it appears. The clear path logs nothing.
     """
     entry.runtime_data.not_configured = refused
     if refused is None:
         ir.async_delete_issue(hass, DOMAIN, NOT_CONFIGURED_ISSUE)
         return
+    if refused.objects:
+        _LOGGER.warning(
+            "Ampio objects %s carry no Designer leaf, so the integration "
+            "cannot address them and left them out. Restore each in Ampio "
+            "Designer and save",
+            sorted(refused.objects),
+        )
+    for mac, ids in refused.collisions:
+        _LOGGER.warning(
+            "Ampio module rows %s share override mac %s, so the integration "
+            "cannot tell their frames apart and left them out. Give each "
+            "module its own mac in Ampio Designer and save",
+            sorted(ids),
+            mac,
+        )
     objects = [str(oid) for oid in refused.objects]
     # One line per shared mac: the address, then the Designer device ids
     # that carry it. The mac is written the way the config flow writes the

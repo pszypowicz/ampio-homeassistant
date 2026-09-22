@@ -365,10 +365,7 @@ async def test_removed_object_is_listed_by_the_repair(
     issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID)
     assert issue is not None
     assert issue.translation_key == "stale_records_not_served"
-    assert issue.translation_placeholders == {
-        "count": "1",
-        "names": "- Przycisk kino",
-    }
+    assert issue.translation_placeholders == {"names": "- Przycisk kino"}
 
     await _add(hass, mock_client, obj)
 
@@ -389,7 +386,7 @@ async def test_deleted_object_is_listed_by_the_repair(
     issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID)
     assert issue is not None
     assert issue.translation_key == "stale_records_deleted"
-    assert issue.translation_placeholders == {"count": "1", "names": "- Object 74"}
+    assert issue.translation_placeholders == {"names": "- Object 74"}
 
 
 async def test_moved_object_is_listed_by_the_repair(
@@ -413,7 +410,7 @@ async def test_moved_object_is_listed_by_the_repair(
 
     issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID)
     assert issue is not None
-    assert issue.translation_placeholders == {"count": "1", "names": "- Object 74"}
+    assert issue.translation_placeholders == {"names": "- Object 74"}
 
 
 async def test_deleting_a_moved_child_brings_it_back_under_the_new_module(

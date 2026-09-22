@@ -220,6 +220,60 @@ async def test_the_door_event_raises_the_repair_for_both_faults(
     assert "Alarm strefa garaz" not in caplog.text
 
 
+async def test_the_door_event_raises_the_repair_for_an_object_fault_alone(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    issue_registry: ir.IssueRegistry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An objects-only event raises the object text, with the module side empty.
+
+    The event carries the object row's Designer name, and neither the
+    issue nor the log may repeat it.
+    """
+    await setup_integration(hass, mock_config_entry)
+    assert issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE) is None
+
+    emit(mock_client, NotConfigured(objects=((168, "Alarm strefa garaz"),)))
+    await hass.async_block_till_done()
+
+    issue = issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE)
+    assert issue is not None
+    assert issue.translation_key == "not_configured_objects"
+    assert issue.translation_placeholders == {
+        "object_count": "1",
+        "objects": "- 168",
+        "module_count": "0",
+        "modules": "",
+    }
+    assert "Alarm strefa garaz" not in caplog.text
+
+
+async def test_the_door_event_raises_the_repair_for_a_module_fault_alone(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """A collisions-only event raises the module text, with the object side empty."""
+    await setup_integration(hass, mock_config_entry)
+    assert issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE) is None
+
+    emit(mock_client, NotConfigured(collisions=((52111, (17, 18)),)))
+    await hass.async_block_till_done()
+
+    issue = issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE)
+    assert issue is not None
+    assert issue.translation_key == "not_configured_modules"
+    assert issue.translation_placeholders == {
+        "object_count": "0",
+        "objects": "",
+        "module_count": "1",
+        "modules": "- 0xCB8F: 17, 18",
+    }
+
+
 async def test_module_device_survives_while_it_parents_a_refused_child(
     hass: HomeAssistant,
     mock_client: MagicMock,
