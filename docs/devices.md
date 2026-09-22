@@ -54,13 +54,13 @@ Home Assistant matches rooms to areas by name. If your Ampio rooms and your area
 
 ## Entity ids
 
-Home Assistant builds an entity id from the area name and the device name when it first registers the entity, and the id holds still after that. A rename in Ampio Designer or in Home Assistant changes the name you see and leaves the id alone, so your automations keep working. An object with no name in Designer takes a numbered placeholder instead.
+Home Assistant builds an entity id from the area name, the device name and the entity name when it first registers the entity, and the id holds still after that. A rename in Ampio Designer or in Home Assistant changes the name you see and leaves the id alone, so your automations keep working. An object with no name in Designer takes a numbered placeholder instead.
 
 The Entity ID format setting under Settings, then System, decides which of those names take part, and Ampio entities follow it like any other integration's. An object called Taras LED in the room Taras reads `light.taras_taras_led`. A module called M-SENS Salon gives its Identify button `button.m_sens_salon_identify`, with no area in front of it, because a module device gets no area of its own.
 
-Two objects that carry the same name in Ampio Designer cannot share an id, so the second one takes Home Assistant's `_2` suffix and reads `button.dzwonek_2` beside `button.dzwonek`. Give your objects distinct names in Designer if you want to tell them apart by their ids.
+Two objects that carry the same name in Ampio Designer and sit in the same room cannot share an id, so one of the two takes Home Assistant's `_2` suffix and reads `button.dzwonek_2` beside `button.dzwonek`. The same two names in different rooms read `button.salon_dzwonek` and `button.kuchnia_dzwonek`, and nothing collides. Give a colliding pair distinct names in Designer if you want to tell them apart by their ids.
 
-An install from an earlier release keeps the ids it already has, because an id is stored against the entity's unique id and this integration does not change those. To rebuild one from the names you have now, open the entity, select the cog icon, and use Home Assistant's control for regenerating an entity id. It works on an entity from an earlier release as well as on a fresh one.
+An install from an earlier release keeps the ids it already has, because an id is stored against the entity's unique id, and a release changes those only where the release note says it does. To rebuild one from the names you have now, open the entity, select the cog icon, and use Home Assistant's control for regenerating an entity id. It works on an entity from an earlier release as well as on a fresh one.
 
 Neither an Ampio account tier change nor an M-SERV replacement moves an id.
 

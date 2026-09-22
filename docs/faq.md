@@ -14,7 +14,7 @@ Do not start a procedure on this page without a backup. Some of them delete reco
 
 **Check:** Open Settings, then Devices and services, then Ampio. Compare the entity count with what you had. An entity with the state `unavailable` or the label "restored" is one the integration no longer builds.
 
-**Fix:** Remove the Ampio integration entry, then add it again. Home Assistant remembers a removed entity for 30 days, so the re-add restores your entity ids, your renames, and your areas. That is the supported first step, not a last resort. If the entity count is still wrong afterwards, download the diagnostics as described in [debugging.md](debugging.md) and report it in the issues.
+**Fix:** Remove the Ampio integration entry, then add it again. Home Assistant remembers a removed entity for 30 days, so the re-add restores your entity ids, your renames, and your areas. It is the supported first step here, so reach for it early. If the entity count is still wrong afterwards, download the diagnostics as described in [debugging.md](debugging.md) and report it in the issues.
 
 ## My module devices lost their names and areas after an update
 
@@ -71,17 +71,17 @@ If the address you enter answers with different M-SERV hardware, the flow asks y
 
 ## My entity ids look different from the ones in the docs
 
-**Check:** Open Settings, then Devices and services, then Entities, and filter the list by the Ampio integration. Home Assistant composes each id from the area name, the device name and the entity name, so an object called Taras LED in the room Taras reads `light.taras_taras_led`, and the Identify button on a module called M-SENS Salon reads `button.m_sens_salon_identify`. The Entity ID format setting under Settings, then System, decides which of those parts take part. An install from an earlier release keeps the ids that release gave it, because an id is stored against the entity's unique id and an update does not move those.
+**Check:** Open Settings, then Devices and services, then Entities, and filter the list by the Ampio integration. Home Assistant composes each id from the area name, the device name and the entity name, so an object called Taras LED in the room Taras reads `light.taras_taras_led`, and the Identify button on a module called M-SENS Salon reads `button.m_sens_salon_identify`. The Entity ID format setting under Settings, then System, decides which of those parts take part. An install from an earlier release keeps the ids that release gave it, because an id is stored against the entity's unique id, and a release changes those only where the release note says it does.
 
 **Fix:** None is required. An id that works goes on working, and nothing forces you to change it. To rebuild one from the names you have now, open the entity, select the cog icon, and use Home Assistant's control for regenerating an entity id. To rebuild every Ampio id at once, use the reset procedure below. It is a support procedure, and no update requires it.
 
 ## Why does an entity id stay the same when I rename something?
 
-Home Assistant builds an entity id once, when the entity registers for the first time, and stores it from then on. A device rename does not move it. An area change does not move it. An integration update does not move it. The only thing that rebuilds one is you, through the control for regenerating an entity id on the entity's own settings page.
+Home Assistant builds an entity id once, when the entity registers for the first time, and stores it from then on. A device rename does not move it. An area change does not move it. An update does not move it either, as long as the release keeps what the entity is keyed on underneath. A release that changes that key builds the entity again, with a new id and no history, and the release note says so. Short of that, the only thing that rebuilds an id is you, through the control for regenerating an entity id on the entity's own settings page.
 
 Removing the integration does not move it either. Home Assistant remembers a removed entity for 30 days. If you add the integration again inside that window, the old entity id comes back. The name you gave the entity and the area you put it in come back with it.
 
-Your automations therefore keep working across an update, a rename, and a reinstall.
+Your automations therefore keep working across a rename, a reinstall, and every update the release note does not warn you about.
 
 ## A relay I tagged as a light shows as a switch
 
@@ -164,7 +164,7 @@ Every other way to target lights skips them already. Both entities carry the dia
 
 The two forms above are different. A template over `states.light` sees every light entity, and no template test reports an entity's category. A list of entity ids is a direct target, and a direct target is never filtered.
 
-**Fix:** Reject the panel entities inside the template, and use a label to find them. Home Assistant composes an entity id from the area name, the device name and the entity name, so a panel light carries no fixed marker that a pattern could match on. A label is something you put on the entities yourself, and it holds through a rename and through a regenerated id.
+**Fix:** Reject the panel entities inside the template, and use a label to find them. A panel light's id ends in the entity's own name, which follows your Home Assistant language and any rename you make, and nothing else in the id says the light belongs to this integration. So a pattern over ids can catch another integration's backlight, and it stops matching yours as soon as that name changes. A label is something you put on the entities yourself, and it holds through a rename and through a regenerated id.
 
 Open Settings, then Areas and labels, and create a label for them. Put it on the Backlight and the Status light of every panel. Then name the label in the template, either by its name or by the id Home Assistant gave it:
 
@@ -191,9 +191,9 @@ A repair on the Settings page lists whichever of these entities your account wit
 
 ## My module devices are named "Ampio module 0xCB8F"
 
-Usually on a standard Ampio account. The names you gave your modules in Ampio Designer are served to the administrator login alone, so a module falls back to its address on the Ampio bus, written in hex the way Designer's MAC field shows it. It is the same device and the same module either way. On an administrator account a module reads this way when you deleted its device row in Designer and left its objects behind, because no row is left to name it.
+You see this on a standard Ampio account most of the time. The names you gave your modules in Ampio Designer are served to the administrator login alone, so a module falls back to its address on the Ampio bus, written in hex the way Designer's MAC field shows it. It is the same device and the same module either way. On an administrator account a module reads this way when you deleted its device row in Designer and left its objects behind, because no row is left to name it. With the device row in place, an administrator account shows the Designer name.
 
-A name you typed yourself in Home Assistant is untouched, and no entity id moved. On an administrator account with the device row in place, the Designer name is used.
+If the names you typed yourself are gone as well, along with your areas and your labels, then a release changed what a module device is keyed on and built those devices again. "My module devices lost their names and areas after an update" above covers that case and the repair that finishes it.
 
 ## How do I reset every Ampio entity id?
 

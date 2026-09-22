@@ -126,9 +126,9 @@ One M-SERV per Home Assistant. Object ids are unique per server only, so the int
 
 Every `0.0.x` release is beta. None of them carries a migration, so an update can change device names or the entity set with no upgrade path. Take a backup before you update, and read the release note. It leads with the breaking changes and the upgrade steps.
 
-Your entity ids survive an update unless the release note says otherwise, because Home Assistant stores an id against the entity's unique id and an update does not move those. A release that changes what a device record is keyed on is the exception worth knowing about. Those devices are built again under the new key, Home Assistant treats each one as a new device, and every object under a module has its entities held back until you submit the leftover-records repair on the Settings page. On a normal install that is most of the entities this integration provides, and only the M-SERV's own objects carry on, because their devices hang under the hub rather than under a module. [docs/faq.md](docs/faq.md) walks through that repair.
+Home Assistant stores an entity id against the entity's unique id, so your ids survive an update unless the release note says otherwise. The exception is a release that changes what a device record is keyed on. Those devices are built again under the new key, Home Assistant treats each one as a new device, and every object under a module has its entities held back until you submit the leftover-records repair on the Settings page. On a normal install that is most of the entities this integration provides, and only the M-SERV's own objects carry on, because their devices hang under the hub rather than under a module. [docs/faq.md](docs/faq.md) walks through that repair.
 
-If an update leaves you with missing entities or entities that stay unavailable, remove the integration and add it again. That is the supported first step, not a last resort. Home Assistant remembers a removed entity for 30 days, so a re-add restores your entity ids, your renames, and your areas.
+If an update leaves you with missing entities or entities that stay unavailable, remove the integration and add it again. It is the supported first step here, so reach for it early. Home Assistant remembers a removed entity for 30 days, so a re-add restores your entity ids, your renames, and your areas.
 
 If something else looks wrong, see [docs/faq.md](docs/faq.md). Each answer there tells you how to check whether it affects you, and how to fix it.
 
@@ -144,7 +144,7 @@ If something else looks wrong, see [docs/faq.md](docs/faq.md). Each answer there
 
 - Scenes are read once at setup. A scene added in the app needs a reload.
 - A module's capability map is read once at setup too. A module you add in Ampio Designer afterward gets its sensors, but not its buzzer, its Unlock touch button, or its Backlight and Status light, until you reload the integration.
-- Two objects that carry the same name in Ampio Designer cannot share an entity id, so the second one takes Home Assistant's `_2` suffix. Give your objects distinct names in Designer if you want to tell them apart by their ids.
+- Two objects that carry the same name in Ampio Designer and sit in the same room cannot share an entity id, so one of the two takes Home Assistant's `_2` suffix. Give such a pair distinct names in Designer if you want to tell them apart by their ids.
 
 ## Relationship to home-assistant/core
 
