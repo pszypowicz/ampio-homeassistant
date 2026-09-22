@@ -27,6 +27,7 @@ from homeassistant.const import (
     STATE_OFF,
     STATE_ON,
     STATE_UNAVAILABLE,
+    EntityCategory,
     Platform,
 )
 from homeassistant.core import HomeAssistant
@@ -40,6 +41,8 @@ WEJ_ENTITY_ID = pinned_id("binary_sensor", 146)
 ARMED_ENTITY_ID = pinned_id("binary_sensor", 166)
 ALARMED_ENTITY_ID = pinned_id("binary_sensor", 167)
 BASE_ALARM_ENTITY_ID = pinned_id("binary_sensor", 168)
+LOCK_OPENING_ENTITY_ID = pinned_id("binary_sensor", 82, "_blocks_opening")
+LOCK_CLOSING_ENTITY_ID = pinned_id("binary_sensor", 82, "_blocks_closing")
 
 
 @pytest.fixture(autouse=True)
@@ -146,6 +149,52 @@ async def test_all_entities(
     """Snapshot every entity's registry entry and state."""
     await setup_integration(hass, mock_config_entry)
     await snapshot_platform(hass, entity_registry, snapshot, mock_config_entry.entry_id)
+
+
+@pytest.mark.usefixtures("mock_client")
+async def test_cover_lock_sensors_exist_on_both_tiers(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """A cover reports both lock directions as diagnostic binary sensors."""
+    await setup_integration(hass, mock_config_entry)
+
+    assert hass.states.get(LOCK_OPENING_ENTITY_ID) is not None
+    assert hass.states.get(LOCK_CLOSING_ENTITY_ID) is not None
+
+
+async def test_cover_lock_sensor_reads_the_state_bit(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The sensor follows the object's block bits.
+
+    ``block`` rides the object state push, which both account tiers
+    receive, so the read needs no administrator login.
+    """
+    await setup_integration(hass, mock_config_entry)
+    assert hass.states.get(LOCK_OPENING_ENTITY_ID).state == STATE_OFF
+    assert hass.states.get(LOCK_CLOSING_ENTITY_ID).state == STATE_OFF
+
+    locked = replace(mock_client.objects[82], block=2)
+    mock_client.objects[82] = locked
+    emit(mock_client, ObjectUpdated(object=locked))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(LOCK_OPENING_ENTITY_ID).state == STATE_ON
+    assert hass.states.get(LOCK_CLOSING_ENTITY_ID).state == STATE_OFF
+
+
+@pytest.mark.usefixtures("mock_client")
+async def test_cover_lock_sensor_is_diagnostic(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """The lock reading is configuration-adjacent, not a control."""
+    await setup_integration(hass, mock_config_entry)
+
+    entry = entity_registry.async_get(LOCK_OPENING_ENTITY_ID)
+    assert entry is not None
+    assert entry.entity_category is EntityCategory.DIAGNOSTIC
 
 
 async def test_wej_push_update_toggles_state(

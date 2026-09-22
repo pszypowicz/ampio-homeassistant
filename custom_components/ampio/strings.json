@@ -75,6 +75,12 @@
       "alarm_armed": {
         "name": "Armed"
       },
+      "blocks_closing": {
+        "name": "Closing lock"
+      },
+      "blocks_opening": {
+        "name": "Opening lock"
+      },
       "input": {
         "name": "Input"
       }
@@ -131,12 +137,6 @@
     "switch": {
       "flag": {
         "name": "Flag"
-      },
-      "lock_closing": {
-        "name": "Closing lock"
-      },
-      "lock_opening": {
-        "name": "Opening lock"
       }
     }
   },
