@@ -32,7 +32,7 @@ If you meant the object to be gone, delete it in Designer instead. The repair dr
 
 Every frame on the Ampio bus is addressed by a module's MAC. Designer's MAC override field lets two devices be saved on one address, and nothing in Designer objects. This integration cannot tell those modules apart, so it leaves them out of its module list. Their objects still work, because an object carries its own address. What goes is everything that comes from the module's own record: the Identify button answers a press with an error naming the module, and the supply voltage and temperature sensors read unknown.
 
-The M-SERV's own device carries MAC `1`, which is also the default a device takes until you give it one, so the usual way into this is a module left on that default.
+The M-SERV's own device carries MAC `0x1`, which is also the default a device takes until you give it one, so the usual way into this is a module left on that default. The repair writes every address in hex, the same form Designer's MAC field uses.
 
 **Fix:** Open each device named in the repair in Designer, give it its own MAC address, and save. Match the devices by MAC rather than by position, because Designer numbers the rows of its device list by position (see the section below). Refresh the Designer page afterwards and check that the new MAC stuck, because Designer can drop a MAC edit without saying so.
 
@@ -86,7 +86,7 @@ Removing an object from a place in Designer does not delete it. It unassigns it,
 
 Deleting a device behaves differently again: it applies at once, with no save step, and it leaves its objects behind.
 
-Between those two, Designer can leave an object that is still shown to Home Assistant while the device it belongs to is gone. The integration handles it, because an object carries the address of the module that drives it and needs no device row to be filed under. That module device keeps its entities and takes the name `Ampio module <MAC>`, since no catalogue row is left to name it. Finish the delete in UNGROUPED and the repair on the Settings page lists what is left over.
+Between those two, Designer can leave an object that is still shown to Home Assistant while the device it belongs to is gone. The integration handles it, because an object carries the address of the module that drives it and needs no device row to be filed under. That module device keeps its entities and takes the name `Ampio module <MAC>`, with the address in hex as in `Ampio module 0xCB8F`, since no catalogue row is left to name it. Finish the delete in UNGROUPED and the repair on the Settings page lists what is left over.
 
 ## A roller lock stops the slats too
 
@@ -129,8 +129,10 @@ The integration's number entity writes the value alone and sends no time, becaus
 
 Ampio accounts upgrade and downgrade between the administrator login and app-created users. The integration therefore derives everything that defines an entity's platform or the device topology from data the restricted tier receives.
 
-Entity ids are exempt from that rule, because the integration writes them itself. Home Assistant normally builds an entity id from the area name, the device name, and the entity name. An Ampio entity carries its own id instead, which is the same string as its unique id. An object's entity reads `<domain>.ampio_obj_<object id>`, and a module's reads `<domain>.ampio_module_mac_<MAC>_<name>`, where the MAC is the module's address written as a plain number. No name reaches either. Rename a device, move it to another area, or switch the account tier, and every id holds still.
+An entity id is built once, from the area name and the device name, when Home Assistant first registers the entity. After that it holds still until you rebuild it yourself from the entity's settings page. Rename a device, move it to another area, or switch the account tier, and every id stays where it is.
 
-That frees the device name. An object device takes the name you gave the object in the Ampio app. A module takes the name you gave it in Ampio Designer where the admin-only module catalogue answers, and falls back to `Ampio module <MAC>` on a restricted account. The hub is always `M-SERV`. The catalogue also decorates the module's model, the firmware and hardware versions, and the serial number. All of those follow the account tier, so a tier change renames a module in the interface and moves nothing else.
+Those names hold the rule up. An object's entity takes the name of the object's own device, which is the name you gave the object in the Ampio app and which both account tiers receive, and it takes the area seeded from the app room, which both tiers receive as well. A module's own name comes from the admin-only module catalogue, and it reaches an id only through the entities that sit on a module device, which exist on the administrator login alone. So no account ever holds an id composed from a name it is not served.
+
+A module takes the name you gave it in Ampio Designer where the admin-only module catalogue answers, and falls back to `Ampio module <MAC>` on a restricted account, with the address in hex as in `Ampio module 0xCB8F`. The hub is always `M-SERV`. The catalogue also decorates the module's model, the firmware and hardware versions, and the serial number. All of those follow the account tier, so a tier change renames a module in the interface and moves nothing else.
 
 A module's MAC is what its device is keyed on, and both account tiers receive it, because every object carries the address of the module that drives it. So no tier change moves a device. Neither does replacing a module, because Designer stamps the same MAC onto the replacement unit, and the device and its entities carry on as if nothing happened, even though the replacement holds a new position in Designer's device list. Home Assistant cannot move a child device to another parent, so the one thing that does move an object between modules is a Designer edit followed by the delete described above.

@@ -1,6 +1,6 @@
 # Devices, areas, and entity ids
 
-This page explains how the integration builds its devices, and where the names and the areas come from. It also explains why an entity id never changes, and what a change in Ampio Designer does.
+This page explains how the integration builds its devices, and where the names and the areas come from. It also explains where an entity id comes from, and what a change in Ampio Designer does.
 
 ## The device tree
 
@@ -18,7 +18,7 @@ One M-SERV per Home Assistant. Object ids are unique per server only, so the int
 
 ## Names
 
-An object device takes the name you gave the object in the Ampio app. A module takes the name you gave it in Ampio Designer. When your account is not an administrator one, a module reads `Ampio module <row>` instead, where the row is its number in Ampio Designer. The hub is always `M-SERV`.
+An object device takes the name you gave the object in the Ampio app. A module takes the name you gave it in Ampio Designer. When your account is not an administrator one, a module reads `Ampio module <MAC>` instead, for example `Ampio module 0xCB8F`, with the address written in hex the way Designer's MAC field shows it. A module whose Designer device row you deleted reads the same on an administrator account, because no row is left to name it. The hub is always `M-SERV`.
 
 A rename in Designer or in the app changes nothing in Home Assistant. Rename the device in Home Assistant instead.
 
@@ -54,7 +54,15 @@ Home Assistant matches rooms to areas by name. If your Ampio rooms and your area
 
 ## Entity ids
 
-Rename the devices and assign the areas to suit yourself. Nothing you do there moves an entity id. Home Assistant normally builds an id from the area and the device name. An Ampio entity carries its own instead, the same string as its unique id. An entity backed by an Ampio object reads `<domain>.ampio_obj_<object id>`, for example `light.ampio_obj_7`. An entity that belongs to a module device instead reads `<domain>.ampio_module_mac_<MAC>_<name>`, for example `button.ampio_module_mac_52111_identify`, where the MAC is the module's address on the Ampio bus written as a plain number. The ids are not pretty, and they never change. Your automations keep working through a rename, an area move, an Ampio account tier change, and an M-SERV replacement alike.
+Home Assistant builds an entity id from the area name and the device name when it first registers the entity, and the id holds still after that. A rename in Ampio Designer or in Home Assistant changes the name you see and leaves the id alone, so your automations keep working. An object with no name in Designer takes a numbered placeholder instead.
+
+The Entity ID format setting under Settings, then System, decides which of those names take part, and Ampio entities follow it like any other integration's. An object called Taras LED in the room Taras reads `light.taras_taras_led`. A module called M-SENS Salon gives its Identify button `button.m_sens_salon_identify`, with no area in front of it, because a module device gets no area of its own.
+
+Two objects that carry the same name in Ampio Designer cannot share an id, so the second one takes Home Assistant's `_2` suffix and reads `button.dzwonek_2` beside `button.dzwonek`. Give your objects distinct names in Designer if you want to tell them apart by their ids.
+
+An install from an earlier release keeps the ids it already has, because an id is stored against the entity's unique id and this integration does not change those. To rebuild one from the names you have now, open the entity, select the cog icon, and use Home Assistant's control for regenerating an entity id. It works on an entity from an earlier release as well as on a fresh one.
+
+Neither an Ampio account tier change nor an M-SERV replacement moves an id.
 
 See [faq.md](faq.md) for what an update does to an entity id, and for the reset procedure.
 

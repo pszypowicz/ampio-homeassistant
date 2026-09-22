@@ -26,6 +26,8 @@ A Home Assistant integration for the [Ampio Smart Home](https://ampio.com/) syst
 
 ## Actions
 
+Every entity id below is an example. Home Assistant composes each id from the area name, the device name and the entity name when it first registers the entity, so your install has ids of its own. Look them up under Settings, then Devices and services, then Entities.
+
 `ampio.buzz_pattern` plays a two-step sequence on a panel's buzzer. The siren entity covers a single tone for a single length, and this action reaches the rest of what the hardware frame carries.
 
 Each cycle plays the first tone, then the second. Tone 0 is silence, so a doorbell of three pips is one tone, one silent step, and three cycles:
@@ -33,7 +35,7 @@ Each cycle plays the first tone, then the second. Tone 0 is silence, so a doorbe
 ```yaml
 action: ampio.buzz_pattern
 target:
-  entity_id: siren.ampio_module_mac_52111_buzzer
+  entity_id: siren.m_sens_salon_buzzer
 data:
   tone: 6
   seconds: 0.3
@@ -49,7 +51,7 @@ Tones run from 0 to 31, and tone 6 is the loudest. Each step lasts up to 655.35 
 ```yaml
 action: ampio.lock_touch
 target:
-  entity_id: button.ampio_module_mac_52111_unlock_touch
+  entity_id: button.m_sens_salon_unlock_touch
 data:
   seconds: 30
 ```
@@ -61,7 +63,7 @@ The lock always expires and caps at 655.35 seconds, with no indefinite form. Not
 ```yaml
 action: ampio.set_backlight_fields
 target:
-  entity_id: light.ampio_module_mac_52111_backlight
+  entity_id: light.m_sens_salon_backlight
 data:
   fields: [1, 2]
   rgbw_color: [255, 100, 100, 50]
@@ -76,7 +78,7 @@ Target these two actions at the entity by name, not at an area or a device, and 
 ```yaml
 action: ampio.set_roller_lock
 target:
-  entity_id: cover.ampio_obj_82
+  entity_id: cover.sypialnia_roleta_sypialnia
 data:
   direction: opening
   blocked: true
@@ -116,7 +118,7 @@ Requires Home Assistant 2026.9.0 or newer. `ampio-mqtt` is installed automatical
 
 To change the address, the account, or the password later, open the entry and choose Reconfigure from its menu. Your devices and your entities keep their ids, their areas, and any name you gave them yourself. If the Ampio server rejects the stored password, Home Assistant asks you for a new one on its own.
 
-Devices appear as a hub for the M-SERV, one device per Ampio module, and one device per Ampio object under its module. An object device takes its name and its area from the Ampio app when Home Assistant creates it, and the integration never moves it afterwards. Every entity carries its own id, `<domain>.ampio_<unique id>`, and that id never changes. An object's entity reads `ampio_obj_<object id>`, and a module's reads `ampio_module_mac_<MAC>_<name>`, where the MAC is the module's address on the Ampio bus. See [docs/devices.md](docs/devices.md) for the names, the areas, and what a change in Ampio Designer does.
+Devices appear as a hub for the M-SERV, one device per Ampio module, and one device per Ampio object under its module. An object device takes its name and its area from the Ampio app when Home Assistant creates it, and the integration never moves it afterwards. Home Assistant builds each entity id from the area name, the device name and the entity name, once, when it first registers the entity. The Entity ID format setting under Settings, then System, decides which of those parts take part. An id does not follow a later rename. See [docs/devices.md](docs/devices.md) for the names, the areas, and what a change in Ampio Designer does.
 
 One M-SERV per Home Assistant. Object ids are unique per server only, so the integration allows one entry.
 
@@ -124,7 +126,9 @@ One M-SERV per Home Assistant. Object ids are unique per server only, so the int
 
 Every `0.0.x` release is beta. None of them carries a migration, so an update can change device names or the entity set with no upgrade path. Take a backup before you update, and read the release note. It leads with the breaking changes and the upgrade steps.
 
-Your entity ids survive an update unless the release note says otherwise. If an update leaves you with missing entities or entities that stay unavailable, remove the integration and add it again. That is the supported first step, not a last resort. Home Assistant remembers a removed entity for 30 days, so a re-add restores your entity ids, your renames, and your areas.
+Your entity ids survive an update unless the release note says otherwise, because Home Assistant stores an id against the entity's unique id and an update does not move those. A release that changes what a device record is keyed on is the exception worth knowing about. Those devices are built again under the new key, Home Assistant treats each one as a new device, and every object under a module has its entities held back until you submit the leftover-records repair on the Settings page. On a normal install that is most of the entities this integration provides, and only the M-SERV's own objects carry on, because their devices hang under the hub rather than under a module. [docs/faq.md](docs/faq.md) walks through that repair.
+
+If an update leaves you with missing entities or entities that stay unavailable, remove the integration and add it again. That is the supported first step, not a last resort. Home Assistant remembers a removed entity for 30 days, so a re-add restores your entity ids, your renames, and your areas.
 
 If something else looks wrong, see [docs/faq.md](docs/faq.md). Each answer there tells you how to check whether it affects you, and how to fix it.
 
@@ -140,7 +144,7 @@ If something else looks wrong, see [docs/faq.md](docs/faq.md). Each answer there
 
 - Scenes are read once at setup. A scene added in the app needs a reload.
 - A module's capability map is read once at setup too. A module you add in Ampio Designer afterward gets its sensors, but not its buzzer, its Unlock touch button, or its Backlight and Status light, until you reload the integration.
-- The Entity ID format setting under Settings, then System, does not apply. Every Ampio entity carries its own id, `<domain>.ampio_<unique id>`, whether that is `ampio_obj_<object id>` for an object or `ampio_module_mac_<MAC>_<name>` for a module, so the setting cannot add the area or the floor to it.
+- Two objects that carry the same name in Ampio Designer cannot share an entity id, so the second one takes Home Assistant's `_2` suffix. Give your objects distinct names in Designer if you want to tell them apart by their ids.
 
 ## Relationship to home-assistant/core
 

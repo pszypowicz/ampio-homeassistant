@@ -22,6 +22,8 @@ Do not start a procedure on this page without a backup. Some of them delete reco
 
 This integration ships as a beta and carries no upgrade path. Every version is prepared as though it were a fresh install, and a release that changes what a device record is keyed on builds those devices again under the new key. Home Assistant treats a device under a new key as a new device, so the name you typed, the area, the labels, and the history of the entities on it all start empty. Each object's device still hangs under one of the old module devices, which is a parent its object no longer belongs to, and Home Assistant cannot move a child device to another parent, so the integration holds those objects' entities back until the old devices go.
 
+That covers every object on a module, which on a normal install is most of the entities this integration provides. Only the M-SERV's own objects carry on through it, because their devices hang under the hub rather than under a module.
+
 **Fix:** Submit that repair. It deletes the old module devices, and the reload behind it puts every object back under its module within seconds, with the object's entity ids, its own name, and its own area intact. Then give each module device its name, its area, and its labels again.
 
 Take a note of the module entity ids your automations use before you submit, because the administrator-only module entities come back under new ids: the Identify button, the supply voltage and temperature sensors, the buzzer, the Unlock touch button, and the Backlight and Status light. Their old records are among what the repair deletes.
@@ -69,17 +71,17 @@ If the address you enter answers with different M-SERV hardware, the flow asks y
 
 ## My entity ids look different from the ones in the docs
 
-**Check:** Open Settings, then Devices and services, then Entities, and search for `ampio`. The current form is `<domain>.ampio_obj_<object id>` for an object's entity, for example `light.ampio_obj_7`, or `<domain>.ampio_module_mac_<MAC>_<name>` for a module's, for example `button.ampio_module_mac_52111_identify`. The MAC is the module's address on the Ampio bus, written as a plain number. An install that predates a change of the form keeps its older ids.
+**Check:** Open Settings, then Devices and services, then Entities, and filter the list by the Ampio integration. Home Assistant composes each id from the area name, the device name and the entity name, so an object called Taras LED in the room Taras reads `light.taras_taras_led`, and the Identify button on a module called M-SENS Salon reads `button.m_sens_salon_identify`. The Entity ID format setting under Settings, then System, decides which of those parts take part. An install from an earlier release keeps the ids that release gave it, because an id is stored against the entity's unique id and an update does not move those.
 
-**Fix:** None is required. Both forms work, and nothing forces you to change. A release can change the form for a fresh install, and every existing install keeps the ids it has. If you want the current form on an existing install, use the reset procedure below. It is a support procedure, and no update requires it.
+**Fix:** None is required. An id that works goes on working, and nothing forces you to change it. To rebuild one from the names you have now, open the entity, select the cog icon, and use Home Assistant's control for regenerating an entity id. To rebuild every Ampio id at once, use the reset procedure below. It is a support procedure, and no update requires it.
 
-## Why does an entity id never change on its own?
+## Why does an entity id stay the same when I rename something?
 
-Home Assistant builds an entity id once, when the entity registers for the first time. After that the id is stored, and no later change moves it. A device rename does not move it. An area change does not move it. An integration update does not move it.
+Home Assistant builds an entity id once, when the entity registers for the first time, and stores it from then on. A device rename does not move it. An area change does not move it. An integration update does not move it. The only thing that rebuilds one is you, through the control for regenerating an entity id on the entity's own settings page.
 
 Removing the integration does not move it either. Home Assistant remembers a removed entity for 30 days. If you add the integration again inside that window, the old entity id comes back. The name you gave the entity and the area you put it in come back with it.
 
-This is good behavior. Your automations keep working across an update, a rename, and a reinstall.
+Your automations therefore keep working across an update, a rename, and a reinstall.
 
 ## A relay I tagged as a light shows as a switch
 
@@ -91,7 +93,7 @@ See [designer-quirks.md](designer-quirks.md). That page explains why Home Assist
 
 ## A cover's arrow is missing, every control is gone, or an automation that names it fails
 
-**Check:** On the dashboard, the cover card offers only the arrow for the direction that still works and drops the other one, with no toast and no notification explaining why, or the card offers no control at all and reports only the position. An automation that names the cover by its entity id fails instead, with a message such as "Entity cover.ampio_obj_82 does not support action cover.open_cover."
+**Check:** On the dashboard, the cover card offers only the arrow for the direction that still works and drops the other one, with no toast and no notification explaining why, or the card offers no control at all and reports only the position. An automation that names the cover by its entity id fails instead, with a message such as "Entity cover.sypialnia_roleta_sypialnia does not support action cover.open_cover."
 
 A rule in Ampio Designer, or a lock the `ampio.set_roller_lock` action set, is locking the cover's travel. A Designer rule holds the lock through one of the roller actions, "Disable movement", "Disable closing", or "Disable opening", for as long as its trigger holds, so a wind alarm or a fire alarm can hold it for a long time, and the lock clears on its own once the trigger clears. A lock the action set holds until something releases it. The cover's Opening lock and Closing lock diagnostic binary sensors report which direction, if any, is currently held.
 
@@ -162,15 +164,18 @@ Every other way to target lights skips them already. Both entities carry the dia
 
 The two forms above are different. A template over `states.light` sees every light entity, and no template test reports an entity's category. A list of entity ids is a direct target, and a direct target is never filtered.
 
-**Fix:** Reject the panel entities inside the template. The entity ids are pinned, so this pattern holds:
+**Fix:** Reject the panel entities inside the template, and use a label to find them. Home Assistant composes an entity id from the area name, the device name and the entity name, so a panel light carries no fixed marker that a pattern could match on. A label is something you put on the entities yourself, and it holds through a rename and through a regenerated id.
+
+Open Settings, then Areas and labels, and create a label for them. Put it on the Backlight and the Status light of every panel. Then name the label in the template, either by its name or by the id Home Assistant gave it:
 
 ```jinja
+{%- set skip = label_entities('podswietlenie_paneli') -%}
 {{ states.light
-   | rejectattr('entity_id', 'search', '^light[.]ampio_module_mac_[0-9]+_(backlight|status_light)$')
+   | rejectattr('entity_id', 'in', skip)
    | map(attribute='entity_id') | list }}
 ```
 
-A label works too. Apply one label to both entities of each panel, then reject `label_entities('<your label>')`. A label survives a rename of an entity id, and it needs one more step for each panel you add later.
+Each panel you add later needs the label on its two entities too.
 
 For `entity_id: all`, name your targets instead. Home Assistant turns off every light entity for that value, and the category changes nothing.
 
@@ -184,15 +189,15 @@ The Identify button once existed on both accounts, where a press on a standard a
 
 A repair on the Settings page lists whichever of these entities your account withholds. Submit it to delete the records, or leave it alone. If you point the integration back at the administrator account, the entities come back on their own with the same entity ids.
 
-## My module devices are named "Ampio module 52111"
+## My module devices are named "Ampio module 0xCB8F"
 
-Only on a standard Ampio account. The names you gave your modules in Ampio Designer are served to the administrator login alone, so a module falls back to its address on the Ampio bus, written as a plain number. It is the same device and the same module either way.
+Usually on a standard Ampio account. The names you gave your modules in Ampio Designer are served to the administrator login alone, so a module falls back to its address on the Ampio bus, written in hex the way Designer's MAC field shows it. It is the same device and the same module either way. On an administrator account a module reads this way when you deleted its device row in Designer and left its objects behind, because no row is left to name it.
 
-A name you typed yourself in Home Assistant is untouched, and no entity id moved. On an administrator account the Designer name is used.
+A name you typed yourself in Home Assistant is untouched, and no entity id moved. On an administrator account with the device row in place, the Designer name is used.
 
 ## How do I reset every Ampio entity id?
 
-Use this to move an existing install onto the current id form. The procedure deletes every Ampio entity record, so Home Assistant builds the ids again from scratch on the next start.
+Use this to rebuild every Ampio entity id from the names you have now. The procedure deletes every Ampio entity record, so Home Assistant builds the ids again from scratch on the next start. For a single entity, the control for regenerating an entity id on its settings page does the same job without any of this.
 
 **Every automation, script, scene, and dashboard card that names an Ampio entity id stops working.** Write those ids down first, and plan to repoint them.
 
