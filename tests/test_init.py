@@ -2,7 +2,7 @@
 
 from dataclasses import replace
 import logging
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from ampio_mqtt import (
     AccessTier,
@@ -16,10 +16,11 @@ from ampio_mqtt import (
     DesignerRecord,
     RecordSweep,
 )
+from ampio_mqtt._protocol import parse_module_address
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.ampio import async_remove_config_entry_device
+from custom_components.ampio import _build_client, async_remove_config_entry_device
 from custom_components.ampio.const import DOMAIN
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntryState
 from homeassistant.const import (
@@ -114,6 +115,30 @@ def _full_map(
     return devices, entities
 
 
+@pytest.mark.parametrize("username", ["admin", "user", "Admin"])
+def test_client_class_follows_the_reserved_login(username: str) -> None:
+    """Only the exact reserved login selects the administrator client."""
+    credentials = {**USER_INPUT, CONF_USERNAME: username}
+    with (
+        patch("custom_components.ampio.AmpioClient", autospec=True) as client_class,
+        patch("custom_components.ampio.AmpioAdminClient", autospec=True) as admin_class,
+    ):
+        client = _build_client(credentials)
+
+    if username == "admin":
+        assert client is admin_class.return_value
+        admin_class.assert_called_once_with(
+            credentials[CONF_HOST], credentials[CONF_PASSWORD]
+        )
+        client_class.assert_not_called()
+    else:
+        assert client is client_class.return_value
+        client_class.assert_called_once_with(
+            credentials[CONF_HOST], username, credentials[CONF_PASSWORD]
+        )
+        admin_class.assert_not_called()
+
+
 async def test_reconfigure_keeps_devices_and_entity_ids(
     hass: HomeAssistant,
     mock_client: MagicMock,
@@ -122,25 +147,25 @@ async def test_reconfigure_keeps_devices_and_entity_ids(
     device_registry: dr.DeviceRegistry,
     entity_registry: er.EntityRegistry,
 ) -> None:
-    """A credential change through the flow moves no device and no entity id.
+    """Reconfiguration uses the new credentials and preserves device and entity IDs."""
+    with patch(
+        "custom_components.ampio.AmpioAdminClient", return_value=mock_client
+    ) as admin_client_class:
+        await setup_integration(hass, mock_config_entry)
+        before = _registry_ids(device_registry, entity_registry, mock_config_entry)
+        moved = {**USER_INPUT, CONF_USERNAME: "admin", CONF_PASSWORD: "rotated"}
 
-    This is what the flow exists for. A delete and a fresh add drops every
-    record instead. The first three assertions prove that setup really
-    re-ran with the new credentials, so that the fourth one means
-    something.
-    """
-    await setup_integration(hass, mock_config_entry)
-    before = _registry_ids(device_registry, entity_registry, mock_config_entry)
-    moved = {**USER_INPUT, CONF_USERNAME: "admin", CONF_PASSWORD: "rotated"}
-
-    result = await mock_config_entry.start_reconfigure_flow(hass)
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], moved)
-    await hass.async_block_till_done()
+        result = await mock_config_entry.start_reconfigure_flow(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], moved
+        )
+        await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert dict(mock_config_entry.data) == moved
-    assert mock_client_class.call_args.args == (
+    admin_client_class.assert_called_with(moved[CONF_HOST], moved[CONF_PASSWORD])
+    mock_client_class.check_connection.assert_awaited_once_with(
         moved[CONF_HOST],
         moved[CONF_USERNAME],
         moved[CONF_PASSWORD],
@@ -274,27 +299,22 @@ async def test_hub_model_falls_back_when_the_catalogue_has_none(
     assert hub.model == "M-SERV"
 
 
-async def test_restricted_account_groups_by_module_row(
+async def test_restricted_account_groups_by_module_mac(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
     device_registry: dr.DeviceRegistry,
     entity_registry: er.EntityRegistry,
 ) -> None:
-    """Without the module catalogue, grouping still keys on the module row.
-
-    A standard (non-administrator) account is served the object catalogue
-    but no module list. The device tree builds from the Designer module row
-    id, and the module device falls back to that row id as its name. Only
-    the name and the metadata differ from the administrator tier, and
-    neither reaches an entity id.
-    """
+    """A standard account groups objects by their module MAC without its catalogue."""
+    resolve_records = mock_client.resolve_records
     set_access_tier(mock_client, AccessTier.RESTRICTED)
 
     await setup_integration(hass, mock_config_entry)
     assert mock_config_entry.state is ConfigEntryState.LOADED
     # The description records answer the admin login only.
-    mock_client.resolve_records.assert_not_called()
+    resolve_records.assert_not_called()
+    assert not hasattr(mock_client, "resolve_records")
 
     hub = device_registry.async_get_device_by_identifier(
         HUB_IDENTIFIER, mock_config_entry.entry_id
@@ -313,7 +333,7 @@ async def test_restricted_account_groups_by_module_row(
     entities = er.async_entries_for_config_entry(
         entity_registry, mock_config_entry.entry_id
     )
-    assert len(entities) == 41
+    assert len(entities) == 40
     # The tree is three deep. A scene sits directly on the hub. Every object
     # sits on a child device of its own, under its module, or under the hub
     # for a server-owned object. The tier changes no parent and no
@@ -460,7 +480,7 @@ async def test_user_names_never_reach_an_entity_id(
     )
 
     mock_client.objects[500] = make_object(
-        500, "temp", 1, leaf_id="0_cb8f_temp_0_9", opis_menu="Nowy"
+        500, "temp", 1, leaf_id="0_cb8f_76_0_9", name="Nowy"
     )
     await hass.config_entries.async_reload(mock_config_entry.entry_id)
     await hass.async_block_till_done()
@@ -690,9 +710,8 @@ async def test_sweep_never_moves_an_entity(
     """
 
     def _resolve() -> RecordSweep:
-        obj = mock_client.objects[74]
         record = DesignerRecord(matter_device_type=0x0100)
-        mock_client.objects[74] = replace(obj, record=record)
+        mock_client.records[74] = record
         return EMPTY_SWEEP
 
     mock_client.resolve_records.side_effect = _resolve
@@ -740,9 +759,7 @@ async def test_admin_records_never_seed_an_area(
 
     def _resolve() -> RecordSweep:
         for oid, location in ((81, "Elsewhere"), (82, "Garaz")):
-            mock_client.objects[oid] = replace(
-                mock_client.objects[oid], record=DesignerRecord(location=location)
-            )
+            mock_client.records[oid] = DesignerRecord(location=location)
         return EMPTY_SWEEP
 
     mock_client.resolve_records.side_effect = _resolve
@@ -838,22 +855,17 @@ async def test_every_object_gets_a_child_device(
             assert entity.device_id not in {hub.id, module.id}
 
 
-async def test_server_objects_outrank_the_catalogue_on_the_mserv_row(
+async def test_server_objects_use_the_hub_without_a_matching_module_row(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
     device_registry: dr.DeviceRegistry,
 ) -> None:
-    """The M-SERV's row comes from its objects, not from the module catalogue.
-
-    Both tiers receive the server-owned objects; only the administrator
-    tier receives the catalogue row. Reading the catalogue first would
-    build one tree for an administrator and another for a restricted
-    account wherever the two disagree.
-    """
-    mock_client.mserv = replace(mock_client.modules[1], id=42)
+    """An object's server MAC parents it to the hub without a catalogue row."""
+    del mock_client.modules[1]
+    mock_client.mserv = None
     mock_client.objects[99] = make_object(
-        99, "przekaznik", 0, leaf_id="", id_urzadzenia=1, opis_menu="Pompa", state="0"
+        99, "przekaznik", 0, leaf_id="0_1_257_2_1", name="Pompa", state="0"
     )
 
     await setup_integration(hass, mock_config_entry)
@@ -869,7 +881,7 @@ async def test_server_objects_outrank_the_catalogue_on_the_mserv_row(
     assert child.parent_device_id == hub.id
     assert (
         device_registry.async_get_device_by_identifier(
-            (DOMAIN, "module:1"), mock_config_entry.entry_id
+            (DOMAIN, "module_mac:1"), mock_config_entry.entry_id
         )
         is None
     )
@@ -919,16 +931,18 @@ async def test_remove_config_entry_device(
     )
     assert await async_remove_config_entry_device(hass, mock_config_entry, stale)
 
-    # Moved to another module row in Designer: the child still hangs under
-    # module 17, so the user may delete it and let it come back.
+    # A move in Designer leaves the child under its previous module until
+    # the user deletes it and lets it come back.
     mock_client.objects[74] = replace(
-        mock_client.objects[74], id_urzadzenia=3, leaf_id="0_be82_rel_0_1"
+        mock_client.objects[74],
+        address=parse_module_address("0_be82_257_2_1"),
+        leaf_key="leaf_0_be82_257_2_1",
     )
     assert await async_remove_config_entry_device(hass, mock_config_entry, child)
 
     # Drop every object on the module: its device goes stale too.
     for object_id in [
-        obj.id for obj in mock_client.objects.values() if obj.id_urzadzenia == 17
+        obj.id for obj in mock_client.objects.values() if obj.address.mac == 52111
     ]:
         del mock_client.objects[object_id]
     assert await async_remove_config_entry_device(
@@ -963,7 +977,9 @@ async def test_moved_object_is_repaired_by_a_delete(
     )
 
     mock_client.objects[74] = replace(
-        mock_client.objects[74], id_urzadzenia=3, leaf_id="0_be82_rel_0_1"
+        mock_client.objects[74],
+        address=parse_module_address("0_be82_257_2_1"),
+        leaf_key="leaf_0_be82_257_2_1",
     )
     await hass.config_entries.async_reload(mock_config_entry.entry_id)
     await hass.async_block_till_done()
@@ -986,7 +1002,7 @@ async def test_moved_object_is_repaired_by_a_delete(
         (DOMAIN, unique_id(74)), mock_config_entry.entry_id
     )
     new_module = device_registry.async_get_device_by_identifier(
-        (DOMAIN, "module:3"), mock_config_entry.entry_id
+        (DOMAIN, "module_mac:48770"), mock_config_entry.entry_id
     )
     assert moved is not None
     assert new_module is not None

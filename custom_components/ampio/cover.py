@@ -2,7 +2,13 @@
 
 from typing import Any, override
 
-from ampio_mqtt import AmpioObject, AmpioValueError, OutputKind
+from ampio_mqtt import (
+    AmpioNotConfigured,
+    AmpioObject,
+    AmpioUnsupported,
+    AmpioValueError,
+    OutputKind,
+)
 import voluptuous as vol
 
 from homeassistant.components.cover import (
@@ -248,23 +254,37 @@ class AmpioCover(AmpioEntity, CoverEntity):
         atomic: a failure on the second call leaves the first already
         applied.
         """
-        if not self._data.is_admin:
+        if (admin := self._data.admin) is None:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="cover_lock_not_admin",
             )
-        client = self._data.client
         calls = {
-            ("opening", True): client.block_opening,
-            ("opening", False): client.unblock_opening,
-            ("closing", True): client.block_closing,
-            ("closing", False): client.unblock_closing,
+            ("opening", True): admin.block_opening,
+            ("opening", False): admin.unblock_opening,
+            ("closing", True): admin.block_closing,
+            ("closing", False): admin.unblock_closing,
         }
         directions = ("opening", "closing") if direction == "both" else (direction,)
         for one in directions:
             try:
                 await calls[(one, blocked)](self._object_id)
+            except AmpioNotConfigured as err:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="cover_lock_not_configured",
+                ) from err
             except AmpioValueError as err:
+                if self._object_id not in admin.objects:
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN,
+                        translation_key="cover_lock_object_missing",
+                    ) from err
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="cover_lock_not_swept",
+                ) from err
+            except AmpioUnsupported as err:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="cover_lock_unsupported",

@@ -93,15 +93,19 @@ An administrator can still hold or release this cover's roller lock through the 
 
 **Fix:** For a lock, none is required. The arrow returns once the lock clears, whether that is a Designer rule's trigger or a call to `ampio.set_roller_lock` releasing it. For read-only, clear the checkbox in Ampio Designer if you want the cover to take commands again. An automation that targets the cover through an area, a device, or a label skips it silently while either cause holds. An automation that names the cover by its entity id raises and halts the rest of the sequence unless the action sets `continue_on_error: true`.
 
-## A cover's roller lock binary sensor reads off, and the set roller lock action fails
+## A cover's roller lock is unknown, or the set roller lock action fails
 
-**Check:** Each cover carries an Opening lock and a Closing lock diagnostic binary sensor, both under the cover device's Diagnostic section, and both read the module's own lock bits on either account tier.
+**Check:** Read the Opening lock and Closing lock binary sensors under the cover device's Diagnostic section. Both account tiers receive these readings. Before the module reports its lock bits, both sensors read `unknown`. A reading of `off` means that the module reported that direction as released.
 
-Calling `ampio.set_roller_lock` against a cover on the administrator login can raise an error naming the unsupported module, instead of doing nothing. An older module generation accepts the same lock frame as an ordinary roller move and drops it without changing anything, so it advertises no roller channel count in its capability map. A module that stayed silent during the setup sweep raises the same error, because a lock write still needs the module's own answer to size its frame. Either way the two binary sensors read `off` and stay there, because the bit they read never moves.
+**Fix:** If the action requires the administrator account, ask the administrator to hold or release the lock. A standard account can read the lock sensors but cannot change the lock.
 
-On a standard account the action raises an error naming the account tier before it reaches the module at all, whether or not that module supports the lock.
+If the message says that the module does not support the roller lock, that module cannot perform this action. An older module generation can accept ordinary cover commands without supporting lock commands. There is no integration setting that enables this hardware function.
 
-**Fix:** For the generation gap, none is required. That module never gains the lock, and its two binary sensors read `off` for good. For a module that stayed silent during the sweep, reloading the integration may help, because that runs the sweep again. On a standard account, ask whoever holds the administrator login to set or release the lock.
+If the module did not answer during setup, make sure that the module is online. Reload the Ampio integration to request its descriptions again. The module must answer before the action can send a lock command.
+
+If no unique module row matches the cover, open Ampio Designer. Restore the missing module row or give each device its own MAC address. Save the changes.
+
+If the Ampio server no longer lists the cover, restore it in Ampio Designer. Alternatively, select an existing cover for this action.
 
 A lock the action sets never expires on its own. Whichever account sets one owns releasing it: call the action again with `blocked` off, or clear it from wherever it was set, such as an automation. A Designer wind or fire alarm rule clears its lock when its trigger clears, and does not re-assert one you released underneath it, so releasing that lock with the action leaves the cover free to move until the rule fires again.
 

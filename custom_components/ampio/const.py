@@ -21,6 +21,14 @@ PLATFORMS: Final = [
 
 DEFAULT_HOST: Final = "ampio.local"
 
+# The M-SERV reserves this login for the administrator, and the Ampio app
+# refuses to create a user under the name, so an account's login is what
+# decides which surfaces the server serves it. ``AmpioAdminClient`` carries
+# the reserved name itself and takes no username, and every other account
+# passes its own. The config flow refuses a login the server answers as the
+# other tier, because the spelling is the whole of the rule.
+ADMIN_USERNAME: Final = "admin"
+
 # The wire counts 10 ms ticks in a 16-bit field, so a single timed value on
 # the bus tops out at 655.35 seconds. The buzzer's per-step ceiling and the
 # touch lock's duration both come from this field.
@@ -31,3 +39,14 @@ STALE_RECORDS_ISSUE: Final = "stale_records"
 # Entity records the administrator rule withholds from a standard account.
 # Separate, because the integration knows exactly why these went.
 ADMIN_ONLY_RECORDS_ISSUE: Final = "admin_only_records"
+# Catalogue rows the library cannot address: an object whose Designer leaf
+# is gone, or an override mac two module rows share. The installer fixes
+# each one in Ampio Designer.
+NOT_CONFIGURED_ISSUE: Final = "not_configured"
+
+# The stem every module-keyed string is built from: the device identifier
+# ``module_mac:<mac>`` and the entity unique id ``module_mac_<mac>_<suffix>``.
+# One constant for both, so a module device and the entities on it cannot
+# drift apart, and so the stale report can tell a record of this shape from
+# one that predates it.
+MODULE_KEY_STEM: Final = "module_mac"

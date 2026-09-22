@@ -1,6 +1,5 @@
 """Tests for the stale-record repair of the Ampio integration."""
 
-from dataclasses import replace
 from http import HTTPStatus
 from unittest.mock import MagicMock
 
@@ -30,7 +29,7 @@ from .conftest import (
 
 ISSUE_ID = "stale_records"
 ADMIN_ISSUE_ID = "admin_only_records"
-IDENTIFY_ENTITY_ID = "button.ampio_module_17_identify"
+IDENTIFY_ENTITY_ID = "button.ampio_module_mac_52111_identify"
 SCENE_ENTITY_ID = "scene.m_serv_wieczor"
 
 
@@ -41,7 +40,7 @@ async def _reload(hass: HomeAssistant, entry: MockConfigEntry) -> None:
 
 def _leave_records_behind(mock_client: MagicMock) -> None:
     """Soft-delete the relay, evict the dimmer, and retire the active scene."""
-    mock_client.objects[74] = replace(mock_client.objects[74], params=16)
+    del mock_client.objects[74]
     del mock_client.objects[71]
     mock_client.fetch_scenes.return_value = [DEFAULT_SCENES[1]]
 
@@ -125,7 +124,7 @@ async def test_issue_clears_once_the_records_are_claimed_again(
     """An object that comes back takes its record with it, and the issue goes."""
     await setup_integration(hass, mock_config_entry)
     relay = mock_client.objects[74]
-    mock_client.objects[74] = replace(relay, params=16)
+    del mock_client.objects[74]
     await _reload(hass, mock_config_entry)
     assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is not None
 
@@ -231,7 +230,7 @@ async def test_fix_flow_removes_a_module_without_objects(
     assert await async_setup_component(hass, "repairs", {})
     await setup_integration(hass, mock_config_entry)
     for oid in [
-        obj.id for obj in mock_client.objects.values() if obj.id_urzadzenia == 17
+        obj.id for obj in mock_client.objects.values() if obj.address.mac == 52111
     ]:
         del mock_client.objects[oid]
     await _reload(hass, mock_config_entry)
@@ -285,9 +284,9 @@ async def test_downgrade_raises_the_admin_only_issue(
     assert issue.translation_placeholders == {
         "count": "3",
         "names": (
-            "- button.ampio_module_17_identify\n"
-            "- sensor.ampio_module_17_temperature\n"
-            "- sensor.ampio_module_17_voltage"
+            "- button.ampio_module_mac_52111_identify\n"
+            "- sensor.ampio_module_mac_52111_temperature\n"
+            "- sensor.ampio_module_mac_52111_voltage"
         ),
     }
     # Nothing else went, so the other card stays away.
@@ -337,9 +336,9 @@ async def test_the_two_issues_split_their_records(
     assert admin_issue.translation_placeholders == {
         "count": "3",
         "names": (
-            "- button.ampio_module_17_identify\n"
-            "- sensor.ampio_module_17_temperature\n"
-            "- sensor.ampio_module_17_voltage"
+            "- button.ampio_module_mac_52111_identify\n"
+            "- sensor.ampio_module_mac_52111_temperature\n"
+            "- sensor.ampio_module_mac_52111_voltage"
         ),
     }
     stale_issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID)

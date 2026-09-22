@@ -6,6 +6,7 @@
             "reconfigure_successful": "Reconfiguration was successful"
         },
         "error": {
+            "admin_login_name": "The Ampio server and the name entered disagree about which account this is. The administrator account signs in with the name admin, in lowercase and nothing else, and every other account signs in under the name the Ampio app gave it. The integration tells the two apart by that name alone, so only an exact match reaches the administrator's per-module devices.",
             "cannot_connect": "Failed to connect",
             "invalid_auth": "Invalid authentication",
             "unknown": "Unexpected error"
@@ -165,6 +166,15 @@
         "cover_lock_not_admin": {
             "message": "Only the Ampio administrator account can hold or release a roller lock. This Home Assistant entry signs in as an app user, and the M-SERV does not serve that login the CAN write tree."
         },
+        "cover_lock_not_configured": {
+            "message": "No unique module row matches this cover. In Ampio Designer, restore the missing module row or give each device its own MAC address. Save the changes."
+        },
+        "cover_lock_not_swept": {
+            "message": "The module did not answer during setup. Make sure that the module is online. Reload the Ampio integration to request its descriptions again."
+        },
+        "cover_lock_object_missing": {
+            "message": "The Ampio server no longer lists this cover. Restore the cover in Ampio Designer or select an existing cover for this action."
+        },
         "cover_lock_unsupported": {
             "message": "This cover's module does not support the roller lock."
         },
@@ -228,6 +238,39 @@
                     "confirm": {
                         "title": "Delete the administrator-only Ampio entities",
                         "description": "Home Assistant still lists {count} Ampio entities that the Ampio server serves to the administrator login alone. This integration uses a standard Ampio account:\n\n{names}\n\nThey come back on their own, with the same entity ids, if you point the integration back at the administrator account. Submit deletes these records from Home Assistant instead. Automations and dashboards that name them stop working. Nothing changes on the Ampio server."
+                    }
+                }
+            }
+        },
+        "not_configured_both": {
+            "title": "Ampio Designer rows this integration cannot use",
+            "fix_flow": {
+                "step": {
+                    "confirm": {
+                        "title": "Fix these rows in Ampio Designer",
+                        "description": "The Ampio server serves Designer rows that this integration cannot use, and it left every one of them out.\n\nSome objects point at no module output. This integration drives an object through that pointer, so it cannot read or control them, and their entities are gone from Home Assistant.\n\nAmpio object ids ({object_count}):\n\n{objects}\n\nThose numbers are the ones this integration puts in its entity ids, as in light.ampio_obj_7 for object 7. Ampio Designer clears the pointer when an object's Matter checkbox is unchecked and saved, and writes it back when the box is checked and saved. Open each object above in Designer, check its Matter box, and save. Its entities come back within seconds with the entity ids, names and areas they had, because Home Assistant kept their records.\n\nSome MAC addresses are carried by more than one module. Every frame on the Ampio bus is addressed by that MAC, so this integration cannot tell those modules apart and leaves them out of its module list.\n\nShared MAC addresses ({module_count}), each with the Designer device ids that carry it:\n\n{modules}\n\nOpen each device in Designer, give it its own MAC address, and save. Match the devices by MAC rather than by position, because Designer numbers the rows of its device list by position and a deleted device leaves every number below the gap one short of the real device id.\n\nSubmit closes this notice and changes nothing, in Home Assistant or on the Ampio server. The notice comes back while the Designer project still reads this way."
+                    }
+                }
+            }
+        },
+        "not_configured_modules": {
+            "title": "Ampio modules sharing one MAC address",
+            "fix_flow": {
+                "step": {
+                    "confirm": {
+                        "title": "Give each Ampio module its own MAC address",
+                        "description": "The Ampio server serves MAC addresses that more than one module carries. Every frame on the Ampio bus is addressed by that MAC, so this integration cannot tell those modules apart and leaves them out of its module list. Those modules carry no name, model or firmware version from Designer in Home Assistant, and the entities that need a module's own record, such as its buzzer and its panel controls, are not built.\n\nShared MAC addresses ({module_count}), each with the Ampio Designer device ids that carry it:\n\n{modules}\n\nOpen each device in Designer, give it its own MAC address, and save. Match the devices by MAC rather than by position, because Designer numbers the rows of its device list by position and a deleted device leaves every number below the gap one short of the real device id. Refresh the Designer page afterwards and check that the new MAC stuck, because Designer can drop a MAC edit without saying so.\n\nSubmit closes this notice and changes nothing, in Home Assistant or on the Ampio server. The notice comes back while the Designer project still reads this way."
+                    }
+                }
+            }
+        },
+        "not_configured_objects": {
+            "title": "Ampio objects with no module output",
+            "fix_flow": {
+                "step": {
+                    "confirm": {
+                        "title": "Restore these Ampio objects in Ampio Designer",
+                        "description": "The Ampio server serves objects that point at no module output. This integration drives an object through that pointer, so it cannot read or control them, and their entities are gone from Home Assistant.\n\nAmpio object ids ({object_count}):\n\n{objects}\n\nThose numbers are the ones this integration puts in its entity ids, as in light.ampio_obj_7 for object 7. Ampio Designer clears the pointer when an object's Matter checkbox is unchecked and saved, and writes it back when the box is checked and saved. Open each object above in Designer, check its Matter box, and save. Its entities come back within seconds with the entity ids, names and areas they had, because Home Assistant kept their records. Checking the box also re-reads the object's type from the module record, so a relay can come back as a light where it was a switch, or as a switch where it was a light.\n\nIf you wanted an object gone, delete it in Designer instead. This notice drops it once the Ampio server pushes its next change, or when Home Assistant next starts, and the repair for leftover Ampio records then offers the records it left behind.\n\nSubmit closes this notice and changes nothing, in Home Assistant or on the Ampio server. The notice comes back while the Designer project still reads this way."
                     }
                 }
             }

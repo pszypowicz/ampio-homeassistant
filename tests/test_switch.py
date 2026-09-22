@@ -4,7 +4,7 @@ from collections.abc import Generator
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
-from ampio_mqtt import AccessTier, ObjectRemoved, ObjectUpdated
+from ampio_mqtt import ObjectRemoved, ObjectUpdated
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -24,17 +24,10 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import (
-    HUB_IDENTIFIER,
-    MSENS_IDENTIFIER,
-    emit,
-    make_object,
-    pinned_id,
-    set_access_tier,
-)
+from .conftest import emit, pinned_id
 
 PLAIN_ENTITY_ID = pinned_id("switch", 74)
 OUTLET_ENTITY_ID = pinned_id("switch", 75)
@@ -200,69 +193,6 @@ async def test_read_only_object_rejects_writes(
             blocking=True,
         )
     mock_client.turn_off.assert_not_called()
-
-
-async def test_leafless_object_keeps_its_module(
-    hass: HomeAssistant,
-    mock_client: MagicMock,
-    mock_config_entry: MockConfigEntry,
-    entity_registry: er.EntityRegistry,
-    device_registry: dr.DeviceRegistry,
-) -> None:
-    """A relay whose leaf id Designer cleared still hangs under its module.
-
-    The tree reads the Designer module row id, which every object carries
-    on both account tiers whatever its leaf says.
-    """
-    mock_client.objects[98] = make_object(
-        98, "przekaznik", 0, leaf_id="", opis_menu="Leafless", state="0"
-    )
-    await setup_integration(hass, mock_config_entry)
-
-    entry = entity_registry.async_get(pinned_id("switch", 98))
-    assert entry is not None
-    module = device_registry.async_get_device_by_identifier(
-        MSENS_IDENTIFIER, mock_config_entry.entry_id
-    )
-    assert module is not None
-    assert entry.device_id is not None
-    child = device_registry.async_get(entry.device_id)
-    assert isinstance(child, dr.ChildDeviceEntry)
-    assert child.parent_device_id == module.id
-    assert hass.states.get(pinned_id("switch", 98)).state == STATE_OFF
-
-
-@pytest.mark.parametrize("restricted", [False, True], ids=["admin", "restricted"])
-async def test_leafless_server_object_parents_to_the_hub(
-    hass: HomeAssistant,
-    mock_client: MagicMock,
-    mock_config_entry: MockConfigEntry,
-    entity_registry: er.EntityRegistry,
-    device_registry: dr.DeviceRegistry,
-    restricted: bool,
-) -> None:
-    """An M-SERV output without a leaf hangs under the hub on both tiers.
-
-    The admin catalogue names the M-SERV row; a restricted account learns
-    it from any server-owned object whose leaf embeds the M-SERV mac.
-    """
-    if restricted:
-        set_access_tier(mock_client, AccessTier.RESTRICTED)
-    mock_client.objects[99] = make_object(
-        99, "przekaznik", 0, leaf_id="", id_urzadzenia=1, opis_menu="Pompa", state="0"
-    )
-    await setup_integration(hass, mock_config_entry)
-
-    entry = entity_registry.async_get(pinned_id("switch", 99))
-    assert entry is not None
-    hub = device_registry.async_get_device_by_identifier(
-        HUB_IDENTIFIER, mock_config_entry.entry_id
-    )
-    assert hub is not None
-    assert entry.device_id is not None
-    child = device_registry.async_get(entry.device_id)
-    assert isinstance(child, dr.ChildDeviceEntry)
-    assert child.parent_device_id == hub.id
 
 
 @pytest.mark.usefixtures("mock_client")

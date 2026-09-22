@@ -1,5 +1,5 @@
 # serializer version: 1
-# name: test_all_entities[button.ampio_module_17_identify-entry]
+# name: test_all_entities[button.ampio_module_mac_52111_identify-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -13,7 +13,7 @@
     'disabled_by': None,
     'domain': 'button',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
-    'entity_id': 'button.ampio_module_17_identify',
+    'entity_id': 'button.ampio_module_mac_52111_identify',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -29,28 +29,28 @@
     'original_name': 'Identify',
     'platform': 'ampio',
     'previous_unique_id': None,
-    'suggested_object_id': 'ampio_module_17_identify',
+    'suggested_object_id': 'ampio_module_mac_52111_identify',
     'supported_features': 0,
     'translation_key': None,
-    'unique_id': 'module_17_identify',
+    'unique_id': 'module_mac_52111_identify',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[button.ampio_module_17_identify-state]
+# name: test_all_entities[button.ampio_module_mac_52111_identify-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'identify',
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'm-sens salon Identify',
     }),
     'context': <ANY>,
-    'entity_id': 'button.ampio_module_17_identify',
+    'entity_id': 'button.ampio_module_mac_52111_identify',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'unknown',
   })
 # ---
-# name: test_all_entities[button.ampio_module_17_unlock_touch-entry]
+# name: test_all_entities[button.ampio_module_mac_52111_unlock_touch-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -64,7 +64,7 @@
     'disabled_by': None,
     'domain': 'button',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
-    'entity_id': 'button.ampio_module_17_unlock_touch',
+    'entity_id': 'button.ampio_module_mac_52111_unlock_touch',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -80,20 +80,20 @@
     'original_name': 'Unlock touch',
     'platform': 'ampio',
     'previous_unique_id': None,
-    'suggested_object_id': 'ampio_module_17_unlock_touch',
+    'suggested_object_id': 'ampio_module_mac_52111_unlock_touch',
     'supported_features': 0,
     'translation_key': 'unlock_touch',
-    'unique_id': 'module_17_unlock_touch',
+    'unique_id': 'module_mac_52111_unlock_touch',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[button.ampio_module_17_unlock_touch-state]
+# name: test_all_entities[button.ampio_module_mac_52111_unlock_touch-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'm-sens salon Unlock touch',
     }),
     'context': <ANY>,
-    'entity_id': 'button.ampio_module_17_unlock_touch',
+    'entity_id': 'button.ampio_module_mac_52111_unlock_touch',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,

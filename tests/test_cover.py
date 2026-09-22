@@ -4,7 +4,14 @@ from collections.abc import Generator
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
-from ampio_mqtt import AccessTier, AmpioValueError, ObjectRemoved, ObjectUpdated
+from ampio_mqtt import (
+    AccessTier,
+    AmpioNotConfigured,
+    AmpioUnsupported,
+    AmpioValueError,
+    ObjectRemoved,
+    ObjectUpdated,
+)
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -647,28 +654,84 @@ async def test_set_roller_lock_refuses_on_a_standard_account(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
     """A standard account is not served the raw tree, so the action says so."""
+    block_opening = mock_client.block_opening
+    block_closing = mock_client.block_closing
     set_access_tier(mock_client, AccessTier.RESTRICTED)
     await setup_integration(hass, mock_config_entry)
 
     with pytest.raises(ServiceValidationError) as excinfo:
         await _set_roller_lock(hass, POSITION_ENTITY_ID, "both", True)
     assert excinfo.value.translation_key == "cover_lock_not_admin"
-    mock_client.block_opening.assert_not_awaited()
-    mock_client.block_closing.assert_not_awaited()
+    block_opening.assert_not_awaited()
+    block_closing.assert_not_awaited()
 
 
-async def test_set_roller_lock_on_an_unsupported_module_raises(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+@pytest.mark.parametrize(
+    ("error", "key"),
+    [
+        pytest.param(
+            AmpioNotConfigured(collisions=((52111, ()),)),
+            "cover_lock_not_configured",
+            id="deleted-module",
+        ),
+        pytest.param(
+            AmpioNotConfigured(collisions=((52111, (17, 18)),)),
+            "cover_lock_not_configured",
+            id="mac-collision",
+        ),
+        pytest.param(
+            AmpioValueError("no sweep answered"), "cover_lock_not_swept", id="not-swept"
+        ),
+        pytest.param(
+            AmpioUnsupported("not a cover"), "cover_lock_unsupported", id="not-a-cover"
+        ),
+        pytest.param(
+            AmpioUnsupported("no roller count"),
+            "cover_lock_unsupported",
+            id="no-roller-count",
+        ),
+        pytest.param(
+            AmpioUnsupported("past last channel"),
+            "cover_lock_unsupported",
+            id="past-last-channel",
+        ),
+    ],
+)
+async def test_set_roller_lock_translates_refusal(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    error: Exception,
+    key: str,
 ) -> None:
-    """A module the roller lock does not reach raises, not a silent no-op."""
-    mock_client.block_opening.side_effect = AmpioValueError(
-        "the module behind object 82 advertises no roller channel count"
-    )
+    """Each lock refusal reports the matching translated reason."""
+    mock_client.block_opening.side_effect = error
     await setup_integration(hass, mock_config_entry)
 
     with pytest.raises(ServiceValidationError) as excinfo:
         await _set_roller_lock(hass, POSITION_ENTITY_ID, "opening", True)
-    assert excinfo.value.translation_key == "cover_lock_unsupported"
+    assert excinfo.value.translation_key == key
+    assert excinfo.value.__cause__ is error
+
+
+async def test_set_roller_lock_reports_a_missing_object(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A cover lost during a write reports a missing object instead of a silent sweep."""
+    error = AmpioValueError("object 82 is not in the catalogue")
+
+    async def missing_object(object_id: int) -> None:
+        mock_client.objects.pop(object_id)
+        raise error
+
+    mock_client.block_opening.side_effect = missing_object
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _set_roller_lock(hass, POSITION_ENTITY_ID, "opening", True)
+
+    assert excinfo.value.translation_key == "cover_lock_object_missing"
+    assert excinfo.value.__cause__ is error
 
 
 async def test_set_roller_lock_ignores_the_read_only_marker(

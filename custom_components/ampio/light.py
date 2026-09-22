@@ -5,9 +5,11 @@ from typing import Any, override
 
 from ampio_mqtt import (
     MAX_PANEL_FIELD,
+    AmpioAdminClient,
     AmpioConnectionError,
     AmpioObject,
     AmpioTimeoutError,
+    AmpioValueError,
     ModuleFunction,
     OutputKind,
 )
@@ -75,7 +77,7 @@ def _coldness_from_kelvin(kelvin: int, minimum: int, maximum: int) -> int:
 
 # The touch field numbers a per-field call colors. Validated against the
 # panel's own count in _AmpioPanelLight.async_set_fields, not here, because
-# the count is a module-catalogue fact this schema cannot see.
+# the count comes from the administrator's capability map.
 _FIELDS_VALIDATOR = vol.All(cv.ensure_list, [vol.Coerce(int)])
 SET_BACKLIGHT_FIELDS_SCHEMA: VolDictType = {
     vol.Required("fields"): _FIELDS_VALIDATOR,
@@ -114,38 +116,21 @@ def build_lights(data: AmpioData, obj: AmpioObject) -> list[AmpioLight]:
 
 
 def build_panel_backlights(
-    data: AmpioData, module_id: int
+    data: AmpioData, admin: AmpioAdminClient, mac: int
 ) -> list[AmpioPanelBacklight]:
-    """The light platform's backlight entity for one module device.
-
-    A standard account receives no module catalogue, so the capability is
-    unknowable there. This answers for every row on that tier. On that
-    tier the factory's answer reaches the withheld enumeration, and the
-    tier gate means nothing is built from it. A bare capability check
-    would leave an orphaned record in the repair card meant for a
-    Designer deletion.
-    """
-    if not data.is_admin:
-        return [AmpioPanelBacklight(data, module_id)]
-    module = data.module_row(module_id)
-    if module is None or ModuleFunction.BACKLIGHT_RGBW not in module.capabilities:
+    """The backlight entity for a module that supports the command."""
+    if ModuleFunction.BACKLIGHT_RGBW not in admin.capabilities.get(mac, {}):
         return []
-    return [AmpioPanelBacklight(data, module_id)]
+    return [AmpioPanelBacklight(data, admin, mac)]
 
 
 def build_panel_status_lights(
-    data: AmpioData, module_id: int
+    data: AmpioData, admin: AmpioAdminClient, mac: int
 ) -> list[AmpioPanelStatusLight]:
-    """The light platform's status-light entity for one module device.
-
-    Follows the same tier-gated shape as :func:`build_panel_backlights`.
-    """
-    if not data.is_admin:
-        return [AmpioPanelStatusLight(data, module_id)]
-    module = data.module_row(module_id)
-    if module is None or ModuleFunction.STATUSLIGHT_RGB not in module.capabilities:
+    """The status-light entity for a module that supports the command."""
+    if ModuleFunction.STATUSLIGHT_RGB not in admin.capabilities.get(mac, {}):
         return []
-    return [AmpioPanelStatusLight(data, module_id)]
+    return [AmpioPanelStatusLight(data, admin, mac)]
 
 
 async def _async_set_backlight_fields(entity: LightEntity, call: ServiceCall) -> None:
@@ -183,11 +168,11 @@ async def async_setup_entry(
 ) -> None:
     """Register the light platform; the runtime data builds and keeps its entities."""
     entry.runtime_data.async_add_platform(build_lights, async_add_entities)
-    entry.runtime_data.async_add_module_platform(
-        build_panel_backlights, async_add_entities, admin_only=True
+    entry.runtime_data.async_add_admin_module_platform(
+        build_panel_backlights, async_add_entities
     )
-    entry.runtime_data.async_add_module_platform(
-        build_panel_status_lights, async_add_entities, admin_only=True
+    entry.runtime_data.async_add_admin_module_platform(
+        build_panel_status_lights, async_add_entities
     )
     platform = entity_platform.async_get_current_platform()
     platform.async_register_entity_service(
@@ -364,7 +349,7 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
     Neither the backlight nor the status light reports its color on the
     bus: both writes are runtime overrides, not settings, so this entity
     holds whatever it last asked for. It starts from
-    :pyattr:`AmpioModule.panel_settings`, Ampio Designer's stored default,
+    :pyattr:`AmpioAdminClient.panel_settings`, Ampio Designer's stored default,
     when the library has proven the panel's layout, and at all channels
     zero otherwise.
 
@@ -387,9 +372,12 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
     _plain_default: tuple[int, ...]
     _failure_key: str
 
-    def __init__(self, data: AmpioData, module_id: int, *, key_suffix: str) -> None:
+    def __init__(
+        self, data: AmpioData, admin: AmpioAdminClient, mac: int, *, key_suffix: str
+    ) -> None:
         """Attach to the module device, and seed state from panel_settings."""
-        super().__init__(data, module_id, key_suffix=key_suffix)
+        super().__init__(data, mac, key_suffix=key_suffix)
+        self._admin = admin
         stored = self._stored_default()
         self._color: tuple[int, ...] = (
             stored if stored is not None else (0,) * self._channels
@@ -465,11 +453,7 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
         """Publish ``color``, translating a broker failure into a message."""
         try:
             await self._publish(color, fields=fields)
-        except ValueError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key="module_not_addressable"
-            ) from err
-        except (AmpioConnectionError, AmpioTimeoutError) as err:
+        except (AmpioValueError, AmpioConnectionError, AmpioTimeoutError) as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN, translation_key=self._failure_key
             ) from err
@@ -494,25 +478,13 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="panel_no_fields"
             )
-        module = self._data.module_row(self._module_id)
-        # _panel_mask is one function serving both frames, so the backlight
-        # and the status light address the same touch fields under the same
-        # numbering. BACKLIGHT_RGBW and STATUSLIGHT_RGB agree on every panel
-        # measured, but the library reads STATUSLIGHT_RGB nowhere and
-        # documents BACKLIGHT_RGBW alone as the touch field count, the one
-        # resolve_panel_settings reads. Reading the documented field keeps
-        # this code off an agreement the library never promises.
-        count = (
-            module.capabilities.get(ModuleFunction.BACKLIGHT_RGBW) if module else None
+        # resolve_panel_settings is the library's only reader of the touch
+        # field count and uses the documented BACKLIGHT_RGBW capability.
+        # The library does not promise that STATUSLIGHT_RGB agrees with it.
+        count = self._admin.capabilities.get(self._mac, {}).get(
+            ModuleFunction.BACKLIGHT_RGBW
         )
-        # count comes back None down one path here: the row left the
-        # catalogue mid-session, because Designer deletes a device at once
-        # and only unassigns its objects. module_row's other None path, a
-        # standard account never served the catalogue, cannot reach this
-        # method, since both panel entities are admin_only. Not observed:
-        # a row present without a BACKLIGHT_RGBW entry. MAX_PANEL_FIELD is
-        # the library's own ceiling, the highest field any frame carries,
-        # so it stands in for the count a missing row loses.
+        # Without a capability count, use the frame's field limit.
         ceiling = MAX_PANEL_FIELD if count is None else count
         for number in fields:
             if not 1 <= number <= ceiling:
@@ -542,24 +514,22 @@ class AmpioPanelBacklight(_AmpioPanelLight):
     _plain_default = _DEFAULT_RGBW
     _failure_key = "backlight_command_failed"
 
-    def __init__(self, data: AmpioData, module_id: int) -> None:
-        """Attach to the module device of Designer row ``module_id``."""
-        super().__init__(data, module_id, key_suffix="backlight")
+    def __init__(self, data: AmpioData, admin: AmpioAdminClient, mac: int) -> None:
+        """Attach to the module device on override mac ``mac``."""
+        super().__init__(data, admin, mac, key_suffix="backlight")
 
     @override
     def _stored_default(self) -> tuple[int, ...] | None:
         """The touch field color Ampio Designer stored, or None."""
-        module = self._data.module_row(self._module_id)
-        settings = module.panel_settings if module else None
+        settings = self._admin.panel_settings.get(self._mac)
         return settings.touch_field_color if settings else None
 
     @override
     async def _publish(
         self, color: tuple[int, ...], *, fields: Sequence[int] | None = None
     ) -> None:
-        await self._data.client.set_panel_backlight(
-            self._module_id, *color, fields=fields
-        )
+        module_id = self._require_module_id()
+        await self._admin.set_panel_backlight(module_id, *color, fields=fields)
 
     @property
     @override
@@ -584,24 +554,22 @@ class AmpioPanelStatusLight(_AmpioPanelLight):
     _plain_default = (255, 255, 255)
     _failure_key = "status_light_command_failed"
 
-    def __init__(self, data: AmpioData, module_id: int) -> None:
-        """Attach to the module device of Designer row ``module_id``."""
-        super().__init__(data, module_id, key_suffix="status_light")
+    def __init__(self, data: AmpioData, admin: AmpioAdminClient, mac: int) -> None:
+        """Attach to the module device on override mac ``mac``."""
+        super().__init__(data, admin, mac, key_suffix="status_light")
 
     @override
     def _stored_default(self) -> tuple[int, ...] | None:
         """The status indicator color Ampio Designer stored, or None."""
-        module = self._data.module_row(self._module_id)
-        settings = module.panel_settings if module else None
+        settings = self._admin.panel_settings.get(self._mac)
         return settings.status_color if settings else None
 
     @override
     async def _publish(
         self, color: tuple[int, ...], *, fields: Sequence[int] | None = None
     ) -> None:
-        await self._data.client.set_panel_status_light(
-            self._module_id, *color, fields=fields
-        )
+        module_id = self._require_module_id()
+        await self._admin.set_panel_status_light(module_id, *color, fields=fields)
 
     @property
     @override

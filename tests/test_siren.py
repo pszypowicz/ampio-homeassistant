@@ -8,6 +8,7 @@ from ampio_mqtt import (
     AccessTier,
     AmpioConnectionError,
     AmpioTimeoutError,
+    AmpioValueError,
     AvailabilityChanged,
 )
 import pytest
@@ -27,6 +28,7 @@ from homeassistant.components.siren import (
 from homeassistant.const import (
     ATTR_ASSUMED_STATE,
     ATTR_ENTITY_ID,
+    CONF_USERNAME,
     SERVICE_TURN_OFF,
     SERVICE_TURN_ON,
     STATE_UNAVAILABLE,
@@ -40,7 +42,7 @@ from homeassistant.util import dt as dt_util
 from . import setup_integration
 from .conftest import emit, set_access_tier, with_buzzer
 
-BUZZER_ENTITY_ID = "siren.ampio_module_17_buzzer"
+BUZZER_ENTITY_ID = "siren.ampio_module_mac_52111_buzzer"
 
 
 @pytest.fixture
@@ -91,7 +93,7 @@ async def test_buzzer_exists_when_the_module_reports_one(
 
     entry = entity_registry.async_get(BUZZER_ENTITY_ID)
     assert entry is not None
-    assert entry.unique_id == "module_17_buzzer"
+    assert entry.unique_id == "module_mac_52111_buzzer"
 
 
 @pytest.mark.usefixtures("siren_only")
@@ -174,20 +176,25 @@ async def test_turn_on_unknown_module_raises(
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
 ) -> None:
-    """A module the catalogue cannot address raises, not a bare ValueError."""
+    """A missing module row prevents the buzzer command and names the address error."""
     with_buzzer(mock_client)
-    mock_client.buzz_pattern.side_effect = ValueError("module id 17 has no mac")
     await setup_integration(hass, mock_config_entry)
+    del mock_client.modules[17]
 
-    with pytest.raises(HomeAssistantError) as excinfo:
+    with pytest.raises(ServiceValidationError) as excinfo:
         await _turn_on(hass)
     assert excinfo.value.translation_key == "module_not_addressable"
-    assert not isinstance(excinfo.value, ServiceValidationError)
+    mock_client.buzz_pattern.assert_not_awaited()
 
 
 @pytest.mark.usefixtures("siren_only")
 @pytest.mark.parametrize(
-    "error", [AmpioConnectionError("Not connected"), AmpioTimeoutError("no ack")]
+    "error",
+    [
+        AmpioConnectionError("Not connected"),
+        AmpioTimeoutError("no ack"),
+        AmpioValueError("command rejected"),
+    ],
 )
 async def test_turn_on_command_failure_raises(
     hass: HomeAssistant,
@@ -195,7 +202,7 @@ async def test_turn_on_command_failure_raises(
     mock_config_entry: MockConfigEntry,
     error: Exception,
 ) -> None:
-    """A connection or timeout failure on the command raises its own key."""
+    """A library command failure raises the buzzer's own message."""
     with_buzzer(mock_client)
     mock_client.buzz_pattern.side_effect = error
     await setup_integration(hass, mock_config_entry)
@@ -259,7 +266,7 @@ async def test_turn_off_stops_the_buzzer(
     [
         AmpioConnectionError("Not connected"),
         AmpioTimeoutError("no ack"),
-        ValueError("module id 17 has no mac"),
+        AmpioValueError("module id 17 has no mac"),
     ],
 )
 async def test_turn_off_stop_failure_raises(
@@ -324,23 +331,28 @@ async def test_buzzer_follows_the_connection(
 
 
 @pytest.mark.usefixtures("siren_only")
-async def test_withheld_enumeration_names_every_row(
+async def test_withheld_enumeration_names_existing_buzzer(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
 ) -> None:
-    """A standard account cannot read capabilities, so it names every row.
-
-    The enumeration is what tells a withheld record apart from one Ampio
-    Designer dropped. A bare capability check would name none of them, and
-    an orphaned buzzer record would land in the wrong repair card.
-    """
-    set_access_tier(mock_client, AccessTier.RESTRICTED)
-
+    """An account downgrade preserves the buzzer record and names it as withheld."""
+    with_buzzer(mock_client)
     await setup_integration(hass, mock_config_entry)
+    assert hass.states.get(BUZZER_ENTITY_ID) is not None
 
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, data={**mock_config_entry.data, CONF_USERNAME: "user"}
+    )
+    await hass.config_entries.async_reload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entity_registry.async_get(BUZZER_ENTITY_ID) is not None
+    assert hass.states.get(BUZZER_ENTITY_ID).state == STATE_UNAVAILABLE
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
-    assert "module_17_buzzer" in withheld
+    assert withheld == {"module_mac_52111_buzzer"}
 
 
 @pytest.mark.usefixtures("siren_only")

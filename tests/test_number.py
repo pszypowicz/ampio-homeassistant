@@ -143,9 +143,10 @@ async def test_value_follows_a_state_push(
         164,
         "flaga_liniowa",
         0,
-        leaf_id="0_cb8f_afu8_0_1",
+        # sfId 17 is the default fixture's unverified numeric placeholder.
+        leaf_id="0_cb8f_17_0_1",
         funkcja=18,
-        opis_menu="Poziom jasnosci",
+        name="Poziom jasnosci",
         state="7",
         czas=50,
     )

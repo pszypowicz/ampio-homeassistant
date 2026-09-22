@@ -24,6 +24,7 @@ from syrupy.assertion import SnapshotAssertion
 from custom_components.ampio.const import DOMAIN
 from custom_components.ampio.sensor import SENSOR_DESCRIPTIONS, VALUE_KEY_PREFIX
 from homeassistant.const import (
+    CONF_USERNAME,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
     EntityCategory,
@@ -228,28 +229,19 @@ async def test_push_only_updates_target_entity(
     assert hass.states.get(TEMPERATURE_ENTITY_ID).last_reported == temperature_before
 
 
+@pytest.mark.parametrize("tier", [AccessTier.ADMIN, AccessTier.RESTRICTED])
 async def test_removed_object_becomes_unavailable(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    tier: AccessTier,
 ) -> None:
-    """An object evicted from the catalogue flips its entity unavailable."""
+    """A library removal makes the object's entity unavailable on either account tier."""
+    set_access_tier(mock_client, tier)
     await setup_integration(hass, mock_config_entry)
 
     obj = mock_client.objects.pop(43)
     emit(mock_client, ObjectRemoved(object=obj))
-    await hass.async_block_till_done()
-
-    assert hass.states.get(CO2_ENTITY_ID).state == STATE_UNAVAILABLE
-
-
-async def test_hidden_object_becomes_unavailable(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
-) -> None:
-    """A Designer delete keeps the row with the hidden bit set on the admin tier."""
-    await setup_integration(hass, mock_config_entry)
-
-    obj = replace(mock_client.objects[43], params=16)
-    mock_client.objects[43] = obj
-    emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
     assert hass.states.get(CO2_ENTITY_ID).state == STATE_UNAVAILABLE
@@ -281,31 +273,13 @@ async def test_broker_availability_flips_entities(
     [
         pytest.param(
             make_object(
-                200,
-                "lin_wej",
-                1,
-                leaf_id="",
-                funkcja=5,
-                opis_menu="Ghost",
-                state="55.0",
-                params=16,
-            ),
-            id="hidden-ghost-without-leaf",
-        ),
-        pytest.param(
-            make_object(
-                201, "lin_wej", 7, leaf_id="0_cb8f_lin_0_9", funkcja=6, params=16
-            ),
-            id="hidden",
-        ),
-        pytest.param(
-            make_object(
                 202,
                 "lin_wej",
                 9,
-                leaf_id="0_cb8f_lin_0_10",
+                # sfId 74 is the default fixture's representative analog value.
+                leaf_id="0_cb8f_74_0_10",
                 funkcja=7,
-                opis_menu="Status",
+                name="Status",
                 state="42.0",
             ),
             id="kind-without-description",
@@ -315,9 +289,9 @@ async def test_broker_availability_flips_entities(
                 203,
                 "przekaznik",
                 0,
-                leaf_id="0_cb8f_prz_0_1",
+                leaf_id="0_cb8f_257_2_1",
                 funkcja=8,
-                opis_menu="Relay",
+                name="Relay",
                 state="1",
             ),
             id="not-a-sensor",
@@ -331,7 +305,7 @@ async def test_unexposable_objects_are_skipped(
     entity_registry: er.EntityRegistry,
     extra: AmpioObject,
 ) -> None:
-    """Invisible objects and kinds outside the sensor table produce no entity."""
+    """Kinds outside the sensor table produce no sensor entity."""
     mock_client.objects[extra.id] = extra
 
     await setup_integration(hass, mock_config_entry)
@@ -340,6 +314,10 @@ async def test_unexposable_objects_are_skipped(
         entity_registry, mock_config_entry.entry_id
     )
     assert len(entities) == 15
+    assert (
+        entity_registry.async_get_entity_id("sensor", DOMAIN, unique_id(extra.id))
+        is None
+    )
 
 
 async def test_hub_anchored_objects(
@@ -349,20 +327,14 @@ async def test_hub_anchored_objects(
     device_registry: dr.DeviceRegistry,
     entity_registry: er.EntityRegistry,
 ) -> None:
-    """The M-SERV's own objects get a child of the hub.
-
-    The object below carries ``id_urzadzenia=17``, a real module row, but its
-    ``leaf_id`` embeds the M-SERV's own mac, and the M-SERV's own leaf
-    outranks the row the object carries.
-    """
+    """An object addressed to the M-SERV's own MAC gets a child of the hub."""
     mock_client.objects[500] = make_object(
         500,
         "temp",
         1,
-        leaf_id="0_1_temp_0_1",
-        id_urzadzenia=17,
+        leaf_id="0_1_76_0_1",
         funkcja=5,
-        opis_menu="Hub sensor",
+        name="Hub sensor",
     )
 
     await setup_integration(hass, mock_config_entry)
@@ -395,18 +367,17 @@ async def test_module_without_catalogue_row_gets_bare_device(
         500,
         "temp",
         1,
-        leaf_id="0_dead_temp_0_1",
-        id_urzadzenia=99,
-        opis_menu="Dangling",
+        leaf_id="0_dead_76_0_1",
+        name="Dangling",
     )
 
     await setup_integration(hass, mock_config_entry)
 
     device = device_registry.async_get_device_by_identifier(
-        (DOMAIN, "module:99"), mock_config_entry.entry_id
+        (DOMAIN, "module_mac:57005"), mock_config_entry.entry_id
     )
     assert device is not None
-    assert device.name == "Ampio module 99"
+    assert device.name == "Ampio module 57005"
     assert device.model is None
     entity_id = entity_registry.async_get_entity_id(
         Platform.SENSOR, DOMAIN, unique_id(500)
@@ -429,9 +400,7 @@ async def test_module_without_catalogue_row_gets_bare_device(
             "M-SENS",
             id="nameless-module",
         ),
-        # The catalogue row joins on the row id alone, so its name and
-        # model apply whatever address it carries.
-        pytest.param({"mac": 99999}, "m-sens salon", "M-SENS", id="disagreeing-mac"),
+        pytest.param({"mac": 99999}, MSENS_ROW_NAME, None, id="disagreeing-mac"),
     ],
 )
 async def test_module_name_follows_the_catalogue(
@@ -443,7 +412,7 @@ async def test_module_name_follows_the_catalogue(
     expected_name: str,
     expected_model: str | None,
 ) -> None:
-    """A nameless row falls back to its row id."""
+    """A device reads catalogue metadata from the row with its override MAC."""
     mock_client.modules[17] = replace(mock_client.modules[17], **changes)
 
     await setup_integration(hass, mock_config_entry)
@@ -463,13 +432,7 @@ async def test_module_row_missing_from_the_catalogue(
     mock_config_entry: MockConfigEntry,
     device_registry: dr.DeviceRegistry,
 ) -> None:
-    """A visible object on a row the catalogue lacks still gets its device.
-
-    Ampio Designer deletes a device at once and only unassigns its objects
-    into a collapsed UNGROUPED section, so a visible object can point at a
-    row that no longer exists. The device takes the row id and no
-    decoration, rather than costing the whole setup.
-    """
+    """An addressed object keeps its module device when the catalogue row is absent."""
     del mock_client.modules[17]
 
     await setup_integration(hass, mock_config_entry)
@@ -544,8 +507,8 @@ async def test_analog_flag_has_no_pulse_diagnostic(
         )
 
 
-MODULE_VOLTAGE_ID = "sensor.ampio_module_17_voltage"
-MODULE_TEMPERATURE_ID = "sensor.ampio_module_17_temperature"
+MODULE_VOLTAGE_ID = "sensor.ampio_module_mac_52111_voltage"
+MODULE_TEMPERATURE_ID = "sensor.ampio_module_mac_52111_temperature"
 
 
 @pytest.mark.usefixtures("sensor_only")
@@ -586,8 +549,8 @@ async def test_module_sensor_ignores_another_module(
     """A broadcast from a different module leaves this one alone.
 
     The client's subscribe filters by object id and nothing else, so each
-    sensor compares the module id itself. Module 17's own reading is set
-    without emitting anything, so a guard that fails to compare the id
+    sensor compares the module MAC itself. Module 17's own reading is set
+    without emitting anything, so a guard that fails to compare the MAC
     would write it into the state a spurious event triggers.
     """
     await setup_integration(hass, mock_config_entry)
@@ -608,15 +571,24 @@ async def test_module_sensors_are_withheld_on_a_standard_account(
     mock_config_entry: MockConfigEntry,
     entity_registry: er.EntityRegistry,
 ) -> None:
-    """A standard account gets neither, and the withheld set names both."""
-    set_access_tier(mock_client, AccessTier.RESTRICTED)
-
+    """An account downgrade withholds both existing module-sensor records."""
     await setup_integration(hass, mock_config_entry)
+    assert hass.states.get(MODULE_VOLTAGE_ID) is not None
+    assert hass.states.get(MODULE_TEMPERATURE_ID) is not None
 
-    assert entity_registry.async_get(MODULE_VOLTAGE_ID) is None
-    assert entity_registry.async_get(MODULE_TEMPERATURE_ID) is None
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, data={**mock_config_entry.data, CONF_USERNAME: "user"}
+    )
+    await hass.config_entries.async_reload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entity_registry.async_get(MODULE_VOLTAGE_ID) is not None
+    assert entity_registry.async_get(MODULE_TEMPERATURE_ID) is not None
+    assert hass.states.get(MODULE_VOLTAGE_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(MODULE_TEMPERATURE_ID).state == STATE_UNAVAILABLE
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
-    assert withheld == {"module_17_voltage", "module_17_temperature"}
+    assert withheld == {"module_mac_52111_voltage", "module_mac_52111_temperature"}
 
 
 @pytest.mark.usefixtures("sensor_only")

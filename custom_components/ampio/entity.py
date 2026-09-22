@@ -17,7 +17,7 @@ from homeassistant.helpers.device_registry import ChildDeviceInfo, DeviceInfo
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import EntityPlatform
 
-from .const import DOMAIN
+from .const import DOMAIN, MODULE_KEY_STEM
 from .data import AmpioData, module_identifier
 
 
@@ -112,13 +112,13 @@ class AmpioEntity(AmpioPinnedEntity):
         device_info = ChildDeviceInfo(
             identifiers={(DOMAIN, obj.object_key)}, parent_device_id=parent
         )
-        # ``opis_menu`` is the Designer menu description, which is the name
+        # ``name`` is the Designer ``opis_menu`` column, which is the name
         # the user gave the object in the Ampio app. The device carries it,
         # so the primary entity adds no name of its own. An unnamed object
         # reads a translated placeholder, and its entity keeps the
         # platform's kind name.
-        if obj.opis_menu:
-            device_info["name"] = obj.opis_menu
+        if obj.name:
+            device_info["name"] = obj.name
             self._attr_name = None
         else:
             device_info["translation_key"] = "object"
@@ -159,38 +159,68 @@ class AmpioEntity(AmpioPinnedEntity):
     @property
     @override
     def available(self) -> bool:
-        """Available while the broker is connected and the object is still shown.
+        """Available while the broker is connected and the object is still served.
 
-        A Designer delete keeps the row on the administrator tier and sets
-        its hidden bit, so ``visible`` is the delete signal there. The
-        restricted tier drops the row instead, and ``_object`` goes None.
+        The library's admission door evicts a hidden row before any
+        consumer sees it, so a Designer delete reads the same on either
+        account tier: the object leaves ``objects`` and ``_object`` goes
+        None. There is no hidden bit left for an entity to read, and no
+        tier the delete signal differs on.
         """
-        obj = self._object
-        return self._data.client.available and obj is not None and obj.visible
+        return self._data.client.available and self._object is not None
 
 
 class AmpioModuleEntity(AmpioPinnedEntity):
     """Entity that attaches to a module device rather than to an object.
 
-    The key is the Designer row id. An object carries that same id in its
-    own ``id_urzadzenia`` field on both account tiers, which is how the row
-    id survives a tier change. Availability tracks the connection and nothing
-    else. A subclass whose surface reports something of its own overrides
-    ``available``.
+    The key is the module's override mac, which every object carries in
+    its address on both account tiers and which Ampio Designer re-stamps
+    onto a replacement unit, so a swapped module keeps its device and its
+    entities. The Designer row id is no identity here: it is reassigned
+    when a module is replaced, and only the administrator login is served
+    it at all. It is the argument the module commands take, and
+    ``_require_module_id`` resolves it at call time.
+
+    Availability tracks the connection and nothing else. A subclass whose
+    surface reports something of its own overrides ``available``.
     """
 
-    def __init__(self, data: AmpioData, module_id: int, *, key_suffix: str) -> None:
-        """Attach to the module device of Designer row ``module_id``.
+    def __init__(self, data: AmpioData, mac: int, *, key_suffix: str) -> None:
+        """Attach to the module device on override mac ``mac``.
 
         ``key_suffix`` names what the entity does on the module, and it
         lands in the unique id and the entity id alike, because the two are
-        the same string.
+        the same string. The key is built from ``MODULE_KEY_STEM``, which
+        is also what the stale-record report matches a withheld module
+        entity on.
         """
         self._data = data
-        self._module_id = module_id
-        self._key = f"module_{module_id}_{key_suffix}"
+        self._mac = mac
+        self._key = f"{MODULE_KEY_STEM}_{mac}_{key_suffix}"
         self._attr_unique_id = self._key
-        self._attr_device_info = DeviceInfo(identifiers={module_identifier(module_id)})
+        self._attr_device_info = DeviceInfo(identifiers={module_identifier(mac)})
+
+    def _require_module_id(self) -> int:
+        """The Designer row id the module commands address, resolved now.
+
+        The name carries the raise, because a caller that cannot accept one
+        has no business here. It raises when the catalogue holds no
+        admitted row on this entity's mac, which is the right answer to a
+        press that cannot reach the module and the wrong answer to a read:
+        a surface that reports module data asks
+        ``AmpioData.module_row_for`` with ``self._mac`` instead and goes
+        unavailable on None.
+
+        Never cached. The row id is reassigned when a module is replaced,
+        while the mac this entity keys on survives the swap.
+        """
+        module = self._data.module_row_for(self._mac)
+        if module is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="module_not_addressable",
+            )
+        return module.id
 
     @override
     async def async_added_to_hass(self) -> None:

@@ -1,5 +1,5 @@
 # serializer version: 1
-# name: test_all_entities[light.ampio_module_17_backlight-entry]
+# name: test_all_entities[light.ampio_module_mac_52111_backlight-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -17,7 +17,7 @@
     'disabled_by': None,
     'domain': 'light',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
-    'entity_id': 'light.ampio_module_17_backlight',
+    'entity_id': 'light.ampio_module_mac_52111_backlight',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -33,14 +33,14 @@
     'original_name': 'Backlight',
     'platform': 'ampio',
     'previous_unique_id': None,
-    'suggested_object_id': 'ampio_module_17_backlight',
+    'suggested_object_id': 'ampio_module_mac_52111_backlight',
     'supported_features': 0,
     'translation_key': 'backlight',
-    'unique_id': 'module_17_backlight',
+    'unique_id': 'module_mac_52111_backlight',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[light.ampio_module_17_backlight-state]
+# name: test_all_entities[light.ampio_module_mac_52111_backlight-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.ASSUMED_STATE: 'assumed_state'>: True,
@@ -72,14 +72,14 @@
       ),
     }),
     'context': <ANY>,
-    'entity_id': 'light.ampio_module_17_backlight',
+    'entity_id': 'light.ampio_module_mac_52111_backlight',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'on',
   })
 # ---
-# name: test_all_entities[light.ampio_module_17_status_light-entry]
+# name: test_all_entities[light.ampio_module_mac_52111_status_light-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -97,7 +97,7 @@
     'disabled_by': None,
     'domain': 'light',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
-    'entity_id': 'light.ampio_module_17_status_light',
+    'entity_id': 'light.ampio_module_mac_52111_status_light',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -113,14 +113,14 @@
     'original_name': 'Status light',
     'platform': 'ampio',
     'previous_unique_id': None,
-    'suggested_object_id': 'ampio_module_17_status_light',
+    'suggested_object_id': 'ampio_module_mac_52111_status_light',
     'supported_features': 0,
     'translation_key': 'status_light',
-    'unique_id': 'module_17_status_light',
+    'unique_id': 'module_mac_52111_status_light',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[light.ampio_module_17_status_light-state]
+# name: test_all_entities[light.ampio_module_mac_52111_status_light-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.ASSUMED_STATE: 'assumed_state'>: True,
@@ -146,7 +146,7 @@
       ),
     }),
     'context': <ANY>,
-    'entity_id': 'light.ampio_module_17_status_light',
+    'entity_id': 'light.ampio_module_mac_52111_status_light',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,

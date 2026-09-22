@@ -1,5 +1,6 @@
 """Tests for the Ampio config flow."""
 
+from dataclasses import replace
 from unittest.mock import MagicMock
 
 from ampio_mqtt import AmpioAuthError, AmpioConnectionError, AmpioTimeoutError
@@ -15,7 +16,13 @@ from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
-from .conftest import MSERV_MAC, OTHER_MSERV_MAC, OTHER_SERVER_INFO, USER_INPUT
+from .conftest import (
+    MSERV_MAC,
+    OTHER_MSERV_MAC,
+    OTHER_SERVER_INFO,
+    SERVER_INFO,
+    USER_INPUT,
+)
 
 pytestmark = pytest.mark.usefixtures("mock_setup_entry")
 
@@ -30,6 +37,17 @@ FLOW_ERRORS = [
         AmpioTimeoutError("no usable info reply"), "cannot_connect", id="info_timeout"
     ),
     pytest.param(ValueError("username is required"), "unknown", id="unknown"),
+]
+
+LOGIN_ACCOUNT_CASES = [
+    pytest.param("admin", -1, {}, id="admin"),
+    pytest.param("user", 4, {}, id="standard"),
+    pytest.param(
+        "Admin", -1, {CONF_USERNAME: "admin_login_name"}, id="admin_case_variant"
+    ),
+    pytest.param(
+        "admin", 4, {CONF_USERNAME: "admin_login_name"}, id="admin_nonadmin_verdict"
+    ),
 ]
 
 
@@ -64,6 +82,40 @@ async def test_user_flow_success(hass: HomeAssistant) -> None:
     assert result["title"] == USER_INPUT[CONF_HOST]
     assert result["data"] == USER_INPUT
     assert result["result"].unique_id == MSERV_MAC
+
+
+@pytest.mark.parametrize(
+    ("username", "user_id", "expected_errors"), LOGIN_ACCOUNT_CASES
+)
+async def test_user_flow_checks_admin_login_name(
+    hass: HomeAssistant,
+    mock_client_class: MagicMock,
+    username: str,
+    user_id: int,
+    expected_errors: dict[str, str],
+) -> None:
+    """The login spelling must agree with the server's account verdict."""
+    mock_client_class.check_connection.return_value = replace(
+        SERVER_INFO, user_id=user_id
+    )
+    credentials = {**USER_INPUT, CONF_USERNAME: username}
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], credentials
+    )
+
+    if expected_errors:
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "user"
+        assert result["errors"] == expected_errors
+        assert not hass.config_entries.async_entries(DOMAIN)
+    else:
+        assert result["type"] is FlowResultType.CREATE_ENTRY
+        assert result["data"] == credentials
+        assert result["result"].unique_id == MSERV_MAC
 
 
 @pytest.mark.parametrize(("side_effect", "expected_error"), FLOW_ERRORS)
@@ -154,9 +206,10 @@ async def test_reauth_flow_replaces_the_credentials(
     assert mock_config_entry.unique_id == MSERV_MAC
 
 
-@pytest.mark.usefixtures("mock_client_class")
 async def test_reconfigure_flow_moves_the_host_and_the_title(
-    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_client_class: MagicMock,
+    mock_config_entry: MockConfigEntry,
 ) -> None:
     """A new address and account are written, and the entry title follows."""
     mock_config_entry.add_to_hass(hass)
@@ -169,13 +222,60 @@ async def test_reconfigure_flow_moves_the_host_and_the_title(
     # for the reauth source alone.
     assert result["description_placeholders"] is None
 
-    moved = {**USER_INPUT, CONF_HOST: "ampio2.test", CONF_USERNAME: "admin"}
+    mock_client_class.check_connection.return_value = replace(SERVER_INFO, user_id=4)
+    moved = {**USER_INPUT, CONF_HOST: "ampio2.test", CONF_USERNAME: "other_user"}
     result = await hass.config_entries.flow.async_configure(result["flow_id"], moved)
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert dict(mock_config_entry.data) == moved
     assert mock_config_entry.title == "ampio2.test"
+    assert mock_config_entry.unique_id == MSERV_MAC
+
+
+@pytest.mark.parametrize(
+    ("source", "step_id", "reason"),
+    [
+        ("reauth", "reauth_confirm", "reauth_successful"),
+        ("reconfigure", "reconfigure", "reconfigure_successful"),
+    ],
+    ids=["reauth", "reconfigure"],
+)
+@pytest.mark.parametrize(
+    ("username", "user_id", "expected_errors"), LOGIN_ACCOUNT_CASES
+)
+async def test_credentials_flow_checks_admin_login_name(
+    hass: HomeAssistant,
+    mock_client_class: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    source: str,
+    step_id: str,
+    reason: str,
+    username: str,
+    user_id: int,
+    expected_errors: dict[str, str],
+) -> None:
+    """Reauth and reconfigure reject a mismatched login without changing the entry."""
+    mock_config_entry.add_to_hass(hass)
+    mock_client_class.check_connection.return_value = replace(
+        SERVER_INFO, user_id=user_id
+    )
+    credentials = {**USER_INPUT, CONF_USERNAME: username, CONF_PASSWORD: "rotated"}
+
+    result = await _start_credentials_flow(hass, mock_config_entry, source)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], credentials
+    )
+
+    if expected_errors:
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == step_id
+        assert result["errors"] == expected_errors
+        assert dict(mock_config_entry.data) == USER_INPUT
+    else:
+        assert result["type"] is FlowResultType.ABORT
+        assert result["reason"] == reason
+        assert dict(mock_config_entry.data) == credentials
     assert mock_config_entry.unique_id == MSERV_MAC
 
 

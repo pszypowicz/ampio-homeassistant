@@ -35,8 +35,8 @@ BINARY_SENSOR_DESCRIPTIONS: dict[str, BinarySensorEntityDescription] = {
         ),
         # The alarm partition. No half takes a device class: the alarmed
         # half also reads on through the panel's exit delay, so it is not a
-        # safety indicator on its own. The base kind is what a partition
-        # object reads as once Designer clears its leaf.
+        # safety indicator on its own. Other sub-functions use the base
+        # alarm kind.
         BinarySensorEntityDescription(
             key="alarm",
             translation_key="alarm",
@@ -148,7 +148,7 @@ class AmpioCoverLockSensor(AmpioEntity, BinarySensorEntity):
     @property
     @override
     def is_on(self) -> bool | None:
-        """Whether this direction is held, or None once the object is gone."""
-        if (obj := self._object) is None:
+        """Whether this direction is held, or None without an object or lock report."""
+        if (obj := self._object) is None or obj.block is None:
             return None
         return self.entity_description.is_locked_fn(obj)

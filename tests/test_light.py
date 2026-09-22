@@ -9,6 +9,7 @@ from ampio_mqtt import (
     AccessTier,
     AmpioConnectionError,
     AmpioTimeoutError,
+    AmpioValueError,
     ModuleFunction,
     ObjectUpdated,
 )
@@ -38,10 +39,12 @@ from homeassistant.components.light import (
 from homeassistant.const import (
     ATTR_ASSUMED_STATE,
     ATTR_ENTITY_ID,
+    CONF_USERNAME,
     SERVICE_TURN_OFF,
     SERVICE_TURN_ON,
     STATE_OFF,
     STATE_ON,
+    STATE_UNAVAILABLE,
     Platform,
 )
 from homeassistant.core import HomeAssistant
@@ -65,8 +68,8 @@ DIMMER_ENTITY_ID = pinned_id("light", 71)
 RGBW_ENTITY_ID = pinned_id("light", 72)
 RELAY_ENTITY_ID = pinned_id("light", 73)
 CCT_ENTITY_ID = pinned_id("light", 76)
-BACKLIGHT_ENTITY_ID = module_pinned_id("light", 17, "_backlight")
-STATUS_LIGHT_ENTITY_ID = module_pinned_id("light", 17, "_status_light")
+BACKLIGHT_ENTITY_ID = module_pinned_id("light", 52111, "_backlight")
+STATUS_LIGHT_ENTITY_ID = module_pinned_id("light", 52111, "_status_light")
 
 
 @pytest.fixture(autouse=True)
@@ -405,9 +408,7 @@ async def test_panel_light_built_only_for_its_own_capability(
 ) -> None:
     """A module reporting only the backlight capability gets no status light."""
     module = mock_client.modules[17]
-    mock_client.modules[17] = replace(
-        module, capabilities={**module.capabilities, ModuleFunction.BACKLIGHT_RGBW: 6}
-    )
+    mock_client.capabilities[module.mac] = {ModuleFunction.BACKLIGHT_RGBW: 6}
     await setup_integration(hass, mock_config_entry)
 
     assert hass.states.get(BACKLIGHT_ENTITY_ID) is not None
@@ -415,16 +416,30 @@ async def test_panel_light_built_only_for_its_own_capability(
 
 
 async def test_panel_lights_withheld_on_a_standard_account(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
 ) -> None:
-    """A standard account gets neither panel light, and withheld_unique_ids names both."""
-    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    """An account downgrade withholds both existing panel-light records."""
+    with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)
+    assert hass.states.get(BACKLIGHT_ENTITY_ID) is not None
+    assert hass.states.get(STATUS_LIGHT_ENTITY_ID) is not None
 
-    assert hass.states.get(BACKLIGHT_ENTITY_ID) is None
-    assert hass.states.get(STATUS_LIGHT_ENTITY_ID) is None
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, data={**mock_config_entry.data, CONF_USERNAME: "user"}
+    )
+    await hass.config_entries.async_reload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entity_registry.async_get(BACKLIGHT_ENTITY_ID) is not None
+    assert entity_registry.async_get(STATUS_LIGHT_ENTITY_ID) is not None
+    assert hass.states.get(BACKLIGHT_ENTITY_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(STATUS_LIGHT_ENTITY_ID).state == STATE_UNAVAILABLE
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
-    assert withheld == {"module_17_backlight", "module_17_status_light"}
+    assert withheld == {"module_mac_52111_backlight", "module_mac_52111_status_light"}
 
 
 async def test_initial_color_reads_panel_settings(
@@ -634,11 +649,13 @@ async def test_bare_turn_on_falls_through_to_plain_white_when_default_is_black(
     with_panel_colors(mock_client)
     with_panel_settings(mock_client)
     module = mock_client.modules[17]
-    assert module.panel_settings is not None
+    assert mock_client.panel_settings[module.mac] is not None
     black_settings = replace(
-        module.panel_settings, touch_field_color=(0, 0, 0, 0), status_color=(0, 0, 0)
+        mock_client.panel_settings[module.mac],
+        touch_field_color=(0, 0, 0, 0),
+        status_color=(0, 0, 0),
     )
-    mock_client.modules[17] = replace(module, panel_settings=black_settings)
+    mock_client.panel_settings[module.mac] = black_settings
     await setup_integration(hass, mock_config_entry)
 
     await hass.services.async_call(
@@ -767,14 +784,16 @@ async def test_status_light_turn_off_and_explicit_zero_send_all_zero(
 
 
 async def test_backlight_unknown_module_raises(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
 ) -> None:
-    """A module the catalogue cannot address raises, not a bare ValueError."""
+    """A missing module row prevents the backlight command and names the address error."""
     with_panel_colors(mock_client)
-    mock_client.set_panel_backlight.side_effect = ValueError("module id 17 has no mac")
     await setup_integration(hass, mock_config_entry)
+    del mock_client.modules[17]
 
-    with pytest.raises(HomeAssistantError) as excinfo:
+    with pytest.raises(ServiceValidationError) as excinfo:
         await hass.services.async_call(
             LIGHT_DOMAIN,
             SERVICE_TURN_ON,
@@ -782,10 +801,16 @@ async def test_backlight_unknown_module_raises(
             blocking=True,
         )
     assert excinfo.value.translation_key == "module_not_addressable"
+    mock_client.set_panel_backlight.assert_not_awaited()
 
 
 @pytest.mark.parametrize(
-    "error", [AmpioConnectionError("Not connected"), AmpioTimeoutError("no ack")]
+    "error",
+    [
+        AmpioConnectionError("Not connected"),
+        AmpioTimeoutError("no ack"),
+        AmpioValueError("command rejected"),
+    ],
 )
 async def test_backlight_command_failure_raises(
     hass: HomeAssistant,
@@ -793,7 +818,7 @@ async def test_backlight_command_failure_raises(
     mock_config_entry: MockConfigEntry,
     error: Exception,
 ) -> None:
-    """A connection or timeout failure raises the backlight's own message."""
+    """A library command failure raises the backlight's own message."""
     with_panel_colors(mock_client)
     mock_client.set_panel_backlight.side_effect = error
     await setup_integration(hass, mock_config_entry)
@@ -811,14 +836,12 @@ async def test_backlight_command_failure_raises(
 async def test_status_light_unknown_module_raises(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """A module the catalogue cannot address raises, not a bare ValueError."""
+    """A missing module row prevents the status-light command and names the address error."""
     with_panel_colors(mock_client)
-    mock_client.set_panel_status_light.side_effect = ValueError(
-        "module id 17 has no mac"
-    )
     await setup_integration(hass, mock_config_entry)
+    del mock_client.modules[17]
 
-    with pytest.raises(HomeAssistantError) as excinfo:
+    with pytest.raises(ServiceValidationError) as excinfo:
         await hass.services.async_call(
             LIGHT_DOMAIN,
             SERVICE_TURN_ON,
@@ -826,10 +849,16 @@ async def test_status_light_unknown_module_raises(
             blocking=True,
         )
     assert excinfo.value.translation_key == "module_not_addressable"
+    mock_client.set_panel_status_light.assert_not_awaited()
 
 
 @pytest.mark.parametrize(
-    "error", [AmpioConnectionError("Not connected"), AmpioTimeoutError("no ack")]
+    "error",
+    [
+        AmpioConnectionError("Not connected"),
+        AmpioTimeoutError("no ack"),
+        AmpioValueError("command rejected"),
+    ],
 )
 async def test_status_light_command_failure_raises(
     hass: HomeAssistant,
@@ -837,7 +866,7 @@ async def test_status_light_command_failure_raises(
     mock_config_entry: MockConfigEntry,
     error: Exception,
 ) -> None:
-    """A connection or timeout failure raises the status light's own message."""
+    """A library command failure raises the status light's own message."""
     with_panel_colors(mock_client)
     mock_client.set_panel_status_light.side_effect = error
     await setup_integration(hass, mock_config_entry)
@@ -1047,19 +1076,13 @@ async def test_set_backlight_fields_leaves_the_entity_state_unchanged(
     assert after.attributes[ATTR_RGBW_COLOR] == TOUCH_FIELD_COLOR
 
 
-async def test_set_backlight_fields_uses_the_wire_ceiling_when_the_module_row_is_missing(
+async def test_set_backlight_fields_uses_the_wire_ceiling_when_the_count_is_missing(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """A missing module row falls back to the wire's ceiling, not the panel's count.
-
-    ``AmpioData.module_row`` returns None for a row that left the catalogue
-    after this entity was built. Field 20 is past the panel's real 6-field
-    count but within the ceiling every panel's frame can carry, so it still
-    reaches the client.
-    """
+    """An absent capability count uses the wire's ceiling for field validation."""
     with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)
-    del mock_client.modules[17]
+    del mock_client.capabilities[52111][ModuleFunction.BACKLIGHT_RGBW]
 
     await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [20], (10, 20, 30, 40))
     mock_client.set_panel_backlight.assert_awaited_once_with(
@@ -1070,16 +1093,10 @@ async def test_set_backlight_fields_uses_the_wire_ceiling_when_the_module_row_is
 async def test_set_backlight_fields_still_refuses_past_the_wire_ceiling(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """A missing module row loses the panel's own count, not the wire's hard ceiling.
-
-    Without this bound, field 99 would reach ``set_panel_backlight``, which
-    the real library refuses with ``AmpioValueError`` - a failure
-    ``_publish_translated`` would mistranslate as an unaddressable module
-    rather than an out-of-range field.
-    """
+    """An absent capability count still enforces the wire's field limit."""
     with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)
-    del mock_client.modules[17]
+    del mock_client.capabilities[52111][ModuleFunction.BACKLIGHT_RGBW]
 
     with pytest.raises(ServiceValidationError) as excinfo:
         await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [99], (10, 20, 30, 40))

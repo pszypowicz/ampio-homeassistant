@@ -21,18 +21,21 @@
           'capabilities': dict({
           }),
           'id': 1,
+          'mac': 1,
           'panel_settings': None,
         }),
         dict({
           'capabilities': dict({
           }),
           'id': 3,
+          'mac': 48770,
           'panel_settings': None,
         }),
         dict({
           'capabilities': dict({
           }),
           'id': 17,
+          'mac': 52111,
           'panel_settings': None,
         }),
       ]),
@@ -43,12 +46,13 @@
       'username': '**REDACTED**',
     }),
     'snapshot': dict({
-      'access_tier': 'admin',
       'auth_failure': None,
       'available': True,
       'connection': dict({
         'last_error': None,
         'last_message_at': '2026-08-27T06:05:00+00:00',
+        'protocol_violations': dict({
+        }),
         'reconnect_count': 0,
         'started_at': '2026-08-27T06:00:00+00:00',
         'subscribe_failures': dict({
@@ -78,6 +82,10 @@
           'temperature': None,
           'typ_urzadzenia': 44,
         }),
+      ]),
+      'not_configured': list([
+      ]),
+      'params_gap': list([
       ]),
       'server_info': dict({
         'device_id': '**REDACTED**',
@@ -121,12 +129,14 @@
         'capabilities': dict({
         }),
         'id': 1,
+        'mac': 1,
         'panel_settings': None,
       }),
       dict({
         'capabilities': dict({
         }),
         'id': 3,
+        'mac': 48770,
         'panel_settings': None,
       }),
       dict({
@@ -134,6 +144,7 @@
           'BUZZER': 4,
         }),
         'id': 17,
+        'mac': 52111,
         'panel_settings': dict({
           'backlight_active': list([
             True,

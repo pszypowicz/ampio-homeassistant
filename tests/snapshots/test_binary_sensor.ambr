@@ -149,56 +149,6 @@
     'state': 'off',
   })
 # ---
-# name: test_all_entities[binary_sensor.ampio_obj_168-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': None,
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'binary_sensor',
-    'entity_category': None,
-    'entity_id': 'binary_sensor.ampio_obj_168',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': None,
-    'options': dict({
-    }),
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': None,
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': 'ampio_obj_168',
-    'supported_features': 0,
-    'translation_key': 'alarm',
-    'unique_id': 'obj_168',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[binary_sensor.ampio_obj_168-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Alarm strefa garaz',
-    }),
-    'context': <ANY>,
-    'entity_id': 'binary_sensor.ampio_obj_168',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'off',
-  })
-# ---
 # name: test_all_entities[binary_sensor.ampio_obj_81_blocks_closing-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
@@ -246,7 +196,7 @@
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
-    'state': 'off',
+    'state': 'unknown',
   })
 # ---
 # name: test_all_entities[binary_sensor.ampio_obj_81_blocks_opening-entry]
@@ -296,7 +246,7 @@
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
-    'state': 'off',
+    'state': 'unknown',
   })
 # ---
 # name: test_all_entities[binary_sensor.ampio_obj_82_blocks_closing-entry]
@@ -346,7 +296,7 @@
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
-    'state': 'off',
+    'state': 'unknown',
   })
 # ---
 # name: test_all_entities[binary_sensor.ampio_obj_82_blocks_opening-entry]
@@ -396,7 +346,7 @@
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
-    'state': 'off',
+    'state': 'unknown',
   })
 # ---
 # name: test_all_entities[binary_sensor.ampio_obj_83_blocks_closing-entry]
@@ -446,7 +396,7 @@
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
-    'state': 'off',
+    'state': 'unknown',
   })
 # ---
 # name: test_all_entities[binary_sensor.ampio_obj_83_blocks_opening-entry]
@@ -496,6 +446,6 @@
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
-    'state': 'off',
+    'state': 'unknown',
   })
 # ---

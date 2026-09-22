@@ -1,5 +1,5 @@
 # serializer version: 1
-# name: test_all_entities[sensor.ampio_module_17_temperature-entry]
+# name: test_all_entities[sensor.ampio_module_mac_52111_temperature-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -15,7 +15,7 @@
     'disabled_by': None,
     'domain': 'sensor',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
-    'entity_id': 'sensor.ampio_module_17_temperature',
+    'entity_id': 'sensor.ampio_module_mac_52111_temperature',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -34,14 +34,14 @@
     'original_name': 'Temperature',
     'platform': 'ampio',
     'previous_unique_id': None,
-    'suggested_object_id': 'ampio_module_17_temperature',
+    'suggested_object_id': 'ampio_module_mac_52111_temperature',
     'supported_features': 0,
     'translation_key': None,
-    'unique_id': 'module_17_temperature',
+    'unique_id': 'module_mac_52111_temperature',
     'unit_of_measurement': <UnitOfTemperature.CELSIUS: '°C'>,
   })
 # ---
-# name: test_all_entities[sensor.ampio_module_17_temperature-state]
+# name: test_all_entities[sensor.ampio_module_mac_52111_temperature-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'temperature',
@@ -50,14 +50,14 @@
       <EntityStateAttribute.UNIT_OF_MEASUREMENT: 'unit_of_measurement'>: <UnitOfTemperature.CELSIUS: '°C'>,
     }),
     'context': <ANY>,
-    'entity_id': 'sensor.ampio_module_17_temperature',
+    'entity_id': 'sensor.ampio_module_mac_52111_temperature',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'unknown',
   })
 # ---
-# name: test_all_entities[sensor.ampio_module_17_voltage-entry]
+# name: test_all_entities[sensor.ampio_module_mac_52111_voltage-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -73,7 +73,7 @@
     'disabled_by': None,
     'domain': 'sensor',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
-    'entity_id': 'sensor.ampio_module_17_voltage',
+    'entity_id': 'sensor.ampio_module_mac_52111_voltage',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -92,14 +92,14 @@
     'original_name': 'Supply voltage',
     'platform': 'ampio',
     'previous_unique_id': None,
-    'suggested_object_id': 'ampio_module_17_voltage',
+    'suggested_object_id': 'ampio_module_mac_52111_voltage',
     'supported_features': 0,
     'translation_key': 'supply_voltage',
-    'unique_id': 'module_17_voltage',
+    'unique_id': 'module_mac_52111_voltage',
     'unit_of_measurement': <UnitOfElectricPotential.VOLT: 'V'>,
   })
 # ---
-# name: test_all_entities[sensor.ampio_module_17_voltage-state]
+# name: test_all_entities[sensor.ampio_module_mac_52111_voltage-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'voltage',
@@ -108,7 +108,7 @@
       <EntityStateAttribute.UNIT_OF_MEASUREMENT: 'unit_of_measurement'>: <UnitOfElectricPotential.VOLT: 'V'>,
     }),
     'context': <ANY>,
-    'entity_id': 'sensor.ampio_module_17_voltage',
+    'entity_id': 'sensor.ampio_module_mac_52111_voltage',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
@@ -905,7 +905,7 @@
     'identifiers': set({
       tuple(
         'ampio',
-        'module:17',
+        'module_mac:52111',
       ),
     }),
     'labels': set({

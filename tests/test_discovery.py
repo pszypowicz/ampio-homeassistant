@@ -8,12 +8,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from ampio_mqtt import (
     AccessTier,
+    AmpioAdminClient,
     AmpioConnectionError,
     AmpioObject,
     ObjectAdded,
     ObjectRemoved,
     ObjectUpdated,
 )
+from ampio_mqtt._protocol import parse_module_address
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -61,9 +63,9 @@ ISSUE_ID = "stale_records"
 def _new_input(**overrides: Any) -> AmpioObject:
     """A wired input added in Designer after setup, on the default module."""
     fields: dict[str, Any] = {
-        "leaf_id": "0_cb8f_wej_0_12",
+        "leaf_id": "0_cb8f_257_1_12",
         "funkcja": 12,
-        "opis_menu": "Przycisk taras",
+        "name": "Przycisk taras",
         "state": "0",
     }
     fields.update(overrides)
@@ -139,31 +141,29 @@ async def test_new_object_gets_its_entity_device_and_area(
     assert mock_client.fetch_rooms.await_count == 2
 
 
-async def test_new_module_row_gets_a_device_on_a_restricted_account(
+async def test_new_module_mac_gets_a_device_on_a_restricted_account(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
     device_registry: dr.DeviceRegistry,
 ) -> None:
-    """A row the tree has not met yet gets its module device before its child."""
+    """A new module MAC gets its device before its child on a standard account."""
     set_access_tier(mock_client, AccessTier.RESTRICTED)
     await setup_integration(hass, mock_config_entry)
 
-    await _add(
-        hass, mock_client, _new_input(id_urzadzenia=21, leaf_id="0_d009_wej_0_1")
-    )
+    await _add(hass, mock_client, _new_input(leaf_id="0_d009_257_1_1"))
 
     hub = device_registry.async_get_device_by_identifier(
         HUB_IDENTIFIER, mock_config_entry.entry_id
     )
     module = device_registry.async_get_device_by_identifier(
-        (DOMAIN, "module:21"), mock_config_entry.entry_id
+        (DOMAIN, "module_mac:53257"), mock_config_entry.entry_id
     )
     child = _child(device_registry, mock_config_entry, NEW_INPUT_ID)
     assert hub is not None
     assert module is not None
     assert child is not None
-    assert module.name == "Ampio module 21"
+    assert module.name == "Ampio module 53257"
     assert module.via_device_id == hub.id
     assert child.parent_device_id == module.id
     assert hass.states.get(NEW_INPUT_ENTITY_ID).state == STATE_OFF
@@ -180,7 +180,7 @@ async def test_one_batch_per_burst_of_events(
             300 + offset,
             "wej",
             7,
-            leaf_id=f"0_cb8f_wej_0_{20 + offset}",
+            leaf_id=f"0_cb8f_257_1_{20 + offset}",
             funkcja=20 + offset,
             state="0",
         )
@@ -229,20 +229,19 @@ async def test_removed_object_loses_its_entity_and_keeps_its_record(
     assert hass.states.get(WEJ_ENTITY_ID).state == STATE_OFF
 
 
-async def test_hidden_object_loses_its_entity_until_shown_again(
+async def test_deleted_relay_loses_its_entity_until_readmitted(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """On the admin tier a delete is the hidden bit, and an un-hide brings the entity back."""
+    """A relay's removal and readmission restore its entity on an admin account."""
     await setup_integration(hass, mock_config_entry)
-    relay = mock_client.objects[74]
 
-    await _update(hass, mock_client, replace(relay, params=16))
+    relay = await _remove(hass, mock_client, 74)
     state = hass.states.get(RELAY_SWITCH_ID)
     assert state is not None
     assert state.state == STATE_UNAVAILABLE
     assert state.attributes[ATTR_RESTORED] is True
 
-    await _update(hass, mock_client, relay)
+    await _add(hass, mock_client, relay)
     assert hass.states.get(RELAY_SWITCH_ID).state == STATE_ON
 
 
@@ -291,7 +290,11 @@ async def test_moved_object_is_removed_and_deletable(
     await _update(
         hass,
         mock_client,
-        replace(mock_client.objects[74], id_urzadzenia=3, leaf_id="0_be82_rel_0_1"),
+        replace(
+            mock_client.objects[74],
+            address=parse_module_address("0_be82_257_2_1"),
+            leaf_key="leaf_0_be82_257_2_1",
+        ),
     )
 
     assert hass.states.get(RELAY_SWITCH_ID).state == STATE_UNAVAILABLE
@@ -300,7 +303,7 @@ async def test_moved_object_is_removed_and_deletable(
         record
         for record in caplog.records
         if record.levelno == logging.WARNING
-        and "Object 74 moved" in record.getMessage()
+        and "Ampio object 74 hangs under a different module" in record.getMessage()
     ]
     assert len(warnings) == 1
     stuck = _child(device_registry, mock_config_entry, 74)
@@ -372,16 +375,16 @@ async def test_removed_object_is_listed_by_the_repair(
     assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is None
 
 
-async def test_hidden_object_is_listed_by_the_repair(
+async def test_deleted_object_is_listed_by_the_repair(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
     issue_registry: ir.IssueRegistry,
 ) -> None:
-    """On the admin tier the wording says deleted, because the row is hidden."""
+    """A removed admin catalogue object is listed as deleted by the repair."""
     await setup_integration(hass, mock_config_entry)
 
-    await _update(hass, mock_client, replace(mock_client.objects[74], params=16))
+    await _remove(hass, mock_client, 74)
 
     issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID)
     assert issue is not None
@@ -401,7 +404,11 @@ async def test_moved_object_is_listed_by_the_repair(
     await _update(
         hass,
         mock_client,
-        replace(mock_client.objects[74], id_urzadzenia=3, leaf_id="0_be82_rel_0_1"),
+        replace(
+            mock_client.objects[74],
+            address=parse_module_address("0_be82_257_2_1"),
+            leaf_key="leaf_0_be82_257_2_1",
+        ),
     )
 
     issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID)
@@ -428,7 +435,11 @@ async def test_deleting_a_moved_child_brings_it_back_under_the_new_module(
     await _update(
         hass,
         mock_client,
-        replace(mock_client.objects[74], id_urzadzenia=3, leaf_id="0_be82_rel_0_1"),
+        replace(
+            mock_client.objects[74],
+            address=parse_module_address("0_be82_257_2_1"),
+            leaf_key="leaf_0_be82_257_2_1",
+        ),
     )
     stuck = _child(device_registry, mock_config_entry, 74)
     assert stuck is not None
@@ -438,7 +449,7 @@ async def test_deleting_a_moved_child_brings_it_back_under_the_new_module(
 
     moved = _child(device_registry, mock_config_entry, 74)
     new_module = device_registry.async_get_device_by_identifier(
-        (DOMAIN, "module:3"), mock_config_entry.entry_id
+        (DOMAIN, "module_mac:48770"), mock_config_entry.entry_id
     )
     assert moved is not None
     assert new_module is not None
@@ -449,30 +460,27 @@ async def test_deleting_a_moved_child_brings_it_back_under_the_new_module(
     assert hass.states.get(RELAY_SWITCH_ID).state == STATE_ON
 
 
-async def test_module_factory_builds_now_and_for_a_new_row(
+async def test_module_factory_builds_now_and_for_a_new_mac(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """A module factory runs once per module device: at registration, then per new row.
-
-    The default catalogue puts every module-owned object on row 17, so the
-    registration builds for that row alone. A row the tree meets in a later
-    batch is built through the platform the factory was registered on. An
-    ``admin_only`` factory builds on the same rows, because the fixture
-    defaults to the administrator tier.
-    """
+    """Each module factory receives the admin client and MAC at setup and discovery."""
     await setup_integration(hass, mock_config_entry)
     data: AmpioData = mock_config_entry.runtime_data
     platform = MagicMock(spec=EntityPlatform)
     platform.async_add_entities = AsyncMock()
     built: list[int] = []
-    gated_built: list[int] = []
+    second_built: list[int] = []
 
-    def factory(_data: AmpioData, module_id: int) -> list[Entity]:
-        built.append(module_id)
+    def factory(_data: AmpioData, admin: AmpioAdminClient, mac: int) -> list[Entity]:
+        assert admin is mock_client
+        built.append(mac)
         return [MagicMock(spec=Entity)]
 
-    def gated_factory(_data: AmpioData, module_id: int) -> list[Entity]:
-        gated_built.append(module_id)
+    def second_factory(
+        _data: AmpioData, admin: AmpioAdminClient, mac: int
+    ) -> list[Entity]:
+        assert admin is mock_client
+        second_built.append(mac)
         return [MagicMock(spec=Entity)]
 
     async_add_entities = MagicMock()
@@ -480,98 +488,69 @@ async def test_module_factory_builds_now_and_for_a_new_row(
         "custom_components.ampio.data.async_get_current_platform",
         return_value=platform,
     ):
-        data.async_add_module_platform(factory, async_add_entities)
-        data.async_add_module_platform(
-            gated_factory, async_add_entities, admin_only=True
-        )
+        data.async_add_admin_module_platform(factory, async_add_entities)
+        data.async_add_admin_module_platform(second_factory, async_add_entities)
 
-    assert built == [17]
-    assert gated_built == [17]
+    assert built == [52111]
+    assert second_built == [52111]
     assert async_add_entities.call_count == 2
     for call in async_add_entities.call_args_list:
         assert len(call.args[0]) == 1
     assert data.ensure_module_device(mock_client.objects[36]) is None
 
-    await _add(
-        hass, mock_client, _new_input(id_urzadzenia=21, leaf_id="0_d009_wej_0_1")
-    )
+    await _add(hass, mock_client, _new_input(leaf_id="0_d009_257_1_1"))
 
-    assert built == [17, 21]
-    assert gated_built == [17, 21]
+    assert built == [52111, 53257]
+    assert second_built == [52111, 53257]
     assert platform.async_add_entities.await_count == 2
     for call in platform.async_add_entities.call_args_list:
         assert len(call.args[0]) == 1
 
 
-async def test_gated_module_factory_stays_withheld_on_a_restricted_account(
+async def test_module_factory_is_never_called_on_a_restricted_account(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """A restricted account never adds a gated factory's entities, new row or not.
-
-    ``withheld_unique_ids()`` calls a gated factory too, on purpose, to
-    compute the ids it withholds, so a raw call count on the factory itself
-    would not tell a real build apart from that bookkeeping. What must stay
-    empty is the entities a gated registration hands to Home Assistant,
-    both at registration and in a later batch.
-    """
+    """Setup, discovery, and withheld-id lookup never run an admin factory off-tier."""
     set_access_tier(mock_client, AccessTier.RESTRICTED)
     await setup_integration(hass, mock_config_entry)
     data: AmpioData = mock_config_entry.runtime_data
     platform = MagicMock(spec=EntityPlatform)
     platform.async_add_entities = AsyncMock()
-    built: list[int] = []
-
-    def factory(_data: AmpioData, module_id: int) -> list[Entity]:
-        built.append(module_id)
-        return [MagicMock(spec=Entity)]
-
-    def gated_factory(_data: AmpioData, module_id: int) -> list[Entity]:
-        return [MagicMock(spec=Entity)]
+    factory = MagicMock(return_value=[MagicMock(spec=Entity)])
 
     async_add_entities = MagicMock()
-    gated_async_add_entities = MagicMock()
     with patch(
         "custom_components.ampio.data.async_get_current_platform",
         return_value=platform,
     ):
-        data.async_add_module_platform(factory, async_add_entities)
-        data.async_add_module_platform(
-            gated_factory, gated_async_add_entities, admin_only=True
-        )
+        data.async_add_admin_module_platform(factory, async_add_entities)
 
-    assert built == [17]
-    gated_async_add_entities.assert_called_once_with([])
+    factory.assert_not_called()
+    async_add_entities.assert_called_once_with([])
 
-    await _add(
-        hass, mock_client, _new_input(id_urzadzenia=21, leaf_id="0_d009_wej_0_1")
-    )
+    await _add(hass, mock_client, _new_input(leaf_id="0_d009_257_1_1"))
 
-    assert built == [17, 21]
-    assert platform.async_add_entities.await_count == 1
-    assert len(platform.async_add_entities.call_args.args[0]) == 1
+    assert data.withheld_unique_ids() == set()
+    factory.assert_not_called()
+    platform.async_add_entities.assert_not_awaited()
 
 
-async def test_deleted_module_device_comes_back_with_its_row(
+async def test_deleted_module_device_comes_back_with_its_object(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
     device_registry: dr.DeviceRegistry,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A module device the user deleted is built again when its row returns.
-
-    The hook permits the delete once no eligible object resolves to the
-    module. The next object on the row then gets the device back with its
-    registry id, its child under it, and the module's Identify button.
-    """
+    """A returning object restores its deleted module device, child, and Identify button."""
     await setup_integration(hass, mock_config_entry)
-    new_input = _new_input(id_urzadzenia=21, leaf_id="0_d009_wej_0_1")
+    new_input = _new_input(leaf_id="0_d009_257_1_1")
     await _add(hass, mock_client, new_input)
     module = device_registry.async_get_device_by_identifier(
-        (DOMAIN, "module:21"), mock_config_entry.entry_id
+        (DOMAIN, "module_mac:53257"), mock_config_entry.entry_id
     )
     assert module is not None
-    button_id = module_pinned_id("button", 21, "_identify")
+    button_id = module_pinned_id("button", 53257, "_identify")
     assert hass.states.get(button_id) is not None
 
     await _remove(hass, mock_client, NEW_INPUT_ID)
@@ -583,7 +562,7 @@ async def test_deleted_module_device_comes_back_with_its_row(
     await _add(hass, mock_client, new_input)
 
     rebuilt = device_registry.async_get_device_by_identifier(
-        (DOMAIN, "module:21"), mock_config_entry.entry_id
+        (DOMAIN, "module_mac:53257"), mock_config_entry.entry_id
     )
     child = _child(device_registry, mock_config_entry, NEW_INPUT_ID)
     assert rebuilt is not None
@@ -600,18 +579,13 @@ async def test_module_row_reads_none_on_a_standard_account(
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
 ) -> None:
-    """The one gated read answers None instead of raising, tier denied.
-
-    The M-SERV serves the module catalogue to the administrator login alone,
-    so the library raises on a standard account. Every module-catalogue read
-    in the integration goes through this method, which is why the tier test
-    lives here and nowhere else.
-    """
+    """A module lookup returns None when the client has no admin catalogue."""
     set_access_tier(mock_client, AccessTier.RESTRICTED)
     await setup_integration(hass, mock_config_entry)
 
     data = mock_config_entry.runtime_data
-    assert data.module_row(17) is None
+    assert data.module_row_for(52111) is None
+    assert not hasattr(mock_client, "modules")
 
 
 async def test_module_row_reads_none_for_a_row_the_catalogue_lost(
@@ -619,13 +593,8 @@ async def test_module_row_reads_none_for_a_row_the_catalogue_lost(
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
 ) -> None:
-    """The gated read answers None for a row missing from the catalogue too.
-
-    The administrator account is served the catalogue in full, so this
-    exercises the dict lookup rather than the tier gate: a row Ampio Designer
-    dropped mid-session answers the same None a denied account gets.
-    """
+    """A module lookup returns None for a MAC absent from the admin catalogue."""
     await setup_integration(hass, mock_config_entry)
 
     data = mock_config_entry.runtime_data
-    assert data.module_row(999) is None
+    assert data.module_row_for(999) is None

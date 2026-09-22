@@ -5,7 +5,13 @@ from datetime import datetime
 import logging
 from typing import Any, Final, override
 
-from ampio_mqtt import AmpioConnectionError, AmpioTimeoutError, ModuleFunction
+from ampio_mqtt import (
+    AmpioAdminClient,
+    AmpioConnectionError,
+    AmpioTimeoutError,
+    AmpioValueError,
+    ModuleFunction,
+)
 import voluptuous as vol
 
 from homeassistant.components.siren import (
@@ -59,22 +65,13 @@ BUZZ_PATTERN_SCHEMA: VolDictType = {
 }
 
 
-def build_buzzers(data: AmpioData, module_id: int) -> list[AmpioBuzzer]:
-    """The siren platform's entities for one module device.
-
-    A standard account receives no module catalogue, so the capability is
-    unknowable there. This answers for every row on that tier. On that
-    tier the factory's answer reaches the withheld enumeration, and the
-    tier gate means nothing is built from it. A bare capability check
-    would leave an orphaned buzzer record in the repair card meant for a
-    Designer deletion.
-    """
-    if not data.is_admin:
-        return [AmpioBuzzer(data, module_id)]
-    module = data.module_row(module_id)
-    if module is None or ModuleFunction.BUZZER not in module.capabilities:
+def build_buzzers(
+    data: AmpioData, admin: AmpioAdminClient, mac: int
+) -> list[AmpioBuzzer]:
+    """The buzzer entity for a module that supports the command."""
+    if ModuleFunction.BUZZER not in admin.capabilities.get(mac, {}):
         return []
-    return [AmpioBuzzer(data, module_id)]
+    return [AmpioBuzzer(data, admin, mac)]
 
 
 async def async_setup_entry(
@@ -83,8 +80,8 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Register the siren platform; the runtime data builds and keeps its entities."""
-    entry.runtime_data.async_add_module_platform(
-        build_buzzers, async_add_entities, admin_only=True
+    entry.runtime_data.async_add_admin_module_platform(
+        build_buzzers, async_add_entities
     )
     entity_platform.async_get_current_platform().async_register_entity_service(
         "buzz_pattern", BUZZ_PATTERN_SCHEMA, "async_buzz_pattern"
@@ -123,9 +120,10 @@ class AmpioBuzzer(AmpioModuleEntity, SirenEntity):
     # panel-writes notes.
     _attr_available_tones = list(range(1, 32))
 
-    def __init__(self, data: AmpioData, module_id: int) -> None:
+    def __init__(self, data: AmpioData, admin: AmpioAdminClient, mac: int) -> None:
         """Attach to the module device, silent and with no stop pending."""
-        super().__init__(data, module_id, key_suffix="buzzer")
+        super().__init__(data, mac, key_suffix="buzzer")
+        self._admin = admin
         self._attr_is_on = False
         self._cancel_stop: Callable[[], None] | None = None
 
@@ -154,15 +152,12 @@ class AmpioBuzzer(AmpioModuleEntity, SirenEntity):
                 translation_placeholders={"maximum": str(MAX_STEP_SECONDS)},
             )
         cycles = 0 if duration is None else 1
+        module_id = self._require_module_id()
         try:
-            await self._data.client.buzz_pattern(
-                self._module_id, tone=tone, seconds=seconds, cycles=cycles
+            await self._admin.buzz_pattern(
+                module_id, tone=tone, seconds=seconds, cycles=cycles
             )
-        except ValueError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key="module_not_addressable"
-            ) from err
-        except (AmpioConnectionError, AmpioTimeoutError) as err:
+        except (AmpioValueError, AmpioConnectionError, AmpioTimeoutError) as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN, translation_key="buzzer_command_failed"
             ) from err
@@ -179,10 +174,12 @@ class AmpioBuzzer(AmpioModuleEntity, SirenEntity):
         Unlike the unload path, a user-invoked stop must not report success
         it did not reach, so the caller learns the panel may still sound.
         """
+        # Resolve first so a missing row leaves the expire timer running.
+        module_id = self._require_module_id()
         self._cancel_pending_stop()
         try:
-            await self._data.client.buzz_stop(self._module_id)
-        except (AmpioConnectionError, AmpioTimeoutError, ValueError) as err:
+            await self._admin.buzz_stop(module_id)
+        except (AmpioConnectionError, AmpioTimeoutError, AmpioValueError) as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN, translation_key="buzzer_stop_failed"
             ) from err
@@ -206,9 +203,10 @@ class AmpioBuzzer(AmpioModuleEntity, SirenEntity):
         A finite sequence ends on its own, and the panel says nothing when
         it does, so the state clears on a timer covering the whole run.
         """
+        module_id = self._require_module_id()
         try:
-            await self._data.client.buzz_pattern(
-                self._module_id,
+            await self._admin.buzz_pattern(
+                module_id,
                 tone=tone,
                 seconds=seconds,
                 tone2=tone2,
@@ -216,11 +214,7 @@ class AmpioBuzzer(AmpioModuleEntity, SirenEntity):
                 cycles=cycles,
                 delay=delay,
             )
-        except ValueError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key="module_not_addressable"
-            ) from err
-        except (AmpioConnectionError, AmpioTimeoutError) as err:
+        except (AmpioValueError, AmpioConnectionError, AmpioTimeoutError) as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN, translation_key="buzzer_command_failed"
             ) from err
@@ -254,10 +248,17 @@ class AmpioBuzzer(AmpioModuleEntity, SirenEntity):
         """
         self._attr_is_on = False
         try:
-            await self._data.client.buzz_stop(self._module_id)
-        except AmpioConnectionError, AmpioTimeoutError, ValueError:
+            module_id = self._require_module_id()
+            await self._admin.buzz_stop(module_id)
+        except (
+            AmpioConnectionError,
+            AmpioTimeoutError,
+            AmpioValueError,
+            ServiceValidationError,
+        ):
             _LOGGER.warning(
-                "Could not silence the buzzer on Ampio module %s; it sounds "
-                "until Ampio Designer stops it or the panel restarts",
-                self._module_id,
+                "Could not silence the buzzer on the Ampio module on mac %s "
+                "(entity %s). It sounds until Ampio Designer stops it or the panel restarts",
+                self._mac,
+                self.entity_id,
             )

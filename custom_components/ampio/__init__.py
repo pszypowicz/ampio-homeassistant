@@ -1,14 +1,16 @@
 """The Ampio integration."""
 
+from collections.abc import Mapping
 from functools import partial
 import logging
-from typing import cast
+from typing import Any, cast
 
 from ampio_mqtt import (
-    AccessTier,
+    AmpioAdminClient,
     AmpioAuthError,
     AmpioClient,
     AmpioConnectionError,
+    AmpioNotConfigured,
     AmpioTimeoutError,
     AmpioValueError,
     AuthFailed,
@@ -37,14 +39,28 @@ from homeassistant.helpers import (
 )
 from homeassistant.helpers.typing import ConfigType
 
-from .const import ADMIN_ONLY_RECORDS_ISSUE, DOMAIN, PLATFORMS, STALE_RECORDS_ISSUE
-from .data import AmpioConfigEntry, AmpioData, eligible_objects
-from .stale import async_report_stale_records
+from .const import (
+    ADMIN_ONLY_RECORDS_ISSUE,
+    ADMIN_USERNAME,
+    DOMAIN,
+    NOT_CONFIGURED_ISSUE,
+    PLATFORMS,
+    STALE_RECORDS_ISSUE,
+)
+from .data import AmpioConfigEntry, AmpioData, RefusedRows
+from .stale import async_check_not_configured, async_report_stale_records
 
 _LOGGER = logging.getLogger(__name__)
 
 SERVICE_SEND_NOTIFICATION = "send_notification"
 ATTR_MESSAGE = "message"
+
+
+def _build_client(data: Mapping[str, Any]) -> AmpioClient:
+    """The client class the stored account is served by."""
+    if data[CONF_USERNAME] == ADMIN_USERNAME:
+        return AmpioAdminClient(data[CONF_HOST], data[CONF_PASSWORD])
+    return AmpioClient(data[CONF_HOST], data[CONF_USERNAME], data[CONF_PASSWORD])
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -80,7 +96,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
-async def _async_sweep_records(client: AmpioClient) -> None:
+async def _async_sweep_records(client: AmpioAdminClient) -> None:
     """Fill the admin-guarded record bundles, and log what the pass covered.
 
     Two replies, the name table and the list, so the pass is one round trip
@@ -103,11 +119,7 @@ async def _async_sweep_records(client: AmpioClient) -> None:
 
 async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> bool:
     """Set up Ampio from a config entry."""
-    client = AmpioClient(
-        entry.data[CONF_HOST],
-        entry.data[CONF_USERNAME],
-        entry.data[CONF_PASSWORD],
-    )
+    client = _build_client(entry.data)
     entry.async_on_unload(client.disconnect)
 
     # Home Assistant does not unload entries when it stops, so without this the
@@ -119,12 +131,41 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
         hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _async_disconnect_client)
     )
 
+    not_configured: RefusedRows | None = None
     try:
         discovered = await client.connect()
     except AmpioAuthError as err:
         raise ConfigEntryAuthFailed(
             translation_domain=DOMAIN, translation_key="invalid_auth"
         ) from err
+    except AmpioNotConfigured as err:
+        # The library's admission door refuses a Designer row it cannot
+        # address and serves every other one, with the connection up. One
+        # unchecked Matter box must not take the install offline, so setup
+        # runs on what was served and a repair names the refused rows. The
+        # door is checked only after every initial reply has landed, so
+        # the catalogue and the server info are populated here.
+        # Ids alone, from here on. The exception's message embeds the
+        # Designer names of the rows, and no object, room or module name
+        # leaves the install, so the projection is taken first and the
+        # exception is not read again.
+        not_configured = RefusedRows.from_error(err)
+        discovered = True
+        if not_configured.objects:
+            _LOGGER.warning(
+                "Ampio objects %s carry no Designer leaf, so the integration "
+                "cannot address them and left them out. Restore each in Ampio "
+                "Designer and save",
+                sorted(not_configured.objects),
+            )
+        for mac, ids in not_configured.collisions:
+            _LOGGER.warning(
+                "Ampio module rows %s share override mac %s, so the integration "
+                "cannot tell their frames apart and left them out. Give each "
+                "module its own mac in Ampio Designer and save",
+                sorted(ids),
+                mac,
+            )
     except AmpioConnectionError as err:
         raise ConfigEntryNotReady(
             translation_domain=DOMAIN, translation_key="cannot_connect"
@@ -149,6 +190,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
         hass.config_entries.async_update_entry(entry, unique_id=info.server_key)
 
     entry.runtime_data = await AmpioData.async_create(hass, entry, client, info)
+    entry.runtime_data.not_configured = not_configured
 
     # The subscription starts before the platforms load. An event that lands
     # while a platform is still loading queues its id like any other, and a
@@ -160,9 +202,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
 
     # The sweep fills each module's capability map and each object's
     # record bundle. Setup waits for it: the capability map decides which
-    # modules carry a buzzer, and the platforms load below.
-    if client.access_tier is AccessTier.ADMIN:
-        await _async_sweep_records(client)
+    # modules carry a buzzer, and the platforms load below. The sweep is
+    # served to the administrator login alone, and the narrowed reference
+    # is what says so.
+    if (admin := entry.runtime_data.admin) is not None:
+        await _async_sweep_records(admin)
 
     was_unavailable = False
 
@@ -203,8 +247,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     # user gets to delete through a repair issue, recomputed after every
     # catalogue change from here on.
     entry.runtime_data.async_mark_ready(
-        partial(async_report_stale_records, hass, entry)
+        partial(async_report_stale_records, hass, entry),
+        partial(async_check_not_configured, hass, entry),
     )
+    # The door is read first and the leftovers after it, so that a row the
+    # door refused is named by the installer repair and left out of the
+    # leftovers, and no two repairs ask for opposite things about one
+    # record.
+    await async_check_not_configured(hass, entry)
     async_report_stale_records(hass, entry)
     return True
 
@@ -215,9 +265,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> bo
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> None:
-    """The records go with the entry, so neither repair has anything left to fix."""
+    """The records go with the entry, so no repair has anything left to fix.
+
+    Home Assistant leaves an integration's issues standing when its entry
+    goes, so every issue id the integration raises is named here.
+    """
     ir.async_delete_issue(hass, DOMAIN, ADMIN_ONLY_RECORDS_ISSUE)
     ir.async_delete_issue(hass, DOMAIN, STALE_RECORDS_ISSUE)
+    ir.async_delete_issue(hass, DOMAIN, NOT_CONFIGURED_ISSUE)
 
 
 async def async_remove_config_entry_device(
@@ -245,7 +300,7 @@ async def async_remove_config_entry_device(
                 identifier in expected_parent
                 and expected_parent[identifier] != device_entry.parent_device_id
             ):
-                for obj in eligible_objects(data.client):
+                for obj in data.client.objects.values():
                     if (DOMAIN, obj.object_key) == identifier:
                         data.async_request_reconcile(obj)
                         break

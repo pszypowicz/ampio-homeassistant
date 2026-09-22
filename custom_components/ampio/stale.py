@@ -1,8 +1,16 @@
-"""Registry records a setup left unclaimed, and the repairs that remove them."""
+"""Registry records a setup left unclaimed, and the repairs that answer for them.
+
+A record no platform claimed is offered for deletion. The records of a
+Designer row the library's admission door refused are not, because the
+install still needs them. That repair names the Designer fix instead, and
+the records it covers stay out of the deletion lists while it stands.
+"""
 
 from collections.abc import Iterable
 from dataclasses import dataclass
 import logging
+
+from ampio_mqtt import AmpioNotConfigured
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import (
@@ -12,8 +20,14 @@ from homeassistant.helpers import (
     issue_registry as ir,
 )
 
-from .const import ADMIN_ONLY_RECORDS_ISSUE, DOMAIN, STALE_RECORDS_ISSUE
-from .data import AmpioConfigEntry
+from .const import (
+    ADMIN_ONLY_RECORDS_ISSUE,
+    DOMAIN,
+    MODULE_KEY_STEM,
+    NOT_CONFIGURED_ISSUE,
+    STALE_RECORDS_ISSUE,
+)
+from .data import AmpioConfigEntry, RefusedRows
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,6 +65,62 @@ def _record_names(
     return sorted(names, key=str.casefold)
 
 
+@dataclass(frozen=True)
+class _RefusedRecords:
+    """The registry records the installer repair speaks for.
+
+    Two shapes, because the door refuses two things. An object row with no
+    Designer leaf takes its entities and its child device out of the
+    build, and a colliding override mac empties the capability map of that
+    mac, so every capability-gated module entity on it stops being built
+    too. Both sets of records come back when Ampio Designer is fixed.
+    """
+
+    # ``obj_<id>`` for each refused object row: the unique id its entities
+    # are keyed on, and the identifier of its child device.
+    objects: frozenset[str]
+    # ``module_mac_<mac>_`` for each colliding mac: the prefix of every
+    # module entity's unique id on it. The trailing separator is what
+    # keeps mac 123 from claiming ``module_mac_1234_buzzer``.
+    module_prefixes: tuple[str, ...]
+
+    def holds_entity(self, unique_id: str) -> bool:
+        """Whether an entity record belongs to a row the door refused.
+
+        An object entity's unique id is the object's token, or that token
+        and a suffix such as ``_pulse``. A module entity's always carries
+        a suffix, so the prefix test needs no exact-match arm.
+        """
+        if unique_id.startswith(self.module_prefixes):
+            return True
+        return any(
+            unique_id == key or unique_id.startswith(f"{key}_") for key in self.objects
+        )
+
+    def holds_child(self, child: dr.ChildDeviceEntry) -> bool:
+        """Whether a child device stands for an object row the door refused."""
+        return any(key in self.objects for _domain, key in child.identifiers)
+
+
+def _refused_records(entry: AmpioConfigEntry) -> _RefusedRecords:
+    """The records of every Designer row the admission door refused.
+
+    An admitted object row carries its own token on
+    ``AmpioObject.object_key``, which reads ``obj_<id>``. A refused row is
+    not in ``client.objects``, so there is no object to ask and the token
+    is built from the id. A module entity's unique id is built from
+    ``MODULE_KEY_STEM`` and the override mac, which is what the door names
+    on a collision.
+    """
+    refused = entry.runtime_data.not_configured
+    if refused is None:
+        return _RefusedRecords(frozenset(), ())
+    return _RefusedRecords(
+        frozenset(f"obj_{oid}" for oid in refused.objects),
+        tuple(f"{MODULE_KEY_STEM}_{mac}_" for mac, _ in refused.collisions),
+    )
+
+
 @callback
 def find_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> StaleRecords:
     """Collect the entry's records that no platform claimed on this setup.
@@ -62,6 +132,15 @@ def find_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> StaleRec
     entities are covered by the device rather than listed on their own. A
     disabled entity is skipped by its platform on purpose, so it and its
     device are never stale.
+
+    The records of a Designer row the admission door refused are none of
+    those, and they are left out of all three lists, the module device
+    that parents a refused object's child included. The row is missing
+    because Ampio Designer left it unaddressable, the installer repair
+    says which row and what to change, and the records come back when
+    that change lands. The exclusion names those ids alone, so a row
+    Designer really did delete is still reported while the installer
+    repair stands.
     """
     claimed = {
         entity_id
@@ -70,17 +149,27 @@ def find_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> StaleRec
     }
     entity_registry = er.async_get(hass)
     device_registry = dr.async_get(hass)
+    refused = _refused_records(entry)
     stale_entities = {
         entity.entity_id: entity
         for entity in er.async_entries_for_config_entry(entity_registry, entry.entry_id)
-        if entity.disabled_by is None and entity.entity_id not in claimed
+        if entity.disabled_by is None
+        and entity.entity_id not in claimed
+        and not refused.holds_entity(entity.unique_id)
     }
 
     devices: list[dr.AnyDeviceEntry] = []
     covered: set[str] = set()
+    refused_parents: set[str] = set()
     for child in dr.async_child_entries_for_config_entry(
         device_registry, entry.entry_id
     ):
+        # A refused row's child is skipped on its own identifier, because
+        # a child that has lost every entity record would otherwise read
+        # as stale on the empty set its entity test passes.
+        if refused.holds_child(child):
+            refused_parents.add(child.parent_device_id)
+            continue
         child_entities = er.async_entries_for_device(
             entity_registry, child.id, include_disabled_entities=True
         )
@@ -89,7 +178,13 @@ def find_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> StaleRec
             covered.update(entity.entity_id for entity in child_entities)
     live, _ = entry.runtime_data.live_identifiers()
     for device in dr.async_entries_for_config_entry(device_registry, entry.entry_id):
-        if device.identifiers & live:
+        # A module device whose every object was refused resolves from no
+        # live object, so liveness alone would offer it for deletion, and
+        # the registry takes a parent's children and their entity records
+        # with it. That would destroy the records the rows above are kept
+        # for. Parenthood of a kept child is what holds the device, since
+        # the door names a refused object by id and never by its mac.
+        if device.identifiers & live or device.id in refused_parents:
             continue
         devices.append(device)
         covered.update(
@@ -125,7 +220,7 @@ def async_report_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> 
         "admin_only_records",
         _record_names([], stale.withheld),
     )
-    if entry.runtime_data.is_admin:
+    if entry.runtime_data.admin is not None:
         translation_key = "stale_records_deleted"
     else:
         translation_key = "stale_records_not_served"
@@ -145,6 +240,12 @@ def _async_report(
     if not names:
         ir.async_delete_issue(hass, DOMAIN, issue_id)
         return
+    # This issue must stay non-persistent. ``names`` carries Designer
+    # object names and the names a user gave their devices, and Home
+    # Assistant publishes an issue's ``translation_placeholders`` in the
+    # diagnostics download once the issue is persistent, which would break
+    # the promise docs/debugging.md makes that the download carries no
+    # object, room, or module name.
     ir.async_create_issue(
         hass,
         DOMAIN,
@@ -169,8 +270,9 @@ def async_remove_stale_records(
     the last setup. The dispatch names both known issue ids and removes
     nothing for any other, because a repair that deletes registry records
     must be asked for by the id it was raised under, not by falling through
-    to whichever branch happens to be last. That keeps a future third issue
-    id inert here until this function is taught what it means.
+    to whichever branch happens to be last. The installer repair is the id
+    that must stay inert: nothing it covers is the integration's to delete,
+    and its flow asks for no deletion in the first place.
     """
     stale = find_stale_records(hass, entry)
     entity_registry = er.async_get(hass)
@@ -190,3 +292,73 @@ def async_remove_stale_records(
             "Not removing any record for unrecognized repair issue id %s",
             issue_id,
         )
+
+
+async def async_check_not_configured(
+    hass: HomeAssistant, entry: AmpioConfigEntry
+) -> None:
+    """Raise or clear the installer repair from the door's current answer.
+
+    The door is asked again rather than read back from what setup caught,
+    because a recovery announces itself with no event. The library reports
+    a refusal only for a set that is not empty, giving two module rows
+    their own override mac emits a module event, and deleting the last
+    refused row emits no removal for a row that was never admitted.
+
+    ``wait_for_initial_discovery`` is safe to call repeatedly and runs the
+    door check on every call. Its initial-reply signals latch on first
+    completion, so once setup has connected it answers without waiting,
+    and it returns False on a timeout rather than raising.
+    """
+    data = entry.runtime_data
+    try:
+        await data.client.wait_for_initial_discovery()
+    except AmpioNotConfigured as err:
+        refused = RefusedRows.from_error(err)
+        data.not_configured = refused
+        _async_report_not_configured(hass, refused)
+        return
+    data.not_configured = None
+    ir.async_delete_issue(hass, DOMAIN, NOT_CONFIGURED_ISSUE)
+
+
+@callback
+def _async_report_not_configured(hass: HomeAssistant, refused: RefusedRows) -> None:
+    """Raise the repair for the Designer rows the admission door refused.
+
+    Ids alone, and structurally so: ``RefusedRows`` carries no name to
+    put in a placeholder, because the projection at the catch site keeps
+    the Designer names inside the library.
+
+    Either fault can stand without the other, so the text follows which of
+    the two the door reports. An account that is not the administrator is
+    served no module list and therefore meets the object fault alone.
+    """
+    objects = [str(oid) for oid in refused.objects]
+    # One line per shared mac: the address, then the Designer device ids
+    # that carry it. The mac is written the way the config flow writes the
+    # server's, so one install reads one way.
+    collisions = [
+        f"0x{mac:X}: {', '.join(str(row) for row in ids)}"
+        for mac, ids in refused.collisions
+    ]
+    if objects and collisions:
+        translation_key = "not_configured_both"
+    elif collisions:
+        translation_key = "not_configured_modules"
+    else:
+        translation_key = "not_configured_objects"
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        NOT_CONFIGURED_ISSUE,
+        is_fixable=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=translation_key,
+        translation_placeholders={
+            "object_count": str(len(objects)),
+            "objects": "\n".join(f"- {oid}" for oid in objects),
+            "module_count": str(len(collisions)),
+            "modules": "\n".join(f"- {line}" for line in collisions),
+        },
+    )
