@@ -144,7 +144,7 @@ If something else looks wrong, see [docs/faq.md](docs/faq.md). Each answer there
 
 - Scenes are read once at setup. A scene added in the app needs a reload.
 - A module's capability map is read once at setup too. A module you add in Ampio Designer afterward gets its sensors, but not its buzzer, its Unlock touch button, or its Backlight and Status light, until you reload the integration.
-- Two objects that carry the same name in Ampio Designer and sit in the same room cannot share an entity id, so one of the two takes Home Assistant's `_2` suffix. Give such a pair distinct names in Designer if you want to tell them apart by their ids.
+- Two objects that carry the same name in Ampio Designer and share a room, or share having none, cannot share an entity id, so one of the two takes Home Assistant's `_2` suffix. Give such a pair distinct names in Designer if you want to tell them apart by their ids.
 
 ## Relationship to home-assistant/core
 

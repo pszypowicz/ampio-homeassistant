@@ -58,7 +58,7 @@ Home Assistant builds an entity id from the area name, the device name and the e
 
 The Entity ID format setting under Settings, then System, decides which of those names take part, and Ampio entities follow it like any other integration's. An object called Taras LED in the room Taras reads `light.taras_taras_led`. A module called M-SENS Salon gives its Identify button `button.m_sens_salon_identify`, with no area in front of it, because a module device gets no area of its own.
 
-Two objects that carry the same name in Ampio Designer and sit in the same room cannot share an id, so one of the two takes Home Assistant's `_2` suffix and reads `button.dzwonek_2` beside `button.dzwonek`. The same two names in different rooms read `button.salon_dzwonek` and `button.kuchnia_dzwonek`, and nothing collides. Give a colliding pair distinct names in Designer if you want to tell them apart by their ids.
+Two objects that carry the same name in Ampio Designer and share a room, or share having none, cannot share an id, so one of the two takes Home Assistant's `_2` suffix and reads `button.dzwonek_2` beside `button.dzwonek`. The same two names in different rooms read `button.salon_dzwonek` and `button.kuchnia_dzwonek`, and nothing collides. Give a colliding pair distinct names in Designer if you want to tell them apart by their ids.
 
 An install from an earlier release keeps the ids it already has, because an id is stored against the entity's unique id, and a release changes those only where the release note says it does. To rebuild one from the names you have now, open the entity, select the cog icon, and use Home Assistant's control for regenerating an entity id. It works on an entity from an earlier release as well as on a fresh one.
 

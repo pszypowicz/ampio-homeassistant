@@ -164,7 +164,7 @@ Every other way to target lights skips them already. Both entities carry the dia
 
 The two forms above are different. A template over `states.light` sees every light entity, and no template test reports an entity's category. A list of entity ids is a direct target, and a direct target is never filtered.
 
-**Fix:** Reject the panel entities inside the template, and use a label to find them. A panel light's id ends in the entity's own name, which follows your Home Assistant language and any rename you make, and nothing else in the id says the light belongs to this integration. So a pattern over ids can catch another integration's backlight, and it stops matching yours as soon as that name changes. A label is something you put on the entities yourself, and it holds through a rename and through a regenerated id.
+**Fix:** Reject the panel entities inside the template, and use a label to find them. A panel light's id ends in the entity's own name, which reads in your Home Assistant language, so the pattern to write differs from one install to the next. Nothing else in the id marks the light as this integration's either, so a pattern over ids can catch another integration's backlight and miss yours. A label is something you put on the entities yourself, and it holds through a rename and through a regenerated id.
 
 Open Settings, then Areas and labels, and create a label for them. Put it on the Backlight and the Status light of every panel. Then name the label in the template, either by its name or by the id Home Assistant gave it:
 
