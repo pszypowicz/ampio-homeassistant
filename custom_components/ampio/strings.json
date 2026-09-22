@@ -181,11 +181,14 @@
     "discovery_timeout": {
       "message": "Connected to the Ampio server, but it did not finish reporting its configuration."
     },
+    "identify_failed": {
+      "message": "The Ampio server did not confirm the identify command, so the module's LED may not light."
+    },
     "invalid_auth": {
       "message": "The Ampio server rejected the stored credentials."
     },
     "module_not_addressable": {
-      "message": "The Ampio server lists no address for this module, so the frame cannot be sent."
+      "message": "No unique module row matches this module. In Ampio Designer, restore the missing module row or give each device its own MAC address. Save the changes."
     },
     "not_a_panel_backlight": {
       "message": "This light does not drive a touch panel's backlight. Target the Backlight entity of the panel you want to color."
@@ -237,7 +240,7 @@
         "step": {
           "confirm": {
             "title": "Delete the administrator-only Ampio entities",
-            "description": "Home Assistant still lists {count} Ampio entities that the Ampio server serves to the administrator login alone. This integration uses a standard Ampio account:\n\n{names}\n\nThey come back on their own, with the same entity ids, if you point the integration back at the administrator account. Submit deletes these records from Home Assistant instead. Automations and dashboards that name them stop working. Nothing changes on the Ampio server."
+            "description": "Home Assistant still lists Ampio entities that the Ampio server serves to the administrator login alone. This integration uses a standard Ampio account:\n\n{names}\n\nThey come back on their own, with the same entity ids, if you point the integration back at the administrator account. Submit deletes these records from Home Assistant instead. Automations and dashboards that name them stop working. Nothing changes on the Ampio server."
           }
         }
       }
@@ -284,7 +287,7 @@
         "step": {
           "confirm": {
             "title": "Delete the stale Ampio records",
-            "description": "Home Assistant still lists {count} Ampio devices or entities that Ampio Designer no longer provides. They were deleted, or moved to another module:\n\n{names}\n\nSubmit deletes these records from Home Assistant. Automations and dashboards that name them stop working. Nothing changes on the Ampio server. A moved object comes back under its new module after the reload that follows."
+            "description": "Home Assistant still lists Ampio devices or entities that Ampio Designer no longer provides. They were deleted, or moved to another module:\n\n{names}\n\nSubmit deletes these records from Home Assistant. Automations and dashboards that name them stop working. Nothing changes on the Ampio server. A moved object comes back under its new module after the reload that follows."
           }
         }
       }
@@ -298,7 +301,7 @@
         "step": {
           "confirm": {
             "title": "Delete the stale Ampio records",
-            "description": "Home Assistant still lists {count} Ampio devices or entities that the Ampio account of this integration is not served:\n\n{names}\n\nIf you deleted them in Ampio Designer, Submit deletes these records from Home Assistant. Automations and dashboards that name them stop working. Nothing changes on the Ampio server. If the account lost access to them, do not submit. Restore the access in the Ampio app, then reload the integration."
+            "description": "Home Assistant still lists Ampio devices or entities that the Ampio account of this integration is not served:\n\n{names}\n\nIf you deleted them in Ampio Designer, Submit deletes these records from Home Assistant. Automations and dashboards that name them stop working. Nothing changes on the Ampio server. If the account lost access to them, do not submit. Restore the access in the Ampio app, then reload the integration."
           }
         }
       }

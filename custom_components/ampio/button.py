@@ -172,9 +172,9 @@ class AmpioIdentifyButton(AmpioModuleEntity, ButtonEntity):
         module_id = self._require_module_id()
         try:
             await self._admin.identify(module_id)
-        except AmpioValueError as err:
+        except (AmpioValueError, AmpioConnectionError, AmpioTimeoutError) as err:
             raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key="module_not_addressable"
+                translation_domain=DOMAIN, translation_key="identify_failed"
             ) from err
         self._cancel_pending_stop()
         self._cancel_stop = async_call_later(

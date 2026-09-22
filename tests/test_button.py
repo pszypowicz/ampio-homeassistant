@@ -329,26 +329,45 @@ async def test_identify_is_withheld_on_a_standard_account(
 
 
 @pytest.mark.usefixtures("button_only")
-@pytest.mark.parametrize("missing_row", [False, True], ids=["library", "catalog"])
-async def test_identify_unknown_module_raises(
+async def test_identify_missing_row_raises(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A module the catalogue no longer carries raises before any command is sent."""
+    await setup_integration(hass, mock_config_entry)
+    del mock_client.modules[17]
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _press(hass, IDENTIFY_ENTITY_ID)
+    assert excinfo.value.translation_key == "module_not_addressable"
+    mock_client.identify.assert_not_awaited()
+
+    await _elapse(hass, IDENTIFY_HOLD_SECONDS + 1)
+    mock_client.identify_stop.assert_not_called()
+
+
+@pytest.mark.usefixtures("button_only")
+@pytest.mark.parametrize(
+    "error",
+    [
+        AmpioValueError("module id 17 has no mac"),
+        AmpioConnectionError("Not connected"),
+        AmpioTimeoutError("no ack"),
+    ],
+)
+async def test_identify_command_failure_raises(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
-    missing_row: bool,
+    error: Exception,
 ) -> None:
-    """A module the catalogue cannot address raises, and schedules no stop."""
+    """A library or broker failure on the press raises the identify message, and schedules no stop."""
+    mock_client.identify.side_effect = error
     await setup_integration(hass, mock_config_entry)
-    if missing_row:
-        del mock_client.modules[17]
-    else:
-        mock_client.identify.side_effect = AmpioValueError("module id 17 has no mac")
 
     with pytest.raises(HomeAssistantError) as excinfo:
         await _press(hass, IDENTIFY_ENTITY_ID)
-    assert excinfo.value.translation_key == "module_not_addressable"
-    assert isinstance(excinfo.value, ServiceValidationError) is missing_row
-    if missing_row:
-        mock_client.identify.assert_not_awaited()
+    assert excinfo.value.translation_key == "identify_failed"
+    assert not isinstance(excinfo.value, ServiceValidationError)
 
     await _elapse(hass, IDENTIFY_HOLD_SECONDS + 1)
     mock_client.identify_stop.assert_not_called()
