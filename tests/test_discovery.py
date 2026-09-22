@@ -457,6 +457,64 @@ async def test_deleting_a_moved_child_brings_it_back_under_the_new_module(
     assert hass.states.get(RELAY_SWITCH_ID).state == STATE_ON
 
 
+async def test_deleting_the_old_module_brings_a_stuck_child_back_too(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    """A module delete takes its children with it, so the hook queues them first.
+
+    Home Assistant's device registry removes a parent's children as part of
+    removing the parent, without asking the removal hook about each child.
+    A moved object's stuck child is one of those children, so deleting the
+    old module has to queue that object the same way deleting the child
+    itself does, or its entities never return.
+    """
+    await setup_integration(hass, mock_config_entry)
+    child = _child(device_registry, mock_config_entry, 74)
+    assert child is not None
+
+    await _update(
+        hass,
+        mock_client,
+        replace(
+            mock_client.objects[74],
+            address=parse_module_address("0_be82_257_2_1"),
+            leaf_key="leaf_0_be82_257_2_1",
+        ),
+    )
+    assert hass.states.get(RELAY_SWITCH_ID).state == STATE_UNAVAILABLE
+    stuck = _child(device_registry, mock_config_entry, 74)
+    assert stuck is not None
+    assert stuck.id == child.id
+
+    old_module = device_registry.async_get_device_by_identifier(
+        MSENS_IDENTIFIER, mock_config_entry.entry_id
+    )
+    assert old_module is not None
+    # Every other object on the old module leaves too, so it reads as
+    # stale and its own device page permits the delete.
+    for object_id in [
+        obj.id for obj in mock_client.objects.values() if obj.address.mac == 52111
+    ]:
+        del mock_client.objects[object_id]
+
+    assert await async_remove_config_entry_device(hass, mock_config_entry, old_module)
+    device_registry.async_remove_device(old_module.id)
+    await _settle(hass)
+
+    moved = _child(device_registry, mock_config_entry, 74)
+    new_module = device_registry.async_get_device_by_identifier(
+        (DOMAIN, "module_mac:48770"), mock_config_entry.entry_id
+    )
+    assert moved is not None
+    assert new_module is not None
+    assert moved.id == child.id
+    assert moved.parent_device_id == new_module.id
+    assert hass.states.get(RELAY_SWITCH_ID).state == STATE_ON
+
+
 async def test_module_factory_builds_now_and_for_a_new_mac(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:

@@ -284,7 +284,9 @@ async def async_remove_config_entry_device(
     the object resolves to. The batch the hook queues builds it again under
     the resolved parent within seconds, with its id, its area, and its name
     restored. A module device the hook permits to delete drops out of the
-    tree, so that the next object on its row builds it back the same way.
+    tree, so that the next object on its row builds it back the same way,
+    and every object still parented to that device is queued first, so
+    that the child the registry takes down with it comes back too.
     """
     data = entry.runtime_data
     live, expected_parent = data.live_identifiers()
@@ -304,6 +306,18 @@ async def async_remove_config_entry_device(
                 return True
     if any(identifier in live for identifier in device_entry.identifiers):
         return False
+    # A module device takes every child still parented to it down with it,
+    # and the registry never asks the hook about those children on the
+    # way, so each one is queued here before the delete this permits
+    # carries its device off. An object device has no children of its own,
+    # so this is a no-op when device_entry is one.
+    device_registry = dr.async_get(hass)
+    for child in dr.async_entries_for_parent_device(device_registry, device_entry.id):
+        for identifier in child.identifiers:
+            for obj in data.client.objects.values():
+                if (DOMAIN, obj.object_key) == identifier:
+                    data.async_request_reconcile(obj)
+                    break
     # Home Assistant removes the device right after this returns. The tree
     # forgets a module device with it, so that the next batch on that row
     # builds the device back through the path that built it the first
