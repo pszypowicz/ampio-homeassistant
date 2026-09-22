@@ -95,13 +95,15 @@ An administrator can still hold or release this cover's roller lock through the 
 
 ## A cover's roller lock binary sensor reads off, and the set roller lock action fails
 
-**Check:** Each cover carries an Opening lock and a Closing lock diagnostic binary sensor, both under the cover device's Diagnostic section, and both read the module's own lock bits on either account tier. If a sensor stays `off` after a Designer rule or a call to `ampio.set_roller_lock` should have set it, the administrator login has swept the module behind that cover and found no roller channel count in its capability map: an older module generation that accepts the same lock frame as an ordinary roller move and drops it without changing anything, so the bit the sensor reads never moves.
+**Check:** Each cover carries an Opening lock and a Closing lock diagnostic binary sensor, both under the cover device's Diagnostic section, and both read the module's own lock bits on either account tier.
 
-Calling `ampio.set_roller_lock` against that cover on the administrator login raises an error naming the unsupported module rather than doing nothing. On a standard account the action raises an error naming the account tier before it reaches the module at all, whether or not that module supports the lock.
+Calling `ampio.set_roller_lock` against a cover on the administrator login can raise an error naming the unsupported module, instead of doing nothing. An older module generation accepts the same lock frame as an ordinary roller move and drops it without changing anything, so it advertises no roller channel count in its capability map. A module that stayed silent during the setup sweep raises the same error, because a lock write still needs the module's own answer to size its frame. Either way the two binary sensors read `off` and stay there, because the bit they read never moves.
 
-**Fix:** None is required for the generation gap. That module never gains the lock, and its two binary sensors read `off` for good. On a standard account, ask whoever holds the administrator login to set or release the lock.
+On a standard account the action raises an error naming the account tier before it reaches the module at all, whether or not that module supports the lock.
 
-A lock the action sets never expires on its own. Whichever account sets one owns releasing it: call the action again with `blocked` off, or clear it from wherever it was set, such as an automation.
+**Fix:** For the generation gap, none is required. That module never gains the lock, and its two binary sensors read `off` for good. For a module that stayed silent during the sweep, reloading the integration may help, because that runs the sweep again. On a standard account, ask whoever holds the administrator login to set or release the lock.
+
+A lock the action sets never expires on its own. Whichever account sets one owns releasing it: call the action again with `blocked` off, or clear it from wherever it was set, such as an automation. A Designer wind or fire alarm rule clears its lock when its trigger clears, and does not re-assert one you released underneath it, so releasing that lock with the action leaves the cover free to move until the rule fires again.
 
 ## A warm/cold white light's color temperature does not match my strip
 

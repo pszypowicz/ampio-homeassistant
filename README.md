@@ -82,7 +82,7 @@ data:
   blocked: true
 ```
 
-`direction` is `opening`, `closing`, or `both`. `blocked` on holds that direction, off releases it. A lock the action sets never expires on its own; call the action again with `blocked: false` to release it, or clear it from wherever it was set. The cover's Opening lock and Closing lock diagnostic binary sensors report which direction, if any, is currently held, on either account tier. On a standard account the action raises instead of doing nothing, naming the account tier as the reason.
+`direction` is `opening`, `closing`, or `both`. `blocked` on holds that direction, off releases it. A lock the action sets never expires on its own, so call the action again with `blocked: false` to release it, or clear it from wherever it was set. The cover's Opening lock and Closing lock diagnostic binary sensors report which direction, if any, is currently held, on either account tier. On a standard account the action raises instead of doing nothing, naming the account tier as the reason.
 
 `ampio.send_notification` pushes a message to every user of the Ampio mobile app on this installation, on either account tier:
 

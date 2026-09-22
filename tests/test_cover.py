@@ -669,3 +669,24 @@ async def test_set_roller_lock_on_an_unsupported_module_raises(
     with pytest.raises(ServiceValidationError) as excinfo:
         await _set_roller_lock(hass, POSITION_ENTITY_ID, "opening", True)
     assert excinfo.value.translation_key == "cover_lock_unsupported"
+
+
+async def test_set_roller_lock_ignores_the_read_only_marker(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The read-only marker gates the /api path, not the raw tree this write rides.
+
+    An administrator can still hold or release a read-only cover's lock,
+    the way the FAQ promises, so this write must not call
+    ``raise_if_read_only`` the way the other write methods on this entity do.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    obj = mock_client.objects[82]
+    mock_client.objects[82] = replace(obj, params=obj.params | (1 << 6))
+    emit(mock_client, ObjectUpdated(object=mock_client.objects[82]))
+    await hass.async_block_till_done()
+
+    await _set_roller_lock(hass, POSITION_ENTITY_ID, "opening", True)
+
+    mock_client.block_opening.assert_awaited_once_with(82)

@@ -24,9 +24,9 @@ from .entity import AmpioEntity
 
 PARALLEL_UPDATES = 0
 
-# The lock frame carries one direction, or both in one call. "both" is the
-# entity's own shorthand: it expands to one call per direction rather than
-# riding the wire as a third value.
+# The lock frame carries one direction. "both" is the action's own
+# shorthand and expands to one call per direction rather than riding the
+# wire as a third value.
 SET_ROLLER_LOCK_SCHEMA: VolDictType = {
     vol.Required("direction"): vol.In(("opening", "closing", "both")),
     vol.Required("blocked"): cv.boolean,
@@ -238,6 +238,15 @@ class AmpioCover(AmpioEntity, CoverEntity):
         The lock frame rides the raw CAN tree, which the M-SERV serves the
         administrator login alone, so a standard account is told why rather
         than left with a control that cannot work.
+
+        Skips ``raise_if_read_only`` on purpose. The Designer read-only
+        marker gates the ``/api`` path the other write methods on this
+        entity use, not the raw tree this write rides, so an administrator
+        can still hold or release a read-only cover's lock.
+
+        ``direction="both"`` sends one frame per direction and is not
+        atomic: a failure on the second call leaves the first already
+        applied.
         """
         if not self._data.is_admin:
             raise ServiceValidationError(

@@ -108,6 +108,7 @@ set_roller_lock:
       example: opening
       selector:
         select:
+          translation_key: roller_lock_direction
           options:
             - opening
             - closing

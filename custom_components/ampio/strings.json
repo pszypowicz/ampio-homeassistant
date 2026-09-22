@@ -163,7 +163,7 @@
       "message": "This cover is blocked from opening. The module refuses every command in that direction, the slats included, until the lock is released. Use the rule in Ampio Designer that set it, or the Ampio: Set roller lock action."
     },
     "cover_lock_not_admin": {
-      "message": "Only the Ampio administrator account can hold or release a roller lock. This Home Assistant entry signs in as an app user, which the M-SERV does not serve the CAN write tree."
+      "message": "Only the Ampio administrator account can hold or release a roller lock. This Home Assistant entry signs in as an app user, and the M-SERV does not serve that login the CAN write tree."
     },
     "cover_lock_unsupported": {
       "message": "This cover's module does not support the roller lock."
@@ -258,6 +258,15 @@
             "description": "Home Assistant still lists {count} Ampio devices or entities that the Ampio account of this integration is not served:\n\n{names}\n\nIf you deleted them in Ampio Designer, Submit deletes these records from Home Assistant. Automations and dashboards that name them stop working. Nothing changes on the Ampio server. If the account lost access to them, do not submit. Restore the access in the Ampio app, then reload the integration."
           }
         }
+      }
+    }
+  },
+  "selector": {
+    "roller_lock_direction": {
+      "options": {
+        "opening": "Opening",
+        "closing": "Closing",
+        "both": "Both"
       }
     }
   },
