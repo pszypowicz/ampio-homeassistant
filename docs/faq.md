@@ -16,6 +16,18 @@ Do not start a procedure on this page without a backup. Some of them delete reco
 
 **Fix:** Remove the Ampio integration entry, then add it again. Home Assistant remembers a removed entity for 30 days, so the re-add restores your entity ids, your renames, and your areas. That is the supported first step, not a last resort. If the entity count is still wrong afterwards, download the diagnostics as described in [debugging.md](debugging.md) and report it in the issues.
 
+## My module devices lost their names and areas after an update
+
+**Check:** Open Settings, then Devices and services, then Ampio. Every module device is listed under the name the Ampio server gives it, with no area and none of the labels you put on it, and the entities on it have new entity ids and no history. A repair on the Settings page lists leftover Ampio records, and you recognize the module devices it names as the ones you had. Your object entities are missing at the same time.
+
+This integration ships as a beta and carries no upgrade path. Every version is prepared as though it were a fresh install, and a release that changes what a device record is keyed on builds those devices again under the new key. Home Assistant treats a device under a new key as a new device, so the name you typed, the area, the labels, and the history of the entities on it all start empty. Each object's device still hangs under one of the old module devices, which is a parent its object no longer belongs to, and Home Assistant cannot move a child device to another parent, so the integration holds those objects' entities back until the old devices go.
+
+**Fix:** Submit that repair. It deletes the old module devices, and the reload behind it puts every object back under its module within seconds, with the object's entity ids, its own name, and its own area intact. Then give each module device its name, its area, and its labels again.
+
+Take a note of the module entity ids your automations use before you submit, because the administrator-only module entities come back under new ids: the Identify button, the supply voltage and temperature sensors, the buzzer, the Unlock touch button, and the Backlight and Status light. Their old records are among what the repair deletes.
+
+An object device with no area of its own inherits its module's area, so an object you never placed yourself reads as having none until you give its module an area again. An object device you did put in an area keeps it.
+
 ## Setup does not finish, and stays on "Retrying setup"
 
 **Check:** Open Settings, then Devices and services. The Ampio entry shows "Retrying setup" instead of its usual state, and the reason underneath reads "Connected to the Ampio server, but it did not answer the module description request." This affects the administrator login only, because a standard account never sends that request.
@@ -24,9 +36,9 @@ Do not start a procedure on this page without a backup. Some of them delete reco
 
 ## An entity is listed that Ampio Designer no longer has
 
-**Check:** Such an entity shows the state `unavailable` or the label "restored". After each start or reload the integration raises up to two repairs on the Settings page, under Repairs. One lists the devices and entities it did not build and cannot explain. The other lists the entities it withheld because your Ampio account is not the administrator one.
+**Check:** Such an entity shows the state `unavailable` or the label "restored". After each start or reload the integration raises up to three repairs on the Settings page, under Repairs. One lists the devices and entities it did not build and cannot explain. One lists the entities it withheld because your Ampio account is not the administrator one. The third names Ampio Designer rows it could not use at all, and it asks you to fix them in Designer rather than offering to delete anything. Read that one first, because an entity it accounts for is not stale. [designer-quirks.md](designer-quirks.md) covers both faults it reports.
 
-**Fix:** Select Submit on the repair to delete them all at once. The integration then reloads. An object that you moved to another module in Ampio Designer comes back under its new module.
+**Fix:** Select Submit on the repair that lists the records to clean up, and it deletes them all at once. The integration then reloads. An object that you moved to another module in Ampio Designer comes back under its new module.
 
 The repair never deletes on its own. On an account that is not the administrator one, an object that lost its app permission looks the same as a deleted object. Read the list before you submit.
 
@@ -57,7 +69,7 @@ If the address you enter answers with different M-SERV hardware, the flow asks y
 
 ## My entity ids look different from the ones in the docs
 
-**Check:** Open Settings, then Devices and services, then Entities, and search for `ampio`. The current form is `<domain>.ampio_obj_<object id>` for an object's entity, for example `light.ampio_obj_7`, or `<domain>.ampio_module_<row>_<name>` for a module's, for example `button.ampio_module_12_identify`. An install that predates a change of the form keeps its older ids.
+**Check:** Open Settings, then Devices and services, then Entities, and search for `ampio`. The current form is `<domain>.ampio_obj_<object id>` for an object's entity, for example `light.ampio_obj_7`, or `<domain>.ampio_module_mac_<MAC>_<name>` for a module's, for example `button.ampio_module_mac_52111_identify`. The MAC is the module's address on the Ampio bus, written as a plain number. An install that predates a change of the form keeps its older ids.
 
 **Fix:** None is required. Both forms work, and nothing forces you to change. A release can change the form for a fresh install, and every existing install keeps the ids it has. If you want the current form on an existing install, use the reset procedure below. It is a support procedure, and no update requires it.
 
@@ -154,7 +166,7 @@ The two forms above are different. A template over `states.light` sees every lig
 
 ```jinja
 {{ states.light
-   | rejectattr('entity_id', 'search', '^light[.]ampio_module_[0-9]+_(backlight|status_light)$')
+   | rejectattr('entity_id', 'search', '^light[.]ampio_module_mac_[0-9]+_(backlight|status_light)$')
    | map(attribute='entity_id') | list }}
 ```
 
@@ -172,11 +184,11 @@ The Identify button once existed on both accounts, where a press on a standard a
 
 A repair on the Settings page lists whichever of these entities your account withholds. Submit it to delete the records, or leave it alone. If you point the integration back at the administrator account, the entities come back on their own with the same entity ids.
 
-## My module devices are named "Ampio module 12" now
+## My module devices are named "Ampio module 52111"
 
-Only on a standard Ampio account. The names you gave your modules in Ampio Designer are served to the administrator login alone, so an update replaced a name built from the module's address with its row number in Designer. That row is where the module was named in the first place, and it is still the same device you have always had.
+Only on a standard Ampio account. The names you gave your modules in Ampio Designer are served to the administrator login alone, so a module falls back to its address on the Ampio bus, written as a plain number. It is the same device and the same module either way.
 
-A name you typed yourself in Home Assistant is untouched, and no entity id moved. On an administrator account nothing changed.
+A name you typed yourself in Home Assistant is untouched, and no entity id moved. On an administrator account the Designer name is used.
 
 ## How do I reset every Ampio entity id?
 

@@ -12,23 +12,33 @@ The fix, in the current web Designer: touch every affected output individually -
 - The catalogue column, however, updates only for the outputs you actually edited in the UI. An untouched neighbor keeps its stale column even though its record just went over the wire again - which is why every output needs its own flip, however correct it looks in Designer.
 - Designer registers an edit only on a real change, so flip the value away and back. A Lokalizacja change counts too, and the tag rides along with it.
 
-## The Matter checkbox clears the leaf id
+## Unchecking an object's Matter box removes its entity
+
+**Check:** An object's entities are gone from Home Assistant, and a repair on the Settings page titled "Ampio objects with no module output" names the object's id. If you opened that object in Ampio Designer and cleared its "Matter" checkbox, this is why. The same ids appear under `snapshot.not_configured` in the diagnostics download, described in [debugging.md](debugging.md).
 
 Every object row carries a `leafId`, the pointer to the module output that drives it. Designer's per-object "Matter" checkbox rewrites that field on every save. A check writes it back from the linked output record and re-syncs the `type` column from the module record. An uncheck saves the row without it, and the M-SERV stores an empty value.
 
-The object survives the uncheck. It keeps its type, its rooms, and its state. The integration keeps its entity, its id, its name, its area, and its module, because the device tree reads `id_urzadzenia`, the Designer module row that every object carries on both account tiers, and not the leaf.
+The object itself survives the uncheck, keeping its type, its rooms, and its state, and Home Assistant loses it all the same. That pointer is how this integration reads and drives an object, and it is where the object's module address comes from, so an object without one has no entities at all and no device.
 
-The uncheck costs less than it looks. The leaf id is one of two ways an object joins its Designer record. Without it, the join uses the Designer module row and the channel number instead, so the record still resolves.
+**Fix:** Open the object in Designer, check its Matter box, and save. The entities come back within seconds with the entity ids, the names, and the areas they had, because Home Assistant kept their records. A check on a relay also re-syncs the type column from the module record, so a relay whose record lost its Lighting tag comes back as a switch, and one whose record kept the tag comes back as a light (see the section above).
 
-One case does lose the record. A leafed object carries its module's address inside the leaf id. A leafless object reads that address from the module catalogue. If Designer deleted the module row, a leafless object has nothing left to join through, and a leafed one still joins.
+So leave the Matter box alone on every object that has an entity here. To stop the M-SERV's Matter bridge, use "Clear configuration" in Designer's Matter panel. That wipes the bridge's pairing and restarts it unpaired, and it touches no object.
 
-So leave the Matter box alone on every object that has an entity here, in either state. To stop the M-SERV's Matter bridge, use "Clear configuration" in Designer's Matter panel. That wipes the bridge's pairing and restarts it unpaired, and it touches no object. A check on a relay also re-syncs the type column from the module record, so a relay whose record lost its Lighting tag comes back as a switch (see the section above).
+If you meant the object to be gone, delete it in Designer instead. The repair drops it on the next catalogue push or the next Home Assistant start, and the repair for leftover Ampio records then offers the records it left behind.
 
-Verified on server 1865 with a virtual test relay, and pinned by the integration's tests: a leafless object keeps its module, and a hidden row yields nothing.
+## Two modules on one MAC address drop both
+
+**Check:** One or more modules have no name, no model, and no firmware version in Home Assistant, and the entities that need the module's own record, such as its buzzer and its panel controls, were never built. A repair on the Settings page titled "Ampio modules sharing one MAC address" names each shared address with the Designer device ids that carry it.
+
+Every frame on the Ampio bus is addressed by a module's MAC. Designer's MAC override field lets two devices be saved on one address, and nothing in Designer objects. This integration cannot tell those modules apart, so it leaves them out of its module list. Their objects still work, because an object carries its own address. What goes is everything that comes from the module's own record: the Identify button answers a press with an error naming the module, and the supply voltage and temperature sensors read unknown.
+
+The M-SERV's own device carries MAC `1`, which is also the default a device takes until you give it one, so the usual way into this is a module left on that default.
+
+**Fix:** Open each device named in the repair in Designer, give it its own MAC address, and save. Match the devices by MAC rather than by position, because Designer numbers the rows of its device list by position (see the section below). Refresh the Designer page afterwards and check that the new MAC stuck, because Designer can drop a MAC edit without saying so.
 
 ## Moving an object to another module
 
-Home Assistant cannot move a child device to another parent. When you move an object to another module in Designer, or a replacement gives a module a new row, the object's device keeps its old parent. The integration removes the object's entities within seconds, logs one warning that names the object, and lists the device in the repair on the Settings page.
+Home Assistant cannot move a child device to another parent. When you move an object to another module in Designer, the object's device keeps its old parent. The integration removes the object's entities within seconds, logs one warning that names the object, and lists the device in the repair on the Settings page. Replacing a module does not do this, because the replacement takes the same MAC address and the object stays where it was.
 
 Submit the repair, or delete the object's device under Settings, then Devices and services. The object comes back under the new module, with its id, its area, and its name restored. If that object was the last one on its old module, the old module device stays behind empty, and the repair lists it too.
 
@@ -62,11 +72,13 @@ The Divide by checkbox is the same mechanism that gives linear inputs their deci
 
 ## The device list numbers rows by position, not by device id
 
-The first column of Designer's device list is the row's place in the list. It is not the device id that the integration keys a module device on.
+The first column of Designer's device list is the row's place in the list. It is not the device id the server holds, and it is not what this integration keys a module device on either, which is the module's MAC address.
 
-The two match on an installation where no device was ever deleted, so the difference never shows. Delete a device and the server keeps the id it gave every other device, leaving a gap. Designer's list has no gap, so every device below the deleted one is drawn with a number one lower than its real id. Create a device and fill the gap, and the numbers line up again.
+The two numbers match on an installation where no device was ever deleted, so the difference never shows. Delete a device and the server keeps the id it gave every other device, leaving a gap. Designer's list has no gap, so every device below the deleted one is drawn with a number one lower than its real id. Create a device and fill the gap, and the numbers line up again.
 
-So a number you read off that screen is not the id an object carries. It is also why a delete looks like it renumbered your devices. Nothing was renumbered. Device ids are only ever appended, and a freed id comes back only to a device with the same MAC address as the one that owned it.
+So a number you read off that screen is not the id the server holds. It is also why a delete looks like it renumbered your devices. Nothing was renumbered. Device ids are only ever appended, and a freed id comes back only to a device with the same MAC address as the one that owned it.
+
+This is why the repair for a shared MAC lists the Designer device ids rather than row numbers, and why you should match the devices it names by their MAC address instead of counting down the list.
 
 ## Deleting an object takes two passes
 
@@ -74,7 +86,7 @@ Removing an object from a place in Designer does not delete it. It unassigns it,
 
 Deleting a device behaves differently again: it applies at once, with no save step, and it leaves its objects behind.
 
-Between those two, Designer can leave an object that is still shown to Home Assistant while the device it belongs to is gone. The integration handles it: that module device keeps its entities and takes the name `Ampio module <row>`, because no catalogue row is left to name it. Finish the delete in UNGROUPED and the repair on the Settings page lists what is left over.
+Between those two, Designer can leave an object that is still shown to Home Assistant while the device it belongs to is gone. The integration handles it, because an object carries the address of the module that drives it and needs no device row to be filed under. That module device keeps its entities and takes the name `Ampio module <MAC>`, since no catalogue row is left to name it. Finish the delete in UNGROUPED and the repair on the Settings page lists what is left over.
 
 ## A roller lock stops the slats too
 
@@ -115,8 +127,10 @@ The integration's number entity writes the value alone and sends no time, becaus
 
 ## The stability contract
 
-Ampio accounts upgrade and downgrade between the admin login and app-created users. The integration therefore derives everything that defines an entity's platform or the device topology from data the restricted tier receives.
+Ampio accounts upgrade and downgrade between the administrator login and app-created users. The integration therefore derives everything that defines an entity's platform or the device topology from data the restricted tier receives.
 
-Entity ids are exempt from that rule, because the integration writes them itself. Home Assistant normally builds an entity id from the area name, the device name, and the entity name. An Ampio entity carries its own id instead, which is the same string as its unique id. An object's entity reads `<domain>.ampio_obj_<object id>`, and a module's reads `<domain>.ampio_module_<row>_<name>`. No name reaches it. Rename a device, move it to another area, or switch the account tier, and every id holds still.
+Entity ids are exempt from that rule, because the integration writes them itself. Home Assistant normally builds an entity id from the area name, the device name, and the entity name. An Ampio entity carries its own id instead, which is the same string as its unique id. An object's entity reads `<domain>.ampio_obj_<object id>`, and a module's reads `<domain>.ampio_module_mac_<MAC>_<name>`, where the MAC is the module's address written as a plain number. No name reaches either. Rename a device, move it to another area, or switch the account tier, and every id holds still.
 
-That frees the device name. An object device takes the name you gave the object in the Ampio app. A module takes the name you gave it in Ampio Designer where the admin-only module catalogue answers, and falls back to `Ampio module <row>` on a restricted account, where the row is its number in Designer. The hub is always `M-SERV`. The catalogue also decorates the module's model, the firmware and hardware versions, and the serial number. All of those follow the account tier, so a tier change renames a module in the interface and moves nothing else. The parent of an object device derives from the Designer module row id, which both tiers receive, so no tier change moves a device either. Home Assistant cannot move a child device to another parent, so the one thing that does move an object between modules is a Designer edit followed by the delete described above.
+That frees the device name. An object device takes the name you gave the object in the Ampio app. A module takes the name you gave it in Ampio Designer where the admin-only module catalogue answers, and falls back to `Ampio module <MAC>` on a restricted account. The hub is always `M-SERV`. The catalogue also decorates the module's model, the firmware and hardware versions, and the serial number. All of those follow the account tier, so a tier change renames a module in the interface and moves nothing else.
+
+A module's MAC is what its device is keyed on, and both account tiers receive it, because every object carries the address of the module that drives it. So no tier change moves a device. Neither does replacing a module, because Designer stamps the same MAC onto the replacement unit, and the device and its entities carry on as if nothing happened, even though the replacement holds a new position in Designer's device list. Home Assistant cannot move a child device to another parent, so the one thing that does move an object between modules is a Designer edit followed by the delete described above.

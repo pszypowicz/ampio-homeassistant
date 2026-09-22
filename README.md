@@ -33,7 +33,7 @@ Each cycle plays the first tone, then the second. Tone 0 is silence, so a doorbe
 ```yaml
 action: ampio.buzz_pattern
 target:
-  entity_id: siren.ampio_module_12_buzzer
+  entity_id: siren.ampio_module_mac_52111_buzzer
 data:
   tone: 6
   seconds: 0.3
@@ -49,7 +49,7 @@ Tones run from 0 to 31, and tone 6 is the loudest. Each step lasts up to 655.35 
 ```yaml
 action: ampio.lock_touch
 target:
-  entity_id: button.ampio_module_12_unlock_touch
+  entity_id: button.ampio_module_mac_52111_unlock_touch
 data:
   seconds: 30
 ```
@@ -61,7 +61,7 @@ The lock always expires and caps at 655.35 seconds, with no indefinite form. Not
 ```yaml
 action: ampio.set_backlight_fields
 target:
-  entity_id: light.ampio_module_12_backlight
+  entity_id: light.ampio_module_mac_52111_backlight
 data:
   fields: [1, 2]
   rgbw_color: [255, 100, 100, 50]
@@ -116,7 +116,7 @@ Requires Home Assistant 2026.9.0 or newer. `ampio-mqtt` is installed automatical
 
 To change the address, the account, or the password later, open the entry and choose Reconfigure from its menu. Your devices and your entities keep their ids, their areas, and any name you gave them yourself. If the Ampio server rejects the stored password, Home Assistant asks you for a new one on its own.
 
-Devices appear as a hub for the M-SERV, one device per Ampio module, and one device per Ampio object under its module. An object device takes its name and its area from the Ampio app when Home Assistant creates it, and the integration never moves it afterwards. Every entity carries its own id, `<domain>.ampio_<unique id>`, and that id never changes. An object's entity reads `ampio_obj_<object id>`, and a module's reads `ampio_module_<row>_<name>`. See [docs/devices.md](docs/devices.md) for the names, the areas, and what a change in Ampio Designer does.
+Devices appear as a hub for the M-SERV, one device per Ampio module, and one device per Ampio object under its module. An object device takes its name and its area from the Ampio app when Home Assistant creates it, and the integration never moves it afterwards. Every entity carries its own id, `<domain>.ampio_<unique id>`, and that id never changes. An object's entity reads `ampio_obj_<object id>`, and a module's reads `ampio_module_mac_<MAC>_<name>`, where the MAC is the module's address on the Ampio bus. See [docs/devices.md](docs/devices.md) for the names, the areas, and what a change in Ampio Designer does.
 
 One M-SERV per Home Assistant. Object ids are unique per server only, so the integration allows one entry.
 
@@ -140,7 +140,7 @@ If something else looks wrong, see [docs/faq.md](docs/faq.md). Each answer there
 
 - Scenes are read once at setup. A scene added in the app needs a reload.
 - A module's capability map is read once at setup too. A module you add in Ampio Designer afterward gets its sensors, but not its buzzer, its Unlock touch button, or its Backlight and Status light, until you reload the integration.
-- The Entity ID format setting under Settings, then System, does not apply. Every Ampio entity carries its own id, `<domain>.ampio_<unique id>`, whether that is `ampio_obj_<object id>` for an object or `ampio_module_<row>_<name>` for a module, so the setting cannot add the area or the floor to it.
+- The Entity ID format setting under Settings, then System, does not apply. Every Ampio entity carries its own id, `<domain>.ampio_<unique id>`, whether that is `ampio_obj_<object id>` for an object or `ampio_module_mac_<MAC>_<name>` for a module, so the setting cannot add the area or the floor to it.
 
 ## Relationship to home-assistant/core
 

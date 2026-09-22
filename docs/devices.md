@@ -54,7 +54,7 @@ Home Assistant matches rooms to areas by name. If your Ampio rooms and your area
 
 ## Entity ids
 
-Rename the devices and assign the areas to suit yourself. Nothing you do there moves an entity id. Home Assistant normally builds an id from the area and the device name. An Ampio entity carries its own instead, the same string as its unique id. An entity backed by an Ampio object reads `<domain>.ampio_obj_<object id>`, for example `light.ampio_obj_7`. An entity that belongs to a module device instead reads `<domain>.ampio_module_<row>_<name>`, for example `button.ampio_module_12_identify`. The ids are not pretty, and they never change. Your automations keep working through a rename, an area move, an Ampio account tier change, and an M-SERV replacement alike.
+Rename the devices and assign the areas to suit yourself. Nothing you do there moves an entity id. Home Assistant normally builds an id from the area and the device name. An Ampio entity carries its own instead, the same string as its unique id. An entity backed by an Ampio object reads `<domain>.ampio_obj_<object id>`, for example `light.ampio_obj_7`. An entity that belongs to a module device instead reads `<domain>.ampio_module_mac_<MAC>_<name>`, for example `button.ampio_module_mac_52111_identify`, where the MAC is the module's address on the Ampio bus written as a plain number. The ids are not pretty, and they never change. Your automations keep working through a rename, an area move, an Ampio account tier change, and an M-SERV replacement alike.
 
 See [faq.md](faq.md) for what an update does to an entity id, and for the reset procedure.
 
@@ -66,8 +66,8 @@ The administrator login gets no catalogue push from the M-SERV. It gets a digest
 
 ## Moving an object to another module
 
-If you move an object to another module in Designer, or a replacement gives a module a new row, the integration removes the object's entities. The repair on the Settings page then offers the delete of its device. After the delete, the object comes back under the new module with its area and its name. See [designer-quirks.md](designer-quirks.md) for the reason.
+If you move an object to another module in Designer, the integration removes the object's entities. The repair on the Settings page then offers the delete of its device. After the delete, the object comes back under the new module with its area and its name. Replacing a module is not a move, because the replacement takes the same MAC address and the object stays where it was. See [designer-quirks.md](designer-quirks.md) for the reason.
 
 ## The Matter checkbox
 
-Avoid toggling an object's Matter checkbox in Designer once the object has an entity here. Unchecking it clears the object's leaf id, which the diagnostics use to join the object to its Designer record. The device tree does not depend on it. To stop the M-SERV's Matter bridge, use "Clear configuration" in Designer's Matter panel instead. See [designer-quirks.md](designer-quirks.md).
+Do not clear an object's Matter checkbox in Designer once the object has an entity here. Unchecking it clears the object's leaf id, which is the pointer this integration drives the object through, so the object loses its entities and its device until you check the box again. A repair on the Settings page names the objects this happened to. To stop the M-SERV's Matter bridge, use "Clear configuration" in Designer's Matter panel instead. See [designer-quirks.md](designer-quirks.md).
