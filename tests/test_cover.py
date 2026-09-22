@@ -4,7 +4,7 @@ from collections.abc import Generator
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
-from ampio_mqtt import ObjectRemoved, ObjectUpdated
+from ampio_mqtt import AccessTier, AmpioValueError, ObjectRemoved, ObjectUpdated
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -12,6 +12,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 from syrupy.assertion import SnapshotAssertion
 
+from custom_components.ampio.const import DOMAIN
 from homeassistant.components.cover import (
     ATTR_CURRENT_POSITION,
     ATTR_POSITION,
@@ -39,7 +40,7 @@ from homeassistant.exceptions import ServiceNotSupported, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import emit, pinned_id
+from .conftest import emit, pinned_id, set_access_tier
 
 PLAIN_ENTITY_ID = pinned_id("cover", 81)
 POSITION_ENTITY_ID = pinned_id("cover", 82)
@@ -570,3 +571,101 @@ async def test_removed_object_becomes_unavailable(
     await hass.async_block_till_done()
 
     assert hass.states.get(PLAIN_ENTITY_ID).state == STATE_UNAVAILABLE
+
+
+async def _set_roller_lock(
+    hass: HomeAssistant, entity_id: str, direction: str, blocked: bool
+) -> None:
+    """Call ``ampio.set_roller_lock`` against ``entity_id``."""
+    await hass.services.async_call(
+        DOMAIN,
+        "set_roller_lock",
+        {ATTR_ENTITY_ID: entity_id, "direction": direction, "blocked": blocked},
+        blocking=True,
+    )
+
+
+async def test_set_roller_lock_registers_under_the_ampio_domain(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """An entity service registers under the integration domain, not the platform's."""
+    await setup_integration(hass, mock_config_entry)
+
+    assert hass.services.has_service(DOMAIN, "set_roller_lock")
+    assert not hass.services.has_service(COVER_DOMAIN, "set_roller_lock")
+
+
+@pytest.mark.parametrize(
+    ("direction", "blocked", "verb"),
+    [
+        pytest.param("opening", True, "block_opening", id="block-opening"),
+        pytest.param("opening", False, "unblock_opening", id="unblock-opening"),
+        pytest.param("closing", True, "block_closing", id="block-closing"),
+        pytest.param("closing", False, "unblock_closing", id="unblock-closing"),
+    ],
+)
+async def test_set_roller_lock_sends_the_matching_verb(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    direction: str,
+    blocked: bool,
+    verb: str,
+) -> None:
+    """Each direction and hold state maps to its own library call."""
+    await setup_integration(hass, mock_config_entry)
+
+    await _set_roller_lock(hass, POSITION_ENTITY_ID, direction, blocked)
+
+    getattr(mock_client, verb).assert_awaited_once_with(82)
+
+
+@pytest.mark.parametrize(
+    ("blocked", "verbs"),
+    [
+        pytest.param(True, ("block_opening", "block_closing"), id="block-both"),
+        pytest.param(False, ("unblock_opening", "unblock_closing"), id="unblock-both"),
+    ],
+)
+async def test_set_roller_lock_both_sends_one_call_per_direction(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    blocked: bool,
+    verbs: tuple[str, str],
+) -> None:
+    """Direction "both" sends one call for opening and one for closing."""
+    await setup_integration(hass, mock_config_entry)
+
+    await _set_roller_lock(hass, POSITION_ENTITY_ID, "both", blocked)
+
+    for verb in verbs:
+        getattr(mock_client, verb).assert_awaited_once_with(82)
+
+
+async def test_set_roller_lock_refuses_on_a_standard_account(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A standard account is not served the raw tree, so the action says so."""
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _set_roller_lock(hass, POSITION_ENTITY_ID, "both", True)
+    assert excinfo.value.translation_key == "cover_lock_not_admin"
+    mock_client.block_opening.assert_not_awaited()
+    mock_client.block_closing.assert_not_awaited()
+
+
+async def test_set_roller_lock_on_an_unsupported_module_raises(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A module the roller lock does not reach raises, not a silent no-op."""
+    mock_client.block_opening.side_effect = AmpioValueError(
+        "the module behind object 82 advertises no roller channel count"
+    )
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _set_roller_lock(hass, POSITION_ENTITY_ID, "opening", True)
+    assert excinfo.value.translation_key == "cover_lock_unsupported"

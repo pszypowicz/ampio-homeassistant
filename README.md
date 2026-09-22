@@ -14,10 +14,10 @@ A Home Assistant integration for the [Ampio Smart Home](https://ampio.com/) syst
 | Platform        | What you get                                                                                                                                                                                                                                                                                                        |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sensor`        | Temperature, humidity, pressure, CO2, air quality, illuminance, loudness, and every integer sensor slot, with the Designer unit where one is set (Modbus meters behind an M-CON-485), plus the supply voltage and temperature each module reports about itself (administrator login)                                |
-| `binary_sensor` | Wired button inputs, and the armed and triggered halves of an alarm partition behind an M-CON                                                                                                                                                                                                                       |
+| `binary_sensor` | Wired button inputs, the armed and triggered halves of an alarm partition behind an M-CON, and an Opening lock and a Closing lock reading for each cover                                                                                                                                                            |
 | `light`         | Dimmers, RGBW outputs, warm/cold white (CCT) outputs, and relays tagged as lights in Ampio Designer, plus a Backlight and a Status light on each touch panel that reports the capability, with `ampio.set_backlight_fields` and `ampio.set_status_fields` actions to color named touch fields (administrator login) |
-| `cover`         | Shutters and blinds, with position and slat tilt where the hardware has them                                                                                                                                                                                                                                        |
-| `switch`        | Remaining relays and Ampio flags, with the outlet class for plug-tagged ones, and an Opening lock and a Closing lock on each cover (administrator login to set one)                                                                                                                                                 |
+| `cover`         | Shutters and blinds, with position and slat tilt where the hardware has them, and an `ampio.set_roller_lock` action to hold or release the roller lock (administrator login)                                                                                                                                        |
+| `switch`        | Remaining relays and Ampio flags, with the outlet class for plug-tagged ones                                                                                                                                                                                                                                        |
 | `button`        | Relays and flags marked as bell objects in Ampio Designer (a single press), an Identify button on each module that lights its CAN LED, and an Unlock touch button on each touch panel that releases its touch lock, with an `ampio.lock_touch` action to set one (administrator login)                              |
 | `climate`       | Heating regulators with temperature readback and operating-mode presets                                                                                                                                                                                                                                             |
 | `scene`         | The Ampio app's scene catalog                                                                                                                                                                                                                                                                                       |
@@ -70,6 +70,19 @@ data:
 The backlight's white channel drives the panel's own white LEDs rather than blending into red, green, and blue, so `[0, 0, 0, 255]` is plain white. A field number the panel does not have is refused, naming the panel's real field count rather than doing nothing. Coloring individual fields leaves the Backlight or Status light entity reporting whatever color it already held, because that entity holds one color for the whole surface and a partial change has no honest single color to report. Both actions need an administrator Ampio account, like the entities themselves.
 
 Target these two actions at the entity by name, not at an area or a device, and not at `entity_id: all`. Any of those reaches every Ampio light the target matches and sends the field colors to each one. A module device gets no seeded area, only an object child device does, so an area target usually reaches only object lights, colors nothing at all, and returns exactly one error, since Home Assistant re-raises just the first exception rather than one per light. That error is Home Assistant's own handling of an action not every targeted entity supports, and there is no way to filter it out.
+
+`ampio.set_roller_lock` holds or releases a cover's roller lock. The lock frame rides the raw CAN tree, which only the administrator login reaches:
+
+```yaml
+action: ampio.set_roller_lock
+target:
+  entity_id: cover.ampio_obj_82
+data:
+  direction: opening
+  blocked: true
+```
+
+`direction` is `opening`, `closing`, or `both`. `blocked` on holds that direction, off releases it. A lock the action sets never expires on its own; call the action again with `blocked: false` to release it, or clear it from wherever it was set. The cover's Opening lock and Closing lock diagnostic binary sensors report which direction, if any, is currently held, on either account tier. On a standard account the action raises instead of doing nothing, naming the account tier as the reason.
 
 `ampio.send_notification` pushes a message to every user of the Ampio mobile app on this installation, on either account tier:
 

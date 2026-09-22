@@ -2,7 +2,8 @@
 
 from typing import Any, override
 
-from ampio_mqtt import AmpioObject, OutputKind
+from ampio_mqtt import AmpioObject, AmpioValueError, OutputKind
+import voluptuous as vol
 
 from homeassistant.components.cover import (
     ATTR_POSITION,
@@ -13,13 +14,23 @@ from homeassistant.components.cover import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import config_validation as cv, entity_platform
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.typing import VolDictType
 
 from .const import DOMAIN
 from .data import AmpioConfigEntry, AmpioData
 from .entity import AmpioEntity
 
 PARALLEL_UPDATES = 0
+
+# The lock frame carries one direction, or both in one call. "both" is the
+# entity's own shorthand: it expands to one call per direction rather than
+# riding the wire as a third value.
+SET_ROLLER_LOCK_SCHEMA: VolDictType = {
+    vol.Required("direction"): vol.In(("opening", "closing", "both")),
+    vol.Required("blocked"): cv.boolean,
+}
 
 
 def is_cover(obj: AmpioObject) -> bool:
@@ -40,6 +51,9 @@ async def async_setup_entry(
 ) -> None:
     """Register the cover platform; the runtime data builds and keeps its entities."""
     entry.runtime_data.async_add_platform(build_covers, async_add_entities)
+    entity_platform.async_get_current_platform().async_register_entity_service(
+        "set_roller_lock", SET_ROLLER_LOCK_SCHEMA, "async_set_roller_lock"
+    )
 
 
 class AmpioCover(AmpioEntity, CoverEntity):
@@ -217,3 +231,32 @@ class AmpioCover(AmpioEntity, CoverEntity):
     async def async_stop_cover_tilt(self, **kwargs: Any) -> None:
         """Halt slat rotation; the stop verb halts either axis."""
         await self._data.client.stop(self._object_id)
+
+    async def async_set_roller_lock(self, direction: str, blocked: bool) -> None:
+        """Hold or release one or both directions of the roller lock.
+
+        The lock frame rides the raw CAN tree, which the M-SERV serves the
+        administrator login alone, so a standard account is told why rather
+        than left with a control that cannot work.
+        """
+        if not self._data.is_admin:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="cover_lock_not_admin",
+            )
+        client = self._data.client
+        calls = {
+            ("opening", True): client.block_opening,
+            ("opening", False): client.unblock_opening,
+            ("closing", True): client.block_closing,
+            ("closing", False): client.unblock_closing,
+        }
+        directions = ("opening", "closing") if direction == "both" else (direction,)
+        for one in directions:
+            try:
+                await calls[(one, blocked)](self._object_id)
+            except AmpioValueError as err:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="cover_lock_unsupported",
+                ) from err

@@ -157,13 +157,16 @@
       "message": "Cannot connect to the Ampio server."
     },
     "cover_blocked_closing": {
-      "message": "This cover is blocked from closing. The module refuses every command in that direction, the slats included, until the lock is released. Use the rule in Ampio Designer that set it, or the cover's Closing lock switch where the module supports one."
+      "message": "This cover is blocked from closing. The module refuses every command in that direction, the slats included, until the lock is released. Use the rule in Ampio Designer that set it, or the Ampio: Set roller lock action."
     },
     "cover_blocked_opening": {
-      "message": "This cover is blocked from opening. The module refuses every command in that direction, the slats included, until the lock is released. Use the rule in Ampio Designer that set it, or the cover's Opening lock switch where the module supports one."
+      "message": "This cover is blocked from opening. The module refuses every command in that direction, the slats included, until the lock is released. Use the rule in Ampio Designer that set it, or the Ampio: Set roller lock action."
     },
-    "cover_lock_unavailable": {
-      "message": "This cover's lock cannot be set. Only the Ampio administrator login can write a lock. If you are the administrator, either this cover's object carries no leaf in Ampio Designer, or its module did not answer the last description sweep, so reloading the integration may help."
+    "cover_lock_not_admin": {
+      "message": "Only the Ampio administrator account can hold or release a roller lock. This Home Assistant entry signs in as an app user, which the M-SERV does not serve the CAN write tree."
+    },
+    "cover_lock_unsupported": {
+      "message": "This cover's module does not support the roller lock."
     },
     "discovery_timeout": {
       "message": "Connected to the Ampio server, but it did not finish reporting its configuration."
@@ -320,6 +323,20 @@
         "rgbw_color": {
           "name": "Color",
           "description": "The RGBW color to send to the named fields."
+        }
+      }
+    },
+    "set_roller_lock": {
+      "name": "Set roller lock",
+      "description": "Holds or releases one or both directions of a cover's roller lock. Only the Ampio administrator account can send this, because the lock frame rides the raw CAN tree.",
+      "fields": {
+        "direction": {
+          "name": "Direction",
+          "description": "The travel direction to lock or release: opening, closing, or both."
+        },
+        "blocked": {
+          "name": "Blocked",
+          "description": "On to hold the direction, off to release it."
         }
       }
     },

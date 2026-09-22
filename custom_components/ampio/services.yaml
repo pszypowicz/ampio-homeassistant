@@ -97,6 +97,26 @@ set_backlight_fields:
       example: "[255, 100, 100, 50]"
       selector:
         object:
+set_roller_lock:
+  target:
+    entity:
+      integration: ampio
+      domain: cover
+  fields:
+    direction:
+      required: true
+      example: opening
+      selector:
+        select:
+          options:
+            - opening
+            - closing
+            - both
+    blocked:
+      required: true
+      example: true
+      selector:
+        boolean:
 set_status_fields:
   target:
     entity:
