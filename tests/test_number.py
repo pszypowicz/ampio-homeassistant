@@ -25,10 +25,17 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import emit, make_object, pinned_id
+from .conftest import emit, entity_id_of, make_object, unique_id
 
-U8_ENTITY_ID = pinned_id("number", 164)
-I16_ENTITY_ID = pinned_id("number", 165)
+
+def U8_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 164, composed from the registry."""
+    return entity_id_of(hass, "number", unique_id(164))
+
+
+def I16_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 165, composed from the registry."""
+    return entity_id_of(hass, "number", unique_id(165))
 
 
 @pytest.fixture(autouse=True)
@@ -45,13 +52,13 @@ async def test_analog_flag_bounds(
     """Each analog flag takes the bounds its own field width allows."""
     await setup_integration(hass, mock_config_entry)
 
-    u8 = hass.states.get(U8_ENTITY_ID)
+    u8 = hass.states.get(U8_ENTITY_ID(hass))
     assert u8 is not None
     assert u8.state == "120"
     assert u8.attributes[ATTR_MIN] == 0
     assert u8.attributes[ATTR_MAX] == 255
 
-    i16 = hass.states.get(I16_ENTITY_ID)
+    i16 = hass.states.get(I16_ENTITY_ID(hass))
     assert i16 is not None
     assert i16.state == "-44"
     assert i16.attributes[ATTR_MIN] == -32768
@@ -87,7 +94,7 @@ async def test_write_rounds_to_the_field_integer(
     await hass.services.async_call(
         NUMBER_DOMAIN,
         SERVICE_SET_VALUE,
-        {ATTR_ENTITY_ID: U8_ENTITY_ID, ATTR_VALUE: 200.6},
+        {ATTR_ENTITY_ID: U8_ENTITY_ID(hass), ATTR_VALUE: 200.6},
         blocking=True,
     )
 
@@ -103,7 +110,7 @@ async def test_write_carries_a_negative_value(
     await hass.services.async_call(
         NUMBER_DOMAIN,
         SERVICE_SET_VALUE,
-        {ATTR_ENTITY_ID: I16_ENTITY_ID, ATTR_VALUE: -300},
+        {ATTR_ENTITY_ID: I16_ENTITY_ID(hass), ATTR_VALUE: -300},
         blocking=True,
     )
 
@@ -127,7 +134,7 @@ async def test_read_only_object_rejects_writes(
         await hass.services.async_call(
             NUMBER_DOMAIN,
             SERVICE_SET_VALUE,
-            {ATTR_ENTITY_ID: U8_ENTITY_ID, ATTR_VALUE: 200.6},
+            {ATTR_ENTITY_ID: U8_ENTITY_ID(hass), ATTR_VALUE: 200.6},
             blocking=True,
         )
     mock_client.set_value.assert_not_called()
@@ -154,7 +161,7 @@ async def test_value_follows_a_state_push(
     emit(mock_client, ObjectUpdated(object=moved))
     await hass.async_block_till_done()
 
-    state = hass.states.get(U8_ENTITY_ID)
+    state = hass.states.get(U8_ENTITY_ID(hass))
     assert state is not None
     assert state.state == "7"
 
@@ -169,4 +176,4 @@ async def test_removed_object_becomes_unavailable(
     emit(mock_client, ObjectRemoved(object=obj))
     await hass.async_block_till_done()
 
-    assert hass.states.get(U8_ENTITY_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(U8_ENTITY_ID(hass)).state == STATE_UNAVAILABLE

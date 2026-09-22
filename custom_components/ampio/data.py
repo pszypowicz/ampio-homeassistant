@@ -301,9 +301,12 @@ class AmpioData:
 
         ``nazwa_urzadzenia`` comes from the module catalogue, which answers
         the administrator login alone, so this name follows the account
-        tier. Nothing depends on it: ``AmpioPinnedEntity`` pins the entity
-        id, so a name that changes on a tier switch renames the device in
-        the interface and moves no id.
+        tier.
+
+        Home Assistant composes an entity id once, at first registration.
+        A module device is created on the administrator login alone, where
+        the catalogue answers, so a module entity never composes an id from
+        this fallback.
 
         The row is passed in rather than looked up, because the caller
         holds it to decorate the device with.

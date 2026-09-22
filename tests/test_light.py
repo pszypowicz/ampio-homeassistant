@@ -57,19 +57,45 @@ from .conftest import (
     STATUS_COLOR,
     TOUCH_FIELD_COLOR,
     emit,
-    module_pinned_id,
-    pinned_id,
+    entity_id_of,
+    module_unique_id,
     set_access_tier,
+    unique_id,
     with_panel_colors,
     with_panel_settings,
 )
 
-DIMMER_ENTITY_ID = pinned_id("light", 71)
-RGBW_ENTITY_ID = pinned_id("light", 72)
-RELAY_ENTITY_ID = pinned_id("light", 73)
-CCT_ENTITY_ID = pinned_id("light", 76)
-BACKLIGHT_ENTITY_ID = module_pinned_id("light", 52111, "_backlight")
-STATUS_LIGHT_ENTITY_ID = module_pinned_id("light", 52111, "_status_light")
+STATUS_LIGHT_KEY = module_unique_id(52111, "_status_light")
+
+
+def DIMMER_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 71, composed from the registry."""
+    return entity_id_of(hass, "light", unique_id(71))
+
+
+def RGBW_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 72, composed from the registry."""
+    return entity_id_of(hass, "light", unique_id(72))
+
+
+def RELAY_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 73, composed from the registry."""
+    return entity_id_of(hass, "light", unique_id(73))
+
+
+def CCT_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 76, composed from the registry."""
+    return entity_id_of(hass, "light", unique_id(76))
+
+
+def BACKLIGHT_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for the m-sens module's backlight."""
+    return entity_id_of(hass, "light", module_unique_id(52111, "_backlight"))
+
+
+def STATUS_LIGHT_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for the m-sens module's status light."""
+    return entity_id_of(hass, "light", STATUS_LIGHT_KEY)
 
 
 @pytest.fixture(autouse=True)
@@ -152,7 +178,7 @@ async def test_relay_light_turn_on_off(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: RELAY_ENTITY_ID},
+        {ATTR_ENTITY_ID: RELAY_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.turn_on.assert_awaited_once_with(73)
@@ -160,7 +186,7 @@ async def test_relay_light_turn_on_off(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_OFF,
-        {ATTR_ENTITY_ID: RELAY_ENTITY_ID},
+        {ATTR_ENTITY_ID: RELAY_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.turn_off.assert_awaited_once_with(73)
@@ -183,7 +209,7 @@ async def test_read_only_object_rejects_writes(
         await hass.services.async_call(
             LIGHT_DOMAIN,
             SERVICE_TURN_ON,
-            {ATTR_ENTITY_ID: RELAY_ENTITY_ID},
+            {ATTR_ENTITY_ID: RELAY_ENTITY_ID(hass)},
             blocking=True,
         )
     mock_client.turn_on.assert_not_called()
@@ -192,7 +218,7 @@ async def test_read_only_object_rejects_writes(
         await hass.services.async_call(
             LIGHT_DOMAIN,
             SERVICE_TURN_OFF,
-            {ATTR_ENTITY_ID: RELAY_ENTITY_ID},
+            {ATTR_ENTITY_ID: RELAY_ENTITY_ID(hass)},
             blocking=True,
         )
     mock_client.turn_off.assert_not_called()
@@ -207,7 +233,7 @@ async def test_dimmer_brightness_maps_to_set_value(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: DIMMER_ENTITY_ID, ATTR_BRIGHTNESS: 200},
+        {ATTR_ENTITY_ID: DIMMER_ENTITY_ID(hass), ATTR_BRIGHTNESS: 200},
         blocking=True,
     )
     mock_client.set_value.assert_awaited_once_with(71, 200, pulse_ms=None)
@@ -228,7 +254,7 @@ async def test_timed_lights_pulse_on_turn_on(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: RELAY_ENTITY_ID},
+        {ATTR_ENTITY_ID: RELAY_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_value.assert_awaited_once_with(73, 255, pulse_ms=120000)
@@ -238,7 +264,7 @@ async def test_timed_lights_pulse_on_turn_on(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: DIMMER_ENTITY_ID, ATTR_BRIGHTNESS: 180},
+        {ATTR_ENTITY_ID: DIMMER_ENTITY_ID(hass), ATTR_BRIGHTNESS: 180},
         blocking=True,
     )
     mock_client.set_value.assert_awaited_once_with(71, 180, pulse_ms=30000)
@@ -253,7 +279,7 @@ async def test_dimmer_turn_on_without_brightness(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: DIMMER_ENTITY_ID},
+        {ATTR_ENTITY_ID: DIMMER_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.turn_on.assert_awaited_once_with(71)
@@ -269,7 +295,7 @@ async def test_rgbw_color_and_brightness_scale(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
         {
-            ATTR_ENTITY_ID: RGBW_ENTITY_ID,
+            ATTR_ENTITY_ID: RGBW_ENTITY_ID(hass),
             ATTR_RGBW_COLOR: (10, 20, 40, 80),
             ATTR_BRIGHTNESS: 160,
         },
@@ -292,7 +318,7 @@ async def test_rgbw_turn_on_from_dark_defaults_to_white(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: RGBW_ENTITY_ID},
+        {ATTR_ENTITY_ID: RGBW_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_colors.assert_awaited_once_with(72, 0, 0, 0, 255)
@@ -313,7 +339,7 @@ async def test_rgbw_explicit_zero_color_turns_off(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
         {
-            ATTR_ENTITY_ID: RGBW_ENTITY_ID,
+            ATTR_ENTITY_ID: RGBW_ENTITY_ID(hass),
             ATTR_RGBW_COLOR: (0, 0, 0, 0),
             ATTR_BRIGHTNESS: 100,
         },
@@ -332,7 +358,7 @@ async def test_rgbw_turn_off_uses_turn_off(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_OFF,
-        {ATTR_ENTITY_ID: RGBW_ENTITY_ID},
+        {ATTR_ENTITY_ID: RGBW_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.turn_off.assert_awaited_once_with(72)
@@ -349,7 +375,7 @@ async def test_push_echo_updates_brightness(
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
-    state = hass.states.get(DIMMER_ENTITY_ID)
+    state = hass.states.get(DIMMER_ENTITY_ID(hass))
     assert state.state == STATE_ON
     assert state.attributes[ATTR_BRIGHTNESS] == 255
 
@@ -361,8 +387,8 @@ async def test_panel_lights_exist_with_both_capabilities(
     with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)
 
-    assert hass.states.get(BACKLIGHT_ENTITY_ID) is not None
-    assert hass.states.get(STATUS_LIGHT_ENTITY_ID) is not None
+    assert hass.states.get(BACKLIGHT_ENTITY_ID(hass)) is not None
+    assert hass.states.get(STATUS_LIGHT_ENTITY_ID(hass)) is not None
 
 
 async def test_panel_lights_report_assumed_state(
@@ -372,10 +398,10 @@ async def test_panel_lights_report_assumed_state(
     with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)
 
-    backlight = hass.states.get(BACKLIGHT_ENTITY_ID)
+    backlight = hass.states.get(BACKLIGHT_ENTITY_ID(hass))
     assert backlight is not None
     assert backlight.attributes[ATTR_ASSUMED_STATE] is True
-    status_light = hass.states.get(STATUS_LIGHT_ENTITY_ID)
+    status_light = hass.states.get(STATUS_LIGHT_ENTITY_ID(hass))
     assert status_light is not None
     assert status_light.attributes[ATTR_ASSUMED_STATE] is True
 
@@ -395,10 +421,10 @@ async def test_panel_lights_attach_to_the_module_device(
         MSENS_IDENTIFIER, mock_config_entry.entry_id
     )
     assert module is not None
-    backlight = entity_registry.async_get(BACKLIGHT_ENTITY_ID)
+    backlight = entity_registry.async_get(BACKLIGHT_ENTITY_ID(hass))
     assert backlight is not None
     assert backlight.device_id == module.id
-    status_light = entity_registry.async_get(STATUS_LIGHT_ENTITY_ID)
+    status_light = entity_registry.async_get(STATUS_LIGHT_ENTITY_ID(hass))
     assert status_light is not None
     assert status_light.device_id == module.id
 
@@ -411,8 +437,11 @@ async def test_panel_light_built_only_for_its_own_capability(
     mock_client.capabilities[module.mac] = {ModuleFunction.BACKLIGHT_RGBW: 6}
     await setup_integration(hass, mock_config_entry)
 
-    assert hass.states.get(BACKLIGHT_ENTITY_ID) is not None
-    assert hass.states.get(STATUS_LIGHT_ENTITY_ID) is None
+    assert hass.states.get(BACKLIGHT_ENTITY_ID(hass)) is not None
+    assert (
+        er.async_get(hass).async_get_entity_id("light", DOMAIN, STATUS_LIGHT_KEY)
+        is None
+    )
 
 
 async def test_panel_lights_withheld_on_a_standard_account(
@@ -424,8 +453,8 @@ async def test_panel_lights_withheld_on_a_standard_account(
     """An account downgrade withholds both existing panel-light records."""
     with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)
-    assert hass.states.get(BACKLIGHT_ENTITY_ID) is not None
-    assert hass.states.get(STATUS_LIGHT_ENTITY_ID) is not None
+    assert hass.states.get(BACKLIGHT_ENTITY_ID(hass)) is not None
+    assert hass.states.get(STATUS_LIGHT_ENTITY_ID(hass)) is not None
 
     set_access_tier(mock_client, AccessTier.RESTRICTED)
     hass.config_entries.async_update_entry(
@@ -434,10 +463,10 @@ async def test_panel_lights_withheld_on_a_standard_account(
     await hass.config_entries.async_reload(mock_config_entry.entry_id)
     await hass.async_block_till_done()
 
-    assert entity_registry.async_get(BACKLIGHT_ENTITY_ID) is not None
-    assert entity_registry.async_get(STATUS_LIGHT_ENTITY_ID) is not None
-    assert hass.states.get(BACKLIGHT_ENTITY_ID).state == STATE_UNAVAILABLE
-    assert hass.states.get(STATUS_LIGHT_ENTITY_ID).state == STATE_UNAVAILABLE
+    assert entity_registry.async_get(BACKLIGHT_ENTITY_ID(hass)) is not None
+    assert entity_registry.async_get(STATUS_LIGHT_ENTITY_ID(hass)) is not None
+    assert hass.states.get(BACKLIGHT_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
+    assert hass.states.get(STATUS_LIGHT_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
     assert withheld == {"module_mac_52111_backlight", "module_mac_52111_status_light"}
 
@@ -450,10 +479,10 @@ async def test_initial_color_reads_panel_settings(
     with_panel_settings(mock_client)
     await setup_integration(hass, mock_config_entry)
 
-    backlight = hass.states.get(BACKLIGHT_ENTITY_ID)
+    backlight = hass.states.get(BACKLIGHT_ENTITY_ID(hass))
     assert backlight is not None
     assert backlight.attributes[ATTR_RGBW_COLOR] == TOUCH_FIELD_COLOR
-    status_light = hass.states.get(STATUS_LIGHT_ENTITY_ID)
+    status_light = hass.states.get(STATUS_LIGHT_ENTITY_ID(hass))
     assert status_light is not None
     assert status_light.attributes[ATTR_RGB_COLOR] == STATUS_COLOR
 
@@ -470,10 +499,10 @@ async def test_missing_panel_settings_starts_at_zero(
     with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)
 
-    backlight = hass.states.get(BACKLIGHT_ENTITY_ID)
+    backlight = hass.states.get(BACKLIGHT_ENTITY_ID(hass))
     assert backlight is not None
     assert backlight.state == STATE_OFF
-    status_light = hass.states.get(STATUS_LIGHT_ENTITY_ID)
+    status_light = hass.states.get(STATUS_LIGHT_ENTITY_ID(hass))
     assert status_light is not None
     assert status_light.state == STATE_OFF
 
@@ -488,7 +517,7 @@ async def test_backlight_turn_on_with_color_sends_it(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID, ATTR_RGBW_COLOR: (10, 20, 30, 40)},
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID(hass), ATTR_RGBW_COLOR: (10, 20, 30, 40)},
         blocking=True,
     )
     mock_client.set_panel_backlight.assert_awaited_once_with(
@@ -506,7 +535,7 @@ async def test_status_light_turn_on_with_color_sends_it(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID, ATTR_RGB_COLOR: (50, 60, 70)},
+        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID(hass), ATTR_RGB_COLOR: (50, 60, 70)},
         blocking=True,
     )
     mock_client.set_panel_status_light.assert_awaited_once_with(
@@ -525,7 +554,7 @@ async def test_backlight_turn_on_without_color_sends_stored_default(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID},
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_panel_backlight.assert_awaited_once_with(
@@ -544,7 +573,7 @@ async def test_status_light_turn_on_without_color_sends_stored_default(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID},
+        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_panel_status_light.assert_awaited_once_with(
@@ -562,7 +591,7 @@ async def test_turn_on_without_color_or_settings_sends_plain_white(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID},
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_panel_backlight.assert_awaited_once_with(
@@ -572,7 +601,7 @@ async def test_turn_on_without_color_or_settings_sends_plain_white(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID},
+        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_panel_status_light.assert_awaited_once_with(
@@ -597,7 +626,7 @@ async def test_brightness_only_turn_on_keeps_the_held_color(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID, ATTR_RGBW_COLOR: (255, 0, 0, 0)},
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID(hass), ATTR_RGBW_COLOR: (255, 0, 0, 0)},
         blocking=True,
     )
     mock_client.set_panel_backlight.reset_mock()
@@ -605,7 +634,7 @@ async def test_brightness_only_turn_on_keeps_the_held_color(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID, ATTR_BRIGHTNESS: 128},
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID(hass), ATTR_BRIGHTNESS: 128},
         blocking=True,
     )
     mock_client.set_panel_backlight.assert_awaited_once_with(
@@ -629,7 +658,7 @@ async def test_bare_turn_on_from_the_seeded_state_sends_the_held_color(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID},
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_panel_backlight.assert_awaited_once_with(
@@ -661,7 +690,7 @@ async def test_bare_turn_on_falls_through_to_plain_white_when_default_is_black(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID},
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_panel_backlight.assert_awaited_once_with(
@@ -671,7 +700,7 @@ async def test_bare_turn_on_falls_through_to_plain_white_when_default_is_black(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID},
+        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_panel_status_light.assert_awaited_once_with(
@@ -690,7 +719,7 @@ async def test_backlight_brightness_scales_channels(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
         {
-            ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID,
+            ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID(hass),
             ATTR_RGBW_COLOR: (10, 20, 40, 80),
             ATTR_BRIGHTNESS: 160,
         },
@@ -712,7 +741,7 @@ async def test_status_light_brightness_scales_channels(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
         {
-            ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID,
+            ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID(hass),
             ATTR_RGB_COLOR: (20, 40, 80),
             ATTR_BRIGHTNESS: 160,
         },
@@ -734,7 +763,7 @@ async def test_backlight_turn_off_and_explicit_zero_send_all_zero(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_OFF,
-        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID},
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_panel_backlight.assert_awaited_once_with(
@@ -745,7 +774,7 @@ async def test_backlight_turn_off_and_explicit_zero_send_all_zero(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID, ATTR_RGBW_COLOR: (0, 0, 0, 0)},
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID(hass), ATTR_RGBW_COLOR: (0, 0, 0, 0)},
         blocking=True,
     )
     mock_client.set_panel_backlight.assert_awaited_once_with(
@@ -764,7 +793,7 @@ async def test_status_light_turn_off_and_explicit_zero_send_all_zero(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_OFF,
-        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID},
+        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_panel_status_light.assert_awaited_once_with(
@@ -775,7 +804,7 @@ async def test_status_light_turn_off_and_explicit_zero_send_all_zero(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID, ATTR_RGB_COLOR: (0, 0, 0)},
+        {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID(hass), ATTR_RGB_COLOR: (0, 0, 0)},
         blocking=True,
     )
     mock_client.set_panel_status_light.assert_awaited_once_with(
@@ -797,7 +826,7 @@ async def test_backlight_unknown_module_raises(
         await hass.services.async_call(
             LIGHT_DOMAIN,
             SERVICE_TURN_ON,
-            {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID, ATTR_RGBW_COLOR: (1, 2, 3, 4)},
+            {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID(hass), ATTR_RGBW_COLOR: (1, 2, 3, 4)},
             blocking=True,
         )
     assert excinfo.value.translation_key == "module_not_addressable"
@@ -827,7 +856,7 @@ async def test_backlight_command_failure_raises(
         await hass.services.async_call(
             LIGHT_DOMAIN,
             SERVICE_TURN_ON,
-            {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID, ATTR_RGBW_COLOR: (1, 2, 3, 4)},
+            {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID(hass), ATTR_RGBW_COLOR: (1, 2, 3, 4)},
             blocking=True,
         )
     assert excinfo.value.translation_key == "backlight_command_failed"
@@ -845,7 +874,7 @@ async def test_status_light_unknown_module_raises(
         await hass.services.async_call(
             LIGHT_DOMAIN,
             SERVICE_TURN_ON,
-            {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID, ATTR_RGB_COLOR: (1, 2, 3)},
+            {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID(hass), ATTR_RGB_COLOR: (1, 2, 3)},
             blocking=True,
         )
     assert excinfo.value.translation_key == "module_not_addressable"
@@ -875,7 +904,7 @@ async def test_status_light_command_failure_raises(
         await hass.services.async_call(
             LIGHT_DOMAIN,
             SERVICE_TURN_ON,
-            {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID, ATTR_RGB_COLOR: (1, 2, 3)},
+            {ATTR_ENTITY_ID: STATUS_LIGHT_ENTITY_ID(hass), ATTR_RGB_COLOR: (1, 2, 3)},
             blocking=True,
         )
     assert excinfo.value.translation_key == "status_light_command_failed"
@@ -888,7 +917,9 @@ async def test_set_backlight_fields_sends_the_named_fields_and_color(
     with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)
 
-    await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [2, 4], (10, 20, 30, 40))
+    await _set_backlight_fields(
+        hass, BACKLIGHT_ENTITY_ID(hass), [2, 4], (10, 20, 30, 40)
+    )
     mock_client.set_panel_backlight.assert_awaited_once_with(
         17, 10, 20, 30, 40, fields=[2, 4]
     )
@@ -901,7 +932,7 @@ async def test_set_status_fields_sends_the_named_fields_and_color(
     with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)
 
-    await _set_status_fields(hass, STATUS_LIGHT_ENTITY_ID, [1, 3], (50, 60, 70))
+    await _set_status_fields(hass, STATUS_LIGHT_ENTITY_ID(hass), [1, 3], (50, 60, 70))
     mock_client.set_panel_status_light.assert_awaited_once_with(
         17, 50, 60, 70, fields=[1, 3]
     )
@@ -914,7 +945,7 @@ async def test_set_backlight_fields_on_an_object_light_raises(
     await setup_integration(hass, mock_config_entry)
 
     with pytest.raises(ServiceValidationError) as excinfo:
-        await _set_backlight_fields(hass, RGBW_ENTITY_ID, [1], (10, 20, 30, 40))
+        await _set_backlight_fields(hass, RGBW_ENTITY_ID(hass), [1], (10, 20, 30, 40))
     assert excinfo.value.translation_key == "not_a_panel_backlight"
     mock_client.set_panel_backlight.assert_not_awaited()
 
@@ -926,7 +957,7 @@ async def test_set_status_fields_on_an_object_light_raises(
     await setup_integration(hass, mock_config_entry)
 
     with pytest.raises(ServiceValidationError) as excinfo:
-        await _set_status_fields(hass, RGBW_ENTITY_ID, [1], (10, 20, 30))
+        await _set_status_fields(hass, RGBW_ENTITY_ID(hass), [1], (10, 20, 30))
     assert excinfo.value.translation_key == "not_a_panel_status_light"
     mock_client.set_panel_status_light.assert_not_awaited()
 
@@ -939,7 +970,9 @@ async def test_set_backlight_fields_on_the_status_light_raises(
     await setup_integration(hass, mock_config_entry)
 
     with pytest.raises(ServiceValidationError) as excinfo:
-        await _set_backlight_fields(hass, STATUS_LIGHT_ENTITY_ID, [1], (10, 20, 30, 40))
+        await _set_backlight_fields(
+            hass, STATUS_LIGHT_ENTITY_ID(hass), [1], (10, 20, 30, 40)
+        )
     assert excinfo.value.translation_key == "not_a_panel_backlight"
     mock_client.set_panel_backlight.assert_not_awaited()
 
@@ -952,7 +985,7 @@ async def test_set_status_fields_on_the_backlight_raises(
     await setup_integration(hass, mock_config_entry)
 
     with pytest.raises(ServiceValidationError) as excinfo:
-        await _set_status_fields(hass, BACKLIGHT_ENTITY_ID, [1], (10, 20, 30))
+        await _set_status_fields(hass, BACKLIGHT_ENTITY_ID(hass), [1], (10, 20, 30))
     assert excinfo.value.translation_key == "not_a_panel_status_light"
     mock_client.set_panel_status_light.assert_not_awaited()
 
@@ -974,7 +1007,7 @@ async def test_set_backlight_fields_out_of_range_raises(
 
     with pytest.raises(ServiceValidationError) as excinfo:
         await _set_backlight_fields(
-            hass, BACKLIGHT_ENTITY_ID, [field], (10, 20, 30, 40)
+            hass, BACKLIGHT_ENTITY_ID(hass), [field], (10, 20, 30, 40)
         )
     assert excinfo.value.translation_key == "panel_field_out_of_range"
     assert excinfo.value.translation_placeholders == {
@@ -992,7 +1025,9 @@ async def test_set_backlight_fields_with_no_fields_raises(
     await setup_integration(hass, mock_config_entry)
 
     with pytest.raises(ServiceValidationError) as excinfo:
-        await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [], (10, 20, 30, 40))
+        await _set_backlight_fields(
+            hass, BACKLIGHT_ENTITY_ID(hass), [], (10, 20, 30, 40)
+        )
     assert excinfo.value.translation_key == "panel_no_fields"
     mock_client.set_panel_backlight.assert_not_awaited()
 
@@ -1012,7 +1047,7 @@ async def test_set_status_fields_accepts_a_field_within_the_backlight_count(
     with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)
 
-    await _set_status_fields(hass, STATUS_LIGHT_ENTITY_ID, [5], (10, 20, 30))
+    await _set_status_fields(hass, STATUS_LIGHT_ENTITY_ID(hass), [5], (10, 20, 30))
     mock_client.set_panel_status_light.assert_awaited_once_with(
         17, 10, 20, 30, fields=[5]
     )
@@ -1032,7 +1067,7 @@ async def test_set_status_fields_out_of_range_names_the_backlight_count(
     await setup_integration(hass, mock_config_entry)
 
     with pytest.raises(ServiceValidationError) as excinfo:
-        await _set_status_fields(hass, STATUS_LIGHT_ENTITY_ID, [7], (10, 20, 30))
+        await _set_status_fields(hass, STATUS_LIGHT_ENTITY_ID(hass), [7], (10, 20, 30))
     assert excinfo.value.translation_key == "panel_field_out_of_range"
     assert excinfo.value.translation_placeholders == {"field": "7", "count": "6"}
     mock_client.set_panel_status_light.assert_not_awaited()
@@ -1045,7 +1080,7 @@ async def test_set_backlight_fields_at_the_panel_count_is_accepted(
     with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)
 
-    await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [6], (10, 20, 30, 40))
+    await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID(hass), [6], (10, 20, 30, 40))
     mock_client.set_panel_backlight.assert_awaited_once_with(
         17, 10, 20, 30, 40, fields=[6]
     )
@@ -1065,13 +1100,13 @@ async def test_set_backlight_fields_leaves_the_entity_state_unchanged(
     with_panel_settings(mock_client)
     await setup_integration(hass, mock_config_entry)
 
-    before = hass.states.get(BACKLIGHT_ENTITY_ID)
+    before = hass.states.get(BACKLIGHT_ENTITY_ID(hass))
     assert before is not None
     assert before.attributes[ATTR_RGBW_COLOR] == TOUCH_FIELD_COLOR
 
-    await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [2], (1, 2, 3, 4))
+    await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID(hass), [2], (1, 2, 3, 4))
 
-    after = hass.states.get(BACKLIGHT_ENTITY_ID)
+    after = hass.states.get(BACKLIGHT_ENTITY_ID(hass))
     assert after is not None
     assert after.attributes[ATTR_RGBW_COLOR] == TOUCH_FIELD_COLOR
 
@@ -1084,7 +1119,7 @@ async def test_set_backlight_fields_uses_the_wire_ceiling_when_the_count_is_miss
     await setup_integration(hass, mock_config_entry)
     del mock_client.capabilities[52111][ModuleFunction.BACKLIGHT_RGBW]
 
-    await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [20], (10, 20, 30, 40))
+    await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID(hass), [20], (10, 20, 30, 40))
     mock_client.set_panel_backlight.assert_awaited_once_with(
         17, 10, 20, 30, 40, fields=[20]
     )
@@ -1099,7 +1134,9 @@ async def test_set_backlight_fields_still_refuses_past_the_wire_ceiling(
     del mock_client.capabilities[52111][ModuleFunction.BACKLIGHT_RGBW]
 
     with pytest.raises(ServiceValidationError) as excinfo:
-        await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID, [99], (10, 20, 30, 40))
+        await _set_backlight_fields(
+            hass, BACKLIGHT_ENTITY_ID(hass), [99], (10, 20, 30, 40)
+        )
     assert excinfo.value.translation_key == "panel_field_out_of_range"
     assert excinfo.value.translation_placeholders == {"field": "99", "count": "24"}
     mock_client.set_panel_backlight.assert_not_awaited()
@@ -1137,7 +1174,7 @@ async def test_cct_light_reads_both_axes(
     """A warm/cold white object reports one color-temperature mode."""
     await setup_integration(hass, mock_config_entry)
 
-    state = hass.states.get(CCT_ENTITY_ID)
+    state = hass.states.get(CCT_ENTITY_ID(hass))
     assert state is not None
     assert state.state == STATE_ON
     assert state.attributes[ATTR_COLOR_MODE] is ColorMode.COLOR_TEMP
@@ -1157,7 +1194,7 @@ async def test_cct_light_is_off_at_power_zero(
     mock_client.objects[76] = replace(mock_client.objects[76], state="65280")
     await setup_integration(hass, mock_config_entry)
 
-    state = hass.states.get(CCT_ENTITY_ID)
+    state = hass.states.get(CCT_ENTITY_ID(hass))
     assert state is not None
     assert state.state == STATE_OFF
 
@@ -1171,7 +1208,7 @@ async def test_cct_light_brightness_writes_the_power_axis(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: CCT_ENTITY_ID, ATTR_BRIGHTNESS: 200},
+        {ATTR_ENTITY_ID: CCT_ENTITY_ID(hass), ATTR_BRIGHTNESS: 200},
         blocking=True,
     )
     mock_client.set_ww_power.assert_awaited_once_with(76, 200)
@@ -1188,7 +1225,7 @@ async def test_cct_light_temperature_writes_both_axes(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
         {
-            ATTR_ENTITY_ID: CCT_ENTITY_ID,
+            ATTR_ENTITY_ID: CCT_ENTITY_ID(hass),
             ATTR_BRIGHTNESS: 200,
             ATTR_COLOR_TEMP_KELVIN: 4276,
         },
@@ -1210,7 +1247,7 @@ async def test_cct_light_temperature_alone_writes_the_coldness_axis(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: CCT_ENTITY_ID, ATTR_COLOR_TEMP_KELVIN: 4276},
+        {ATTR_ENTITY_ID: CCT_ENTITY_ID(hass), ATTR_COLOR_TEMP_KELVIN: 4276},
         blocking=True,
     )
     mock_client.set_ww_coldness.assert_awaited_once_with(76, 128)
@@ -1233,7 +1270,7 @@ async def test_cct_light_temperature_alone_from_dark_uses_full_power(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: CCT_ENTITY_ID, ATTR_COLOR_TEMP_KELVIN: 4276},
+        {ATTR_ENTITY_ID: CCT_ENTITY_ID(hass), ATTR_COLOR_TEMP_KELVIN: 4276},
         blocking=True,
     )
     mock_client.set_ww.assert_awaited_once_with(76, 255, 128)
@@ -1249,7 +1286,7 @@ async def test_cct_light_bare_turn_on_keeps_the_last_power(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: CCT_ENTITY_ID},
+        {ATTR_ENTITY_ID: CCT_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_ww_power.assert_awaited_once_with(76, 84)
@@ -1265,7 +1302,7 @@ async def test_cct_light_bare_turn_on_from_dark_uses_full_power(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: CCT_ENTITY_ID},
+        {ATTR_ENTITY_ID: CCT_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_ww_power.assert_awaited_once_with(76, 255)
@@ -1280,7 +1317,7 @@ async def test_cct_light_turn_off_routes_through_the_client(
     await hass.services.async_call(
         LIGHT_DOMAIN,
         SERVICE_TURN_OFF,
-        {ATTR_ENTITY_ID: CCT_ENTITY_ID},
+        {ATTR_ENTITY_ID: CCT_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.turn_off.assert_awaited_once_with(76)

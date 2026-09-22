@@ -50,10 +50,9 @@ def _record_names(
 ) -> list[str]:
     """What the issue text lists for each record, sorted.
 
-    A device carries a name. An entity carries its pinned entity id
-    instead: that is the string an automation names, it never collides
-    with another entity of the same kind, and it cannot go stale inside a
-    stored issue the way a renamed device can.
+    A device carries a name. An entity carries its entity id instead,
+    which is the string an automation names, and it cannot go stale inside
+    a stored issue the way a renamed device can.
     """
     names = [
         device.name_by_user or device.name or next(iter(device.identifiers))[1]

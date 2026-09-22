@@ -1,5 +1,105 @@
 # serializer version: 1
-# name: test_all_entities[button.ampio_module_mac_52111_identify-entry]
+# name: test_all_entities[button.dzwonek-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': None,
+    'config_entry_id': <ANY>,
+    'config_subentry_id': <ANY>,
+    'device_class': None,
+    'device_id': <ANY>,
+    'disabled_by': None,
+    'domain': 'button',
+    'entity_category': None,
+    'entity_id': 'button.dzwonek',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': None,
+    'options': dict({
+    }),
+    'original_device_class': None,
+    'original_icon': None,
+    'original_name': None,
+    'platform': 'ampio',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': 0,
+    'translation_key': 'bell',
+    'unique_id': 'obj_150',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_all_entities[button.dzwonek-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Dzwonek',
+    }),
+    'context': <ANY>,
+    'entity_id': 'button.dzwonek',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'unknown',
+  })
+# ---
+# name: test_all_entities[button.dzwonek_2-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': None,
+    'config_entry_id': <ANY>,
+    'config_subentry_id': <ANY>,
+    'device_class': None,
+    'device_id': <ANY>,
+    'disabled_by': None,
+    'domain': 'button',
+    'entity_category': None,
+    'entity_id': 'button.dzwonek_2',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': None,
+    'options': dict({
+    }),
+    'original_device_class': None,
+    'original_icon': None,
+    'original_name': None,
+    'platform': 'ampio',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': 0,
+    'translation_key': 'bell',
+    'unique_id': 'obj_151',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_all_entities[button.dzwonek_2-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Dzwonek',
+    }),
+    'context': <ANY>,
+    'entity_id': 'button.dzwonek_2',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'unknown',
+  })
+# ---
+# name: test_all_entities[button.m_sens_salon_identify-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -13,7 +113,7 @@
     'disabled_by': None,
     'domain': 'button',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
-    'entity_id': 'button.ampio_module_mac_52111_identify',
+    'entity_id': 'button.m_sens_salon_identify',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -21,7 +121,7 @@
     'labels': set({
     }),
     'name': None,
-    'object_id_base': None,
+    'object_id_base': 'Identify',
     'options': dict({
     }),
     'original_device_class': <ButtonDeviceClass.IDENTIFY: 'identify'>,
@@ -29,28 +129,28 @@
     'original_name': 'Identify',
     'platform': 'ampio',
     'previous_unique_id': None,
-    'suggested_object_id': 'ampio_module_mac_52111_identify',
+    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': None,
     'unique_id': 'module_mac_52111_identify',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[button.ampio_module_mac_52111_identify-state]
+# name: test_all_entities[button.m_sens_salon_identify-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'identify',
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'm-sens salon Identify',
     }),
     'context': <ANY>,
-    'entity_id': 'button.ampio_module_mac_52111_identify',
+    'entity_id': 'button.m_sens_salon_identify',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'unknown',
   })
 # ---
-# name: test_all_entities[button.ampio_module_mac_52111_unlock_touch-entry]
+# name: test_all_entities[button.m_sens_salon_unlock_touch-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -64,7 +164,7 @@
     'disabled_by': None,
     'domain': 'button',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
-    'entity_id': 'button.ampio_module_mac_52111_unlock_touch',
+    'entity_id': 'button.m_sens_salon_unlock_touch',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -72,7 +172,7 @@
     'labels': set({
     }),
     'name': None,
-    'object_id_base': None,
+    'object_id_base': 'Unlock touch',
     'options': dict({
     }),
     'original_device_class': None,
@@ -80,27 +180,27 @@
     'original_name': 'Unlock touch',
     'platform': 'ampio',
     'previous_unique_id': None,
-    'suggested_object_id': 'ampio_module_mac_52111_unlock_touch',
+    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'unlock_touch',
     'unique_id': 'module_mac_52111_unlock_touch',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[button.ampio_module_mac_52111_unlock_touch-state]
+# name: test_all_entities[button.m_sens_salon_unlock_touch-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'm-sens salon Unlock touch',
     }),
     'context': <ANY>,
-    'entity_id': 'button.ampio_module_mac_52111_unlock_touch',
+    'entity_id': 'button.m_sens_salon_unlock_touch',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'unknown',
   })
 # ---
-# name: test_all_entities[button.ampio_obj_149-entry]
+# name: test_all_entities[button.object_149_bell-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -114,7 +214,7 @@
     'disabled_by': None,
     'domain': 'button',
     'entity_category': None,
-    'entity_id': 'button.ampio_obj_149',
+    'entity_id': 'button.object_149_bell',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -122,7 +222,7 @@
     'labels': set({
     }),
     'name': None,
-    'object_id_base': None,
+    'object_id_base': 'Bell',
     'options': dict({
     }),
     'original_device_class': None,
@@ -130,120 +230,20 @@
     'original_name': 'Bell',
     'platform': 'ampio',
     'previous_unique_id': None,
-    'suggested_object_id': 'ampio_obj_149',
+    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'bell',
     'unique_id': 'obj_149',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[button.ampio_obj_149-state]
+# name: test_all_entities[button.object_149_bell-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Object 149 Bell',
     }),
     'context': <ANY>,
-    'entity_id': 'button.ampio_obj_149',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'unknown',
-  })
-# ---
-# name: test_all_entities[button.ampio_obj_150-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': None,
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'button',
-    'entity_category': None,
-    'entity_id': 'button.ampio_obj_150',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': None,
-    'options': dict({
-    }),
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': None,
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': 'ampio_obj_150',
-    'supported_features': 0,
-    'translation_key': 'bell',
-    'unique_id': 'obj_150',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[button.ampio_obj_150-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Dzwonek',
-    }),
-    'context': <ANY>,
-    'entity_id': 'button.ampio_obj_150',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'unknown',
-  })
-# ---
-# name: test_all_entities[button.ampio_obj_151-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': None,
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'button',
-    'entity_category': None,
-    'entity_id': 'button.ampio_obj_151',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': None,
-    'options': dict({
-    }),
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': None,
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': 'ampio_obj_151',
-    'supported_features': 0,
-    'translation_key': 'bell',
-    'unique_id': 'obj_151',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[button.ampio_obj_151-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Dzwonek',
-    }),
-    'context': <ANY>,
-    'entity_id': 'button.ampio_obj_151',
+    'entity_id': 'button.object_149_bell',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,

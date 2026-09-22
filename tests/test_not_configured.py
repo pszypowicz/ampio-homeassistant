@@ -15,16 +15,20 @@ from custom_components.ampio.const import (
 from custom_components.ampio.stale import find_stale_records
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, issue_registry as ir
+from homeassistant.helpers import (
+    device_registry as dr,
+    entity_registry as er,
+    issue_registry as ir,
+)
 
 from . import setup_integration
 from .conftest import (
     HIDDEN_LEAFLESS_ROW,
     LEAFLESS_ALARM_ROW,
     emit,
+    entity_id_of,
     make_object,
-    module_pinned_id,
-    pinned_id,
+    module_unique_id,
     set_access_tier,
     unique_id,
 )
@@ -95,7 +99,7 @@ async def test_leafless_alarm_raises_repair_without_an_entity(
     await setup_integration(hass, mock_config_entry)
 
     assert mock_config_entry.state is ConfigEntryState.LOADED
-    assert hass.states.get(pinned_id("sensor", 36)) is not None
+    assert hass.states.get(entity_id_of(hass, "sensor", unique_id(36))) is not None
     issue = issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE)
     assert issue is not None
     assert issue.translation_key == "not_configured_objects"
@@ -151,7 +155,7 @@ async def test_system_rows_do_not_enter_the_integration_catalogue(
 
     await setup_integration(hass, mock_config_entry)
 
-    assert hass.states.get(pinned_id("sensor", 36)) is not None
+    assert hass.states.get(entity_id_of(hass, "sensor", unique_id(36))) is not None
 
 
 async def test_the_door_event_clears_the_repair_without_an_object_event(
@@ -328,14 +332,20 @@ async def test_a_dead_entity_on_a_held_module_is_still_offered(
     entry_id = mock_config_entry.entry_id
     module = device_registry.async_get_device_by_identifier(PUMP_IDENTIFIER, entry_id)
     assert module is not None
+    registry = er.async_get(hass)
     on_the_module = {
         entity_id
-        for entity_id in (
-            module_pinned_id("button", PUMP_MAC, "_identify"),
-            module_pinned_id("sensor", PUMP_MAC, "_voltage"),
-            module_pinned_id("sensor", PUMP_MAC, "_temperature"),
+        for domain, suffix in (
+            ("button", "_identify"),
+            ("sensor", "_voltage"),
+            ("sensor", "_temperature"),
         )
-        if hass.states.get(entity_id) is not None
+        if (
+            entity_id := registry.async_get_entity_id(
+                domain, DOMAIN, module_unique_id(PUMP_MAC, suffix)
+            )
+        )
+        is not None
     }
     assert on_the_module
 

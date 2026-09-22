@@ -39,18 +39,42 @@ from .conftest import (
     MSENS_IDENTIFIER,
     MSENS_ROW_NAME,
     emit,
+    entity_id_of,
     make_object,
-    pinned_id,
+    module_unique_id,
     set_access_tier,
     unique_id,
 )
 
-TEMPERATURE_ENTITY_ID = pinned_id("sensor", 36)
-HUMIDITY_ENTITY_ID = pinned_id("sensor", 37)
-CO2_ENTITY_ID = pinned_id("sensor", 43)
-CURRENT_ENTITY_ID = pinned_id("sensor", 160)
-ENERGY_ENTITY_ID = pinned_id("sensor", 161)
-COUNTER_ENTITY_ID = pinned_id("sensor", 162)
+
+def TEMPERATURE_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 36, composed from the registry."""
+    return entity_id_of(hass, "sensor", unique_id(36))
+
+
+def HUMIDITY_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 37, composed from the registry."""
+    return entity_id_of(hass, "sensor", unique_id(37))
+
+
+def CO2_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 43, composed from the registry."""
+    return entity_id_of(hass, "sensor", unique_id(43))
+
+
+def CURRENT_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 160, composed from the registry."""
+    return entity_id_of(hass, "sensor", unique_id(160))
+
+
+def ENERGY_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 161, composed from the registry."""
+    return entity_id_of(hass, "sensor", unique_id(161))
+
+
+def COUNTER_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 162, composed from the registry."""
+    return entity_id_of(hass, "sensor", unique_id(162))
 
 
 @pytest.fixture(autouse=True)
@@ -121,7 +145,7 @@ async def test_push_update_changes_state(
 
     await _push_value(hass, mock_client, 36, "25.5")
 
-    assert hass.states.get(TEMPERATURE_ENTITY_ID).state == "25.5"
+    assert hass.states.get(TEMPERATURE_ENTITY_ID(hass)).state == "25.5"
 
 
 async def test_unusable_value_surfaces_as_unknown(
@@ -139,7 +163,7 @@ async def test_unusable_value_surfaces_as_unknown(
 
     await _push_value(hass, mock_client, 36, "INVALID")
 
-    assert hass.states.get(TEMPERATURE_ENTITY_ID).state == STATE_UNKNOWN
+    assert hass.states.get(TEMPERATURE_ENTITY_ID(hass)).state == STATE_UNKNOWN
 
 
 @pytest.mark.usefixtures("mock_client")
@@ -151,17 +175,17 @@ async def test_value_sensor_reads_the_designer_unit(
     """An integer slot carries the unit, class, state class, and precision Designer stores."""
     await setup_integration(hass, mock_config_entry)
 
-    current = hass.states.get(CURRENT_ENTITY_ID)
+    current = hass.states.get(CURRENT_ENTITY_ID(hass))
     assert current is not None
     assert current.state == "0.37"
     assert current.attributes["unit_of_measurement"] == "A"
     assert current.attributes["device_class"] == "current"
     assert current.attributes["state_class"] == "measurement"
-    entry = entity_registry.async_get(CURRENT_ENTITY_ID)
+    entry = entity_registry.async_get(CURRENT_ENTITY_ID(hass))
     assert entry is not None
     assert entry.options["sensor"]["suggested_display_precision"] == 3
 
-    energy = hass.states.get(ENERGY_ENTITY_ID)
+    energy = hass.states.get(ENERGY_ENTITY_ID(hass))
     assert energy is not None
     assert energy.attributes["unit_of_measurement"] == "kWh"
     assert energy.attributes["device_class"] == "energy"
@@ -175,7 +199,7 @@ async def test_value_sensor_without_unit_is_a_plain_number(
     """A slot with neither a Unit field nor a format tail keeps its value and no state class."""
     await setup_integration(hass, mock_config_entry)
 
-    counter = hass.states.get(COUNTER_ENTITY_ID)
+    counter = hass.states.get(COUNTER_ENTITY_ID(hass))
     assert counter is not None
     assert counter.state == "42.0"
     assert "unit_of_measurement" not in counter.attributes
@@ -194,7 +218,7 @@ async def test_value_sensor_follows_a_unit_change(
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
-    counter = hass.states.get(COUNTER_ENTITY_ID)
+    counter = hass.states.get(COUNTER_ENTITY_ID(hass))
     assert counter is not None
     assert counter.attributes["unit_of_measurement"] == "V"
     assert counter.attributes["device_class"] == "voltage"
@@ -209,7 +233,7 @@ async def test_value_sensor_non_numeric_push_reads_unknown(
 
     await _push_value(hass, mock_client, 160, "INVALID")
 
-    assert hass.states.get(CURRENT_ENTITY_ID).state == STATE_UNKNOWN
+    assert hass.states.get(CURRENT_ENTITY_ID(hass)).state == STATE_UNKNOWN
 
 
 async def test_push_only_updates_target_entity(
@@ -221,12 +245,14 @@ async def test_push_only_updates_target_entity(
     is the signal that catches a spurious fan-out.
     """
     await setup_integration(hass, mock_config_entry)
-    temperature_before = hass.states.get(TEMPERATURE_ENTITY_ID).last_reported
+    temperature_before = hass.states.get(TEMPERATURE_ENTITY_ID(hass)).last_reported
 
     await _push_value(hass, mock_client, 37, "45.5")
 
-    assert hass.states.get(HUMIDITY_ENTITY_ID).state == "45.5"
-    assert hass.states.get(TEMPERATURE_ENTITY_ID).last_reported == temperature_before
+    assert hass.states.get(HUMIDITY_ENTITY_ID(hass)).state == "45.5"
+    assert (
+        hass.states.get(TEMPERATURE_ENTITY_ID(hass)).last_reported == temperature_before
+    )
 
 
 @pytest.mark.parametrize("tier", [AccessTier.ADMIN, AccessTier.RESTRICTED])
@@ -244,7 +270,7 @@ async def test_removed_object_becomes_unavailable(
     emit(mock_client, ObjectRemoved(object=obj))
     await hass.async_block_till_done()
 
-    assert hass.states.get(CO2_ENTITY_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(CO2_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
 
 
 async def test_broker_availability_flips_entities(
@@ -257,15 +283,15 @@ async def test_broker_availability_flips_entities(
     emit(mock_client, AvailabilityChanged(available=False))
     await hass.async_block_till_done()
 
-    assert hass.states.get(TEMPERATURE_ENTITY_ID).state == STATE_UNAVAILABLE
-    assert hass.states.get(HUMIDITY_ENTITY_ID).state == STATE_UNAVAILABLE
-    assert hass.states.get(CO2_ENTITY_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(TEMPERATURE_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
+    assert hass.states.get(HUMIDITY_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
+    assert hass.states.get(CO2_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
 
     mock_client.available = True
     emit(mock_client, AvailabilityChanged(available=True))
     await hass.async_block_till_done()
 
-    assert hass.states.get(TEMPERATURE_ENTITY_ID).state == "24.4"
+    assert hass.states.get(TEMPERATURE_ENTITY_ID(hass)).state == "24.4"
 
 
 @pytest.mark.parametrize(
@@ -463,10 +489,12 @@ async def test_pulse_time_diagnostic(
         mock_client.objects[oid] = replace(mock_client.objects[oid], czas=500)
     await setup_integration(hass, mock_config_entry)
 
-    entry = entity_registry.async_get(pinned_id("sensor", 150, "_pulse"))
+    entry = entity_registry.async_get(
+        entity_id_of(hass, "sensor", unique_id(150, "_pulse"))
+    )
     assert entry is not None
     assert entry.entity_category is EntityCategory.DIAGNOSTIC
-    state = hass.states.get(pinned_id("sensor", 150, "_pulse"))
+    state = hass.states.get(entity_id_of(hass, "sensor", unique_id(150, "_pulse")))
     assert state is not None
     assert float(state.state) == 3.0
 
@@ -507,8 +535,14 @@ async def test_analog_flag_has_no_pulse_diagnostic(
         )
 
 
-MODULE_VOLTAGE_ID = "sensor.ampio_module_mac_52111_voltage"
-MODULE_TEMPERATURE_ID = "sensor.ampio_module_mac_52111_temperature"
+def MODULE_VOLTAGE_ID(hass: HomeAssistant) -> str:
+    """Entity id for the m-sens module's voltage sensor."""
+    return entity_id_of(hass, "sensor", module_unique_id(52111, "_voltage"))
+
+
+def MODULE_TEMPERATURE_ID(hass: HomeAssistant) -> str:
+    """Entity id for the m-sens module's temperature sensor."""
+    return entity_id_of(hass, "sensor", module_unique_id(52111, "_temperature"))
 
 
 @pytest.mark.usefixtures("sensor_only")
@@ -525,7 +559,7 @@ async def test_module_sensors_read_unknown_until_a_broadcast(
     """
     await setup_integration(hass, mock_config_entry)
 
-    for entity_id in (MODULE_VOLTAGE_ID, MODULE_TEMPERATURE_ID):
+    for entity_id in (MODULE_VOLTAGE_ID(hass), MODULE_TEMPERATURE_ID(hass)):
         state = hass.states.get(entity_id)
         assert state is not None
         assert state.state == STATE_UNKNOWN
@@ -536,8 +570,8 @@ async def test_module_sensors_read_unknown_until_a_broadcast(
     emit(mock_client, ModuleUpdated(module=mock_client.modules[17]))
     await hass.async_block_till_done()
 
-    assert hass.states.get(MODULE_VOLTAGE_ID).state == "12.4"
-    assert hass.states.get(MODULE_TEMPERATURE_ID).state == "36.0"
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == "12.4"
+    assert hass.states.get(MODULE_TEMPERATURE_ID(hass)).state == "36.0"
 
 
 @pytest.mark.usefixtures("sensor_only")
@@ -561,7 +595,7 @@ async def test_module_sensor_ignores_another_module(
     emit(mock_client, ModuleUpdated(module=other))
     await hass.async_block_till_done()
 
-    assert hass.states.get(MODULE_VOLTAGE_ID).state == STATE_UNKNOWN
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == STATE_UNKNOWN
 
 
 @pytest.mark.usefixtures("sensor_only")
@@ -573,8 +607,8 @@ async def test_module_sensors_are_withheld_on_a_standard_account(
 ) -> None:
     """An account downgrade withholds both existing module-sensor records."""
     await setup_integration(hass, mock_config_entry)
-    assert hass.states.get(MODULE_VOLTAGE_ID) is not None
-    assert hass.states.get(MODULE_TEMPERATURE_ID) is not None
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)) is not None
+    assert hass.states.get(MODULE_TEMPERATURE_ID(hass)) is not None
 
     set_access_tier(mock_client, AccessTier.RESTRICTED)
     hass.config_entries.async_update_entry(
@@ -583,10 +617,10 @@ async def test_module_sensors_are_withheld_on_a_standard_account(
     await hass.config_entries.async_reload(mock_config_entry.entry_id)
     await hass.async_block_till_done()
 
-    assert entity_registry.async_get(MODULE_VOLTAGE_ID) is not None
-    assert entity_registry.async_get(MODULE_TEMPERATURE_ID) is not None
-    assert hass.states.get(MODULE_VOLTAGE_ID).state == STATE_UNAVAILABLE
-    assert hass.states.get(MODULE_TEMPERATURE_ID).state == STATE_UNAVAILABLE
+    assert entity_registry.async_get(MODULE_VOLTAGE_ID(hass)) is not None
+    assert entity_registry.async_get(MODULE_TEMPERATURE_ID(hass)) is not None
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == STATE_UNAVAILABLE
+    assert hass.states.get(MODULE_TEMPERATURE_ID(hass)).state == STATE_UNAVAILABLE
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
     assert withheld == {"module_mac_52111_voltage", "module_mac_52111_temperature"}
 
@@ -601,9 +635,9 @@ async def test_module_sensor_follows_the_connection(
     mock_client.available = False
     emit(mock_client, AvailabilityChanged(available=False))
     await hass.async_block_till_done()
-    assert hass.states.get(MODULE_VOLTAGE_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == STATE_UNAVAILABLE
 
     mock_client.available = True
     emit(mock_client, AvailabilityChanged(available=True))
     await hass.async_block_till_done()
-    assert hass.states.get(MODULE_VOLTAGE_ID).state != STATE_UNAVAILABLE
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state != STATE_UNAVAILABLE

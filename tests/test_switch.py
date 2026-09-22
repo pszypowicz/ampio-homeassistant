@@ -12,6 +12,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 from syrupy.assertion import SnapshotAssertion
 
+from custom_components.ampio.const import DOMAIN
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.const import (
     ATTR_ENTITY_ID,
@@ -27,11 +28,22 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import emit, pinned_id
+from .conftest import emit, entity_id_of, unique_id
 
-PLAIN_ENTITY_ID = pinned_id("switch", 74)
-OUTLET_ENTITY_ID = pinned_id("switch", 75)
-FLAG_ENTITY_ID = pinned_id("switch", 61)
+
+def PLAIN_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 74, composed from the registry."""
+    return entity_id_of(hass, "switch", unique_id(74))
+
+
+def OUTLET_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 75, composed from the registry."""
+    return entity_id_of(hass, "switch", unique_id(75))
+
+
+def FLAG_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 61, composed from the registry."""
+    return entity_id_of(hass, "switch", unique_id(61))
 
 
 @pytest.fixture(autouse=True)
@@ -62,7 +74,7 @@ async def test_turn_on_off_maps_to_verbs(
     await hass.services.async_call(
         SWITCH_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: OUTLET_ENTITY_ID},
+        {ATTR_ENTITY_ID: OUTLET_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.turn_on.assert_awaited_once_with(75)
@@ -70,7 +82,7 @@ async def test_turn_on_off_maps_to_verbs(
     await hass.services.async_call(
         SWITCH_DOMAIN,
         SERVICE_TURN_OFF,
-        {ATTR_ENTITY_ID: OUTLET_ENTITY_ID},
+        {ATTR_ENTITY_ID: OUTLET_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.turn_off.assert_awaited_once_with(75)
@@ -93,12 +105,12 @@ async def test_flag_services_map_to_verbs(
 ) -> None:
     """A writable flag answers the switch services with the plain verbs."""
     await setup_integration(hass, mock_config_entry)
-    assert hass.states.get(FLAG_ENTITY_ID).state == STATE_ON
+    assert hass.states.get(FLAG_ENTITY_ID(hass)).state == STATE_ON
 
     await hass.services.async_call(
         SWITCH_DOMAIN,
         SERVICE_TURN_OFF,
-        {ATTR_ENTITY_ID: FLAG_ENTITY_ID},
+        {ATTR_ENTITY_ID: FLAG_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.turn_off.assert_awaited_once_with(61)
@@ -106,7 +118,7 @@ async def test_flag_services_map_to_verbs(
     await hass.services.async_call(
         SWITCH_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: FLAG_ENTITY_ID},
+        {ATTR_ENTITY_ID: FLAG_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.turn_on.assert_awaited_once_with(61)
@@ -117,14 +129,14 @@ async def test_flag_push_update_toggles_state(
 ) -> None:
     """A pushed flag update flips the switch between on and off."""
     await setup_integration(hass, mock_config_entry)
-    assert hass.states.get(FLAG_ENTITY_ID).state == STATE_ON
+    assert hass.states.get(FLAG_ENTITY_ID(hass)).state == STATE_ON
 
     obj = replace(mock_client.objects[61], state="0")
     mock_client.objects[61] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
-    assert hass.states.get(FLAG_ENTITY_ID).state == STATE_OFF
+    assert hass.states.get(FLAG_ENTITY_ID(hass)).state == STATE_OFF
 
 
 async def test_push_echo_toggles_state(
@@ -132,14 +144,14 @@ async def test_push_echo_toggles_state(
 ) -> None:
     """A pushed relay echo flips the entity between on and off."""
     await setup_integration(hass, mock_config_entry)
-    assert hass.states.get(PLAIN_ENTITY_ID).state == STATE_ON
+    assert hass.states.get(PLAIN_ENTITY_ID(hass)).state == STATE_ON
 
     obj = replace(mock_client.objects[74], state="0")
     mock_client.objects[74] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
-    assert hass.states.get(PLAIN_ENTITY_ID).state == STATE_OFF
+    assert hass.states.get(PLAIN_ENTITY_ID(hass)).state == STATE_OFF
 
 
 async def test_timed_relay_pulses_on_turn_on(
@@ -157,7 +169,7 @@ async def test_timed_relay_pulses_on_turn_on(
     await hass.services.async_call(
         SWITCH_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: PLAIN_ENTITY_ID},
+        {ATTR_ENTITY_ID: PLAIN_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_value.assert_awaited_once_with(74, 255, pulse_ms=90000)
@@ -166,7 +178,7 @@ async def test_timed_relay_pulses_on_turn_on(
     await hass.services.async_call(
         SWITCH_DOMAIN,
         SERVICE_TURN_OFF,
-        {ATTR_ENTITY_ID: PLAIN_ENTITY_ID},
+        {ATTR_ENTITY_ID: PLAIN_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.turn_off.assert_awaited_once_with(74)
@@ -189,7 +201,7 @@ async def test_read_only_object_rejects_writes(
         await hass.services.async_call(
             SWITCH_DOMAIN,
             SERVICE_TURN_OFF,
-            {ATTR_ENTITY_ID: FLAG_ENTITY_ID},
+            {ATTR_ENTITY_ID: FLAG_ENTITY_ID(hass)},
             blocking=True,
         )
     mock_client.turn_off.assert_not_called()
@@ -202,8 +214,15 @@ async def test_cover_builds_no_switch(
     """The lock switches are gone; the lock reads through binary sensors."""
     await setup_integration(hass, mock_config_entry)
 
-    assert hass.states.get(pinned_id("switch", 82, "_lock_opening")) is None
-    assert hass.states.get(pinned_id("switch", 82, "_lock_closing")) is None
+    registry = er.async_get(hass)
+    assert (
+        registry.async_get_entity_id("switch", DOMAIN, unique_id(82, "_lock_opening"))
+        is None
+    )
+    assert (
+        registry.async_get_entity_id("switch", DOMAIN, unique_id(82, "_lock_closing"))
+        is None
+    )
 
 
 async def test_removed_object_becomes_unavailable(
@@ -216,4 +235,4 @@ async def test_removed_object_becomes_unavailable(
     emit(mock_client, ObjectRemoved(object=obj))
     await hass.async_block_till_done()
 
-    assert hass.states.get(PLAIN_ENTITY_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(PLAIN_ENTITY_ID(hass)).state == STATE_UNAVAILABLE

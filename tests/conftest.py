@@ -34,6 +34,8 @@ from syrupy.assertion import SnapshotAssertion
 
 from custom_components.ampio.const import DOMAIN, MODULE_KEY_STEM
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 
 @pytest.fixture(autouse=True)
@@ -70,18 +72,21 @@ def unique_id(oid: int, suffix: str = "") -> str:
     return f"obj_{oid}{suffix}"
 
 
-def pinned_id(domain: str, oid: int, suffix: str = "") -> str:
-    """The pinned entity id of an object's entity in ``domain``.
+def module_unique_id(mac: int, suffix: str) -> str:
+    """The unique id of a module entity, built from its override mac."""
+    return f"{MODULE_KEY_STEM}_{mac}{suffix}"
 
-    The integration carries this id into the add, so no device name and no
-    area name compose it. It is the unique id with the domain in front.
+
+def entity_id_of(hass: HomeAssistant, domain: str, key: str) -> str:
+    """The entity id Home Assistant composed for the unique id ``key``.
+
+    Composition reads the area, the device name and the entity name, so a
+    test that spells an id out by hand pins the fixture's names rather than
+    the behavior under test. Ask the registry instead.
     """
-    return f"{domain}.ampio_{unique_id(oid, suffix)}"
-
-
-def module_pinned_id(domain: str, module_id: int, suffix: str) -> str:
-    """The pinned entity id built from a module mac and entity suffix."""
-    return f"{domain}.ampio_{MODULE_KEY_STEM}_{module_id}{suffix}"
+    entity_id = er.async_get(hass).async_get_entity_id(domain, DOMAIN, key)
+    assert entity_id is not None, f"no {domain} entity registered for {key}"
+    return entity_id
 
 
 # A sweep that read every module and joined nothing.

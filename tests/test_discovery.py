@@ -44,20 +44,40 @@ from .conftest import (
     HUB_IDENTIFIER,
     MSENS_IDENTIFIER,
     emit,
+    entity_id_of,
     make_object,
-    module_pinned_id,
-    pinned_id,
+    module_unique_id,
     set_access_tier,
     unique_id,
 )
 
 NEW_INPUT_ID = 200
-NEW_INPUT_ENTITY_ID = pinned_id("binary_sensor", NEW_INPUT_ID)
-WEJ_ENTITY_ID = pinned_id("binary_sensor", 146)
-RELAY_SWITCH_ID = pinned_id("switch", 74)
-RELAY_LIGHT_ID = pinned_id("light", 74)
-RELAY_PULSE_ID = pinned_id("sensor", 74, "_pulse")
 ISSUE_ID = "stale_records"
+
+
+def NEW_INPUT_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 200, composed from the registry."""
+    return entity_id_of(hass, "binary_sensor", unique_id(NEW_INPUT_ID))
+
+
+def WEJ_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 146, composed from the registry."""
+    return entity_id_of(hass, "binary_sensor", unique_id(146))
+
+
+def RELAY_SWITCH_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 74's switch entity, composed from the registry."""
+    return entity_id_of(hass, "switch", unique_id(74))
+
+
+def RELAY_LIGHT_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 74's light entity, composed from the registry."""
+    return entity_id_of(hass, "light", unique_id(74))
+
+
+def RELAY_PULSE_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 74's pulse diagnostic, composed from the registry."""
+    return entity_id_of(hass, "sensor", unique_id(74, "_pulse"))
 
 
 def _new_input(**overrides: Any) -> AmpioObject:
@@ -120,13 +140,18 @@ async def test_new_object_gets_its_entity_device_and_area(
 ) -> None:
     """An object added in Designer appears under its module, in its app room."""
     await setup_integration(hass, mock_config_entry)
-    assert hass.states.get(NEW_INPUT_ENTITY_ID) is None
+    assert (
+        entity_registry.async_get_entity_id(
+            "binary_sensor", DOMAIN, unique_id(NEW_INPUT_ID)
+        )
+        is None
+    )
     mock_client.fetch_rooms.return_value = {**DEFAULT_ROOMS, NEW_INPUT_ID: "Taras"}
 
     await _add(hass, mock_client, _new_input())
 
-    assert entity_registry.async_get(NEW_INPUT_ENTITY_ID) == snapshot
-    assert hass.states.get(NEW_INPUT_ENTITY_ID) == snapshot
+    assert entity_registry.async_get(NEW_INPUT_ENTITY_ID(hass)) == snapshot
+    assert hass.states.get(NEW_INPUT_ENTITY_ID(hass)) == snapshot
     child = _child(device_registry, mock_config_entry, NEW_INPUT_ID)
     module = device_registry.async_get_device_by_identifier(
         MSENS_IDENTIFIER, mock_config_entry.entry_id
@@ -166,7 +191,7 @@ async def test_new_module_mac_gets_a_device_on_a_restricted_account(
     assert module.name == "Ampio module 53257"
     assert module.via_device_id == hub.id
     assert child.parent_device_id == module.id
-    assert hass.states.get(NEW_INPUT_ENTITY_ID).state == STATE_OFF
+    assert hass.states.get(NEW_INPUT_ENTITY_ID(hass)).state == STATE_OFF
 
 
 async def test_one_batch_per_burst_of_events(
@@ -190,7 +215,9 @@ async def test_one_batch_per_burst_of_events(
 
     assert mock_client.fetch_rooms.await_count == 2
     for offset in range(20):
-        state = hass.states.get(pinned_id("binary_sensor", 300 + offset))
+        state = hass.states.get(
+            entity_id_of(hass, "binary_sensor", unique_id(300 + offset))
+        )
         assert state is not None
         assert state.state == STATE_OFF
 
@@ -203,7 +230,7 @@ async def test_state_push_schedules_no_batch(
 
     await _update(hass, mock_client, replace(mock_client.objects[146], state="1"))
 
-    assert hass.states.get(WEJ_ENTITY_ID).state == STATE_ON
+    assert hass.states.get(WEJ_ENTITY_ID(hass)).state == STATE_ON
     mock_client.fetch_rooms.assert_awaited_once()
 
 
@@ -218,15 +245,15 @@ async def test_removed_object_loses_its_entity_and_keeps_its_record(
 
     obj = await _remove(hass, mock_client, 146)
 
-    state = hass.states.get(WEJ_ENTITY_ID)
+    state = hass.states.get(WEJ_ENTITY_ID(hass))
     assert state is not None
     assert state.state == STATE_UNAVAILABLE
     assert state.attributes[ATTR_RESTORED] is True
-    assert entity_registry.async_get(WEJ_ENTITY_ID) is not None
+    assert entity_registry.async_get(WEJ_ENTITY_ID(hass)) is not None
 
     await _add(hass, mock_client, obj)
 
-    assert hass.states.get(WEJ_ENTITY_ID).state == STATE_OFF
+    assert hass.states.get(WEJ_ENTITY_ID(hass)).state == STATE_OFF
 
 
 async def test_deleted_relay_loses_its_entity_until_readmitted(
@@ -236,13 +263,13 @@ async def test_deleted_relay_loses_its_entity_until_readmitted(
     await setup_integration(hass, mock_config_entry)
 
     relay = await _remove(hass, mock_client, 74)
-    state = hass.states.get(RELAY_SWITCH_ID)
+    state = hass.states.get(RELAY_SWITCH_ID(hass))
     assert state is not None
     assert state.state == STATE_UNAVAILABLE
     assert state.attributes[ATTR_RESTORED] is True
 
     await _add(hass, mock_client, relay)
-    assert hass.states.get(RELAY_SWITCH_ID).state == STATE_ON
+    assert hass.states.get(RELAY_SWITCH_ID(hass)).state == STATE_ON
 
 
 async def test_retagged_relay_moves_from_switch_to_light(
@@ -250,14 +277,16 @@ async def test_retagged_relay_moves_from_switch_to_light(
 ) -> None:
     """A Lighting tag set in Designer swaps the platform without a reload."""
     await setup_integration(hass, mock_config_entry)
-    assert hass.states.get(RELAY_LIGHT_ID) is None
+    assert (
+        er.async_get(hass).async_get_entity_id("light", DOMAIN, unique_id(74)) is None
+    )
 
     await _update(
         hass, mock_client, replace(mock_client.objects[74], matter_device_type=0x0100)
     )
 
-    assert hass.states.get(RELAY_SWITCH_ID).state == STATE_UNAVAILABLE
-    assert hass.states.get(RELAY_LIGHT_ID).state == STATE_ON
+    assert hass.states.get(RELAY_SWITCH_ID(hass)).state == STATE_UNAVAILABLE
+    assert hass.states.get(RELAY_LIGHT_ID(hass)).state == STATE_ON
 
 
 async def test_pulse_time_adds_and_removes_the_diagnostic(
@@ -265,14 +294,19 @@ async def test_pulse_time_adds_and_removes_the_diagnostic(
 ) -> None:
     """The pulse sensor follows the Designer time on the object."""
     await setup_integration(hass, mock_config_entry)
-    assert hass.states.get(RELAY_PULSE_ID) is None
+    assert (
+        er.async_get(hass).async_get_entity_id(
+            "sensor", DOMAIN, unique_id(74, "_pulse")
+        )
+        is None
+    )
     relay = mock_client.objects[74]
 
     await _update(hass, mock_client, replace(relay, czas=300))
-    assert hass.states.get(RELAY_PULSE_ID).state == "3.0"
+    assert hass.states.get(RELAY_PULSE_ID(hass)).state == "3.0"
 
     await _update(hass, mock_client, relay)
-    assert hass.states.get(RELAY_PULSE_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(RELAY_PULSE_ID(hass)).state == STATE_UNAVAILABLE
 
 
 async def test_moved_object_is_removed_and_deletable(
@@ -297,8 +331,10 @@ async def test_moved_object_is_removed_and_deletable(
         ),
     )
 
-    assert hass.states.get(RELAY_SWITCH_ID).state == STATE_UNAVAILABLE
-    assert hass.states.get(RELAY_LIGHT_ID) is None
+    assert hass.states.get(RELAY_SWITCH_ID(hass)).state == STATE_UNAVAILABLE
+    assert (
+        er.async_get(hass).async_get_entity_id("light", DOMAIN, unique_id(74)) is None
+    )
     warnings = [
         record
         for record in caplog.records
@@ -325,7 +361,7 @@ async def test_room_fetch_failure_degrades_the_batch(
 
     await _add(hass, mock_client, _new_input())
 
-    assert hass.states.get(NEW_INPUT_ENTITY_ID).state == STATE_OFF
+    assert hass.states.get(NEW_INPUT_ENTITY_ID(hass)).state == STATE_OFF
     child = _child(device_registry, mock_config_entry, NEW_INPUT_ID)
     assert child is not None
     assert child.area_id is None
@@ -454,7 +490,7 @@ async def test_deleting_a_moved_child_brings_it_back_under_the_new_module(
     assert moved.parent_device_id == new_module.id
     assert moved.name_by_user == "Przekaznik piwnica"
     assert moved.area_id == piwnica.id
-    assert hass.states.get(RELAY_SWITCH_ID).state == STATE_ON
+    assert hass.states.get(RELAY_SWITCH_ID(hass)).state == STATE_ON
 
 
 async def test_deleting_the_old_module_brings_a_stuck_child_back_too(
@@ -484,7 +520,7 @@ async def test_deleting_the_old_module_brings_a_stuck_child_back_too(
             leaf_key="leaf_0_be82_257_2_1",
         ),
     )
-    assert hass.states.get(RELAY_SWITCH_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(RELAY_SWITCH_ID(hass)).state == STATE_UNAVAILABLE
     stuck = _child(device_registry, mock_config_entry, 74)
     assert stuck is not None
     assert stuck.id == child.id
@@ -512,7 +548,7 @@ async def test_deleting_the_old_module_brings_a_stuck_child_back_too(
     assert new_module is not None
     assert moved.id == child.id
     assert moved.parent_device_id == new_module.id
-    assert hass.states.get(RELAY_SWITCH_ID).state == STATE_ON
+    assert hass.states.get(RELAY_SWITCH_ID(hass)).state == STATE_ON
 
 
 async def test_module_factory_builds_now_and_for_a_new_mac(
@@ -605,7 +641,10 @@ async def test_deleted_module_device_comes_back_with_its_object(
         (DOMAIN, "module_mac:53257"), mock_config_entry.entry_id
     )
     assert module is not None
-    button_id = module_pinned_id("button", 53257, "_identify")
+    # Cached once, while the entity exists: a remove and re-add restores
+    # the same string from the registry's deleted-entity record, and the
+    # cached string still resolves an absence correctly in between.
+    button_id = entity_id_of(hass, "button", module_unique_id(53257, "_identify"))
     assert hass.states.get(button_id) is not None
 
     await _remove(hass, mock_client, NEW_INPUT_ID)
@@ -624,7 +663,7 @@ async def test_deleted_module_device_comes_back_with_its_object(
     assert rebuilt.id == module.id
     assert child is not None
     assert child.parent_device_id == rebuilt.id
-    assert hass.states.get(NEW_INPUT_ENTITY_ID).state == STATE_OFF
+    assert hass.states.get(NEW_INPUT_ENTITY_ID(hass)).state == STATE_OFF
     assert hass.states.get(button_id) is not None
     assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
@@ -653,3 +692,42 @@ async def test_module_row_reads_none_for_a_row_the_catalogue_lost(
 
     data = mock_config_entry.runtime_data
     assert data.module_row_for(999) is None
+
+
+async def test_home_assistant_composes_an_entity_id_from_the_names(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """A named object in an app room takes an id built from both names."""
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    # The child device carries the object's name and the app room seeds the
+    # area, so those two compose the id. The primary entity adds no name of
+    # its own, so no third part joins them.
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id("light", DOMAIN, unique_id(71))
+    assert entity_id == "light.taras_taras_led"
+    assert entity_id != f"light.ampio_{unique_id(71)}"
+
+
+async def test_an_unnamed_object_takes_its_device_translation(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """An object with no Designer name composes from the object translation."""
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    # No name and no app room, so the child device falls to the ``object``
+    # device translation and the id starts from that rather than from Home
+    # Assistant's ``<platform>_<unique id>`` fallback.
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id("sensor", DOMAIN, unique_id(43))
+    assert entity_id is not None
+    assert entity_id.startswith("sensor.object_43")
+    assert entity_id != f"sensor.ampio_{unique_id(43)}"

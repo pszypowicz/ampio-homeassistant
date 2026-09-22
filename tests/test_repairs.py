@@ -22,14 +22,15 @@ from . import setup_integration
 from .conftest import (
     DEFAULT_SCENES,
     MSENS_IDENTIFIER,
-    pinned_id,
+    entity_id_of,
+    module_unique_id,
     set_access_tier,
     unique_id,
 )
 
 ISSUE_ID = "stale_records"
 ADMIN_ISSUE_ID = "admin_only_records"
-IDENTIFY_ENTITY_ID = "button.ampio_module_mac_52111_identify"
+IDENTIFY_KEY = module_unique_id(52111, "_identify")
 SCENE_ENTITY_ID = "scene.m_serv_wieczor"
 
 
@@ -143,7 +144,8 @@ async def test_disabled_entity_is_not_stale(
     """An entity the user disabled is skipped by the platform, not stale."""
     await setup_integration(hass, mock_config_entry)
     entity_registry.async_update_entity(
-        pinned_id("switch", 74), disabled_by=er.RegistryEntryDisabler.USER
+        entity_id_of(hass, "switch", unique_id(74)),
+        disabled_by=er.RegistryEntryDisabler.USER,
     )
     await _reload(hass, mock_config_entry)
 
@@ -197,14 +199,17 @@ async def test_fix_flow_removes_the_stale_records(
             )
             is None
         )
-    assert entity_registry.async_get(pinned_id("switch", 74)) is None
-    assert entity_registry.async_get(pinned_id("light", 71)) is None
+    assert entity_registry.async_get_entity_id("switch", DOMAIN, unique_id(74)) is None
+    assert entity_registry.async_get_entity_id("light", DOMAIN, unique_id(71)) is None
     assert entity_registry.async_get(SCENE_ENTITY_ID) is None
     assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is None
     assert mock_config_entry.state is ConfigEntryState.LOADED
 
     # Every claimed record is untouched.
-    assert entity_registry.async_get(pinned_id("sensor", 36)) is not None
+    assert (
+        entity_registry.async_get(entity_id_of(hass, "sensor", unique_id(36)))
+        is not None
+    )
     assert (
         device_registry.async_get_child_device_by_identifier(
             (DOMAIN, unique_id(36)), entry_id
@@ -282,9 +287,9 @@ async def test_downgrade_raises_the_admin_only_issue(
     assert issue.translation_key == "admin_only_records"
     assert issue.translation_placeholders == {
         "names": (
-            "- button.ampio_module_mac_52111_identify\n"
-            "- sensor.ampio_module_mac_52111_temperature\n"
-            "- sensor.ampio_module_mac_52111_voltage"
+            "- button.m_sens_salon_identify\n"
+            "- sensor.m_sens_salon_supply_voltage\n"
+            "- sensor.m_sens_salon_temperature"
         ),
     }
     # Nothing else went, so the other card stays away.
@@ -300,7 +305,7 @@ async def test_upgrade_clears_the_admin_only_issue(
 ) -> None:
     """The buttons come back with their own ids, and the card clears itself."""
     await setup_integration(hass, mock_config_entry)
-    before = entity_registry.async_get(IDENTIFY_ENTITY_ID)
+    before = entity_registry.async_get(entity_id_of(hass, "button", IDENTIFY_KEY))
     assert before is not None
 
     set_access_tier(mock_client, AccessTier.RESTRICTED)
@@ -311,7 +316,7 @@ async def test_upgrade_clears_the_admin_only_issue(
     await _reload(hass, mock_config_entry)
 
     assert issue_registry.async_get_issue(DOMAIN, ADMIN_ISSUE_ID) is None
-    after = entity_registry.async_get(IDENTIFY_ENTITY_ID)
+    after = entity_registry.async_get(entity_id_of(hass, "button", IDENTIFY_KEY))
     assert after is not None
     assert after.id == before.id
     assert after.unique_id == before.unique_id
@@ -333,9 +338,9 @@ async def test_the_two_issues_split_their_records(
     assert admin_issue is not None
     assert admin_issue.translation_placeholders == {
         "names": (
-            "- button.ampio_module_mac_52111_identify\n"
-            "- sensor.ampio_module_mac_52111_temperature\n"
-            "- sensor.ampio_module_mac_52111_voltage"
+            "- button.m_sens_salon_identify\n"
+            "- sensor.m_sens_salon_supply_voltage\n"
+            "- sensor.m_sens_salon_temperature"
         ),
     }
     stale_issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID)
@@ -363,7 +368,7 @@ async def test_admin_only_fix_leaves_the_other_records_alone(
 
     await _submit_fix(hass, hass_client, ADMIN_ISSUE_ID)
 
-    assert entity_registry.async_get(IDENTIFY_ENTITY_ID) is None
+    assert entity_registry.async_get_entity_id("button", DOMAIN, IDENTIFY_KEY) is None
     # The other card and every record it names are untouched.
     assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is not None
     assert entity_registry.async_get(SCENE_ENTITY_ID) is not None
@@ -395,8 +400,14 @@ async def test_unrecognized_issue_id_removes_nothing(
             )
             is not None
         )
-    assert entity_registry.async_get(pinned_id("switch", 74)) is not None
-    assert entity_registry.async_get(pinned_id("light", 71)) is not None
+    assert (
+        entity_registry.async_get(entity_id_of(hass, "switch", unique_id(74)))
+        is not None
+    )
+    assert (
+        entity_registry.async_get(entity_id_of(hass, "light", unique_id(71)))
+        is not None
+    )
     assert entity_registry.async_get(SCENE_ENTITY_ID) is not None
 
 
@@ -439,7 +450,13 @@ async def test_fix_flow_for_unrecognized_issue_removes_nothing(
             )
             is not None
         )
-    assert entity_registry.async_get(pinned_id("switch", 74)) is not None
-    assert entity_registry.async_get(pinned_id("light", 71)) is not None
+    assert (
+        entity_registry.async_get(entity_id_of(hass, "switch", unique_id(74)))
+        is not None
+    )
+    assert (
+        entity_registry.async_get(entity_id_of(hass, "light", unique_id(71)))
+        is not None
+    )
     assert entity_registry.async_get(SCENE_ENTITY_ID) is not None
     assert mock_config_entry.state is ConfigEntryState.LOADED

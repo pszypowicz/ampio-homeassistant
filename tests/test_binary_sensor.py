@@ -36,13 +36,32 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import emit, make_object, pinned_id, set_access_tier
+from .conftest import emit, entity_id_of, make_object, set_access_tier, unique_id
 
-WEJ_ENTITY_ID = pinned_id("binary_sensor", 146)
-ARMED_ENTITY_ID = pinned_id("binary_sensor", 166)
-ALARMED_ENTITY_ID = pinned_id("binary_sensor", 167)
-LOCK_OPENING_ENTITY_ID = pinned_id("binary_sensor", 82, "_blocks_opening")
-LOCK_CLOSING_ENTITY_ID = pinned_id("binary_sensor", 82, "_blocks_closing")
+
+def WEJ_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 146, composed from the registry."""
+    return entity_id_of(hass, "binary_sensor", unique_id(146))
+
+
+def ARMED_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 166, composed from the registry."""
+    return entity_id_of(hass, "binary_sensor", unique_id(166))
+
+
+def ALARMED_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 167, composed from the registry."""
+    return entity_id_of(hass, "binary_sensor", unique_id(167))
+
+
+def LOCK_OPENING_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 82, composed from the registry."""
+    return entity_id_of(hass, "binary_sensor", unique_id(82, "_blocks_opening"))
+
+
+def LOCK_CLOSING_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 82, composed from the registry."""
+    return entity_id_of(hass, "binary_sensor", unique_id(82, "_blocks_closing"))
 
 
 @pytest.fixture(autouse=True)
@@ -113,12 +132,12 @@ async def test_alarm_halves_surface_with_valid_leaves(
     """Each admitted alarm half gets a sensor without a device class."""
     await setup_integration(hass, mock_config_entry)
 
-    armed = hass.states.get(ARMED_ENTITY_ID)
+    armed = hass.states.get(ARMED_ENTITY_ID(hass))
     assert armed is not None
     assert armed.state == STATE_ON
     assert ATTR_DEVICE_CLASS not in armed.attributes
 
-    alarmed = hass.states.get(ALARMED_ENTITY_ID)
+    alarmed = hass.states.get(ALARMED_ENTITY_ID(hass))
     assert alarmed is not None
     assert alarmed.state == STATE_OFF
 
@@ -147,8 +166,8 @@ async def test_cover_lock_sensors_exist_on_both_tiers(
         set_access_tier(mock_client, AccessTier.RESTRICTED)
     await setup_integration(hass, mock_config_entry)
 
-    assert hass.states.get(LOCK_OPENING_ENTITY_ID) is not None
-    assert hass.states.get(LOCK_CLOSING_ENTITY_ID) is not None
+    assert hass.states.get(LOCK_OPENING_ENTITY_ID(hass)) is not None
+    assert hass.states.get(LOCK_CLOSING_ENTITY_ID(hass)) is not None
 
 
 @pytest.mark.parametrize("restricted", [False, True], ids=["admin", "restricted"])
@@ -166,32 +185,32 @@ async def test_cover_lock_sensor_reads_the_state_bit(
     if restricted:
         set_access_tier(mock_client, AccessTier.RESTRICTED)
     await setup_integration(hass, mock_config_entry)
-    assert hass.states.get(LOCK_OPENING_ENTITY_ID).state == STATE_UNKNOWN
-    assert hass.states.get(LOCK_CLOSING_ENTITY_ID).state == STATE_UNKNOWN
+    assert hass.states.get(LOCK_OPENING_ENTITY_ID(hass)).state == STATE_UNKNOWN
+    assert hass.states.get(LOCK_CLOSING_ENTITY_ID(hass)).state == STATE_UNKNOWN
 
     released = replace(mock_client.objects[82], block=0)
     mock_client.objects[82] = released
     emit(mock_client, ObjectUpdated(object=released))
     await hass.async_block_till_done()
 
-    assert hass.states.get(LOCK_OPENING_ENTITY_ID).state == STATE_OFF
-    assert hass.states.get(LOCK_CLOSING_ENTITY_ID).state == STATE_OFF
+    assert hass.states.get(LOCK_OPENING_ENTITY_ID(hass)).state == STATE_OFF
+    assert hass.states.get(LOCK_CLOSING_ENTITY_ID(hass)).state == STATE_OFF
 
     opening_blocked = replace(mock_client.objects[82], block=2)
     mock_client.objects[82] = opening_blocked
     emit(mock_client, ObjectUpdated(object=opening_blocked))
     await hass.async_block_till_done()
 
-    assert hass.states.get(LOCK_OPENING_ENTITY_ID).state == STATE_ON
-    assert hass.states.get(LOCK_CLOSING_ENTITY_ID).state == STATE_OFF
+    assert hass.states.get(LOCK_OPENING_ENTITY_ID(hass)).state == STATE_ON
+    assert hass.states.get(LOCK_CLOSING_ENTITY_ID(hass)).state == STATE_OFF
 
     closing_blocked = replace(mock_client.objects[82], block=1)
     mock_client.objects[82] = closing_blocked
     emit(mock_client, ObjectUpdated(object=closing_blocked))
     await hass.async_block_till_done()
 
-    assert hass.states.get(LOCK_OPENING_ENTITY_ID).state == STATE_OFF
-    assert hass.states.get(LOCK_CLOSING_ENTITY_ID).state == STATE_ON
+    assert hass.states.get(LOCK_OPENING_ENTITY_ID(hass)).state == STATE_OFF
+    assert hass.states.get(LOCK_CLOSING_ENTITY_ID(hass)).state == STATE_ON
 
 
 @pytest.mark.usefixtures("mock_client")
@@ -203,7 +222,7 @@ async def test_cover_lock_sensor_is_diagnostic(
     """The lock reading is configuration-adjacent, not a control."""
     await setup_integration(hass, mock_config_entry)
 
-    entry = entity_registry.async_get(LOCK_OPENING_ENTITY_ID)
+    entry = entity_registry.async_get(LOCK_OPENING_ENTITY_ID(hass))
     assert entry is not None
     assert entry.entity_category is EntityCategory.DIAGNOSTIC
 
@@ -213,14 +232,14 @@ async def test_wej_push_update_toggles_state(
 ) -> None:
     """A pushed wired-button input update flips the entity between on and off."""
     await setup_integration(hass, mock_config_entry)
-    assert hass.states.get(WEJ_ENTITY_ID).state == STATE_OFF
+    assert hass.states.get(WEJ_ENTITY_ID(hass)).state == STATE_OFF
 
     obj = replace(mock_client.objects[146], state="1")
     mock_client.objects[146] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
-    assert hass.states.get(WEJ_ENTITY_ID).state == STATE_ON
+    assert hass.states.get(WEJ_ENTITY_ID(hass)).state == STATE_ON
 
 
 async def test_nonzero_values_read_as_on(
@@ -234,7 +253,7 @@ async def test_nonzero_values_read_as_on(
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
-    assert hass.states.get(WEJ_ENTITY_ID).state == STATE_ON
+    assert hass.states.get(WEJ_ENTITY_ID(hass)).state == STATE_ON
 
 
 async def test_removed_object_becomes_unavailable(
@@ -247,4 +266,4 @@ async def test_removed_object_becomes_unavailable(
     emit(mock_client, ObjectRemoved(object=obj))
     await hass.async_block_till_done()
 
-    assert hass.states.get(WEJ_ENTITY_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(WEJ_ENTITY_ID(hass)).state == STATE_UNAVAILABLE

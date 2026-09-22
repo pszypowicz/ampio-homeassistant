@@ -52,8 +52,8 @@ from .conftest import (
     MSERV_MAC,
     USER_INPUT,
     emit,
+    entity_id_of,
     make_object,
-    pinned_id,
     set_access_tier,
     unique_id,
 )
@@ -453,43 +453,6 @@ async def test_tier_switch_keeps_the_full_device_and_entity_map(
     assert _full_map(device_registry, entity_registry, mock_config_entry) == baseline
 
 
-async def test_user_names_never_reach_an_entity_id(
-    hass: HomeAssistant,
-    mock_client: MagicMock,
-    mock_config_entry: MockConfigEntry,
-    device_registry: dr.DeviceRegistry,
-    entity_registry: er.EntityRegistry,
-    area_registry: ar.AreaRegistry,
-) -> None:
-    """An object discovered after a rename still pins its own id.
-
-    Home Assistant composes an entity id from the area name and the device
-    name, at first registration. An object that Designer gains later
-    registers against a device the user has since renamed and placed, so
-    without the pin its id would carry both. The pin holds it to the object
-    identity, which is the unique id.
-    """
-    await setup_integration(hass, mock_config_entry)
-    module = device_registry.async_get_device_by_identifier(
-        MSENS_IDENTIFIER, mock_config_entry.entry_id
-    )
-    assert module is not None
-    area = area_registry.async_get_or_create("Kuchnia")
-    device_registry.async_update_device(
-        module.id, area_id=area.id, name_by_user="Sufit kuchnia"
-    )
-
-    mock_client.objects[500] = make_object(
-        500, "temp", 1, leaf_id="0_cb8f_76_0_9", name="Nowy"
-    )
-    await hass.config_entries.async_reload(mock_config_entry.entry_id)
-    await hass.async_block_till_done()
-
-    assert entity_registry.async_get_entity_id(
-        "sensor", DOMAIN, unique_id(500)
-    ) == pinned_id("sensor", 500)
-
-
 async def test_runtime_auth_failure_reloads_into_auth_error(
     hass: HomeAssistant,
     mock_client: MagicMock,
@@ -817,10 +780,12 @@ async def test_every_object_gets_a_child_device(
         assert child is not None
         assert child.parent_device_id == module.id
         assert child.name == name
-        entity = entity_registry.async_get(pinned_id(domain, object_id))
+        entity = entity_registry.async_get(
+            entity_id_of(hass, domain, unique_id(object_id))
+        )
         assert entity is not None
         assert entity.device_id == child.id
-        state = hass.states.get(pinned_id(domain, object_id))
+        state = hass.states.get(entity_id_of(hass, domain, unique_id(object_id)))
         assert state is not None
         assert state.attributes["friendly_name"] == friendly
 
@@ -836,10 +801,14 @@ async def test_every_object_gets_a_child_device(
         (DOMAIN, unique_id(150)), mock_config_entry.entry_id
     )
     assert bell is not None
-    pulse = entity_registry.async_get(pinned_id("sensor", 150, "_pulse"))
+    pulse = entity_registry.async_get(
+        entity_id_of(hass, "sensor", unique_id(150, "_pulse"))
+    )
     assert pulse is not None
     assert pulse.device_id == bell.id
-    pulse_state = hass.states.get(pinned_id("sensor", 150, "_pulse"))
+    pulse_state = hass.states.get(
+        entity_id_of(hass, "sensor", unique_id(150, "_pulse"))
+    )
     assert pulse_state is not None
     assert pulse_state.attributes["friendly_name"] == "Dzwonek Pulse time"
 
@@ -968,7 +937,9 @@ async def test_moved_object_is_repaired_by_a_delete(
         (DOMAIN, unique_id(74)), mock_config_entry.entry_id
     )
     assert child is not None
-    assert hass.states.get(pinned_id("switch", 74)).state == STATE_ON
+    assert (
+        hass.states.get(entity_id_of(hass, "switch", unique_id(74))).state == STATE_ON
+    )
 
     # What the user put on the device is what the delete has to give back.
     piwnica = area_registry.async_get_or_create("Piwnica")
@@ -986,7 +957,10 @@ async def test_moved_object_is_repaired_by_a_delete(
 
     # The entity is skipped, and its registry entry is left restored as
     # unavailable until the user deletes the device the object outgrew.
-    assert hass.states.get(pinned_id("switch", 74)).state == STATE_UNAVAILABLE
+    assert (
+        hass.states.get(entity_id_of(hass, "switch", unique_id(74))).state
+        == STATE_UNAVAILABLE
+    )
     stuck = device_registry.async_get_child_device_by_identifier(
         (DOMAIN, unique_id(74)), mock_config_entry.entry_id
     )
@@ -1010,7 +984,9 @@ async def test_moved_object_is_repaired_by_a_delete(
     assert moved.parent_device_id == new_module.id
     assert moved.name_by_user == "Przekaznik piwnica"
     assert moved.area_id == piwnica.id
-    assert hass.states.get(pinned_id("switch", 74)).state == STATE_ON
+    assert (
+        hass.states.get(entity_id_of(hass, "switch", unique_id(74))).state == STATE_ON
+    )
 
 
 async def test_send_notification_is_registered_before_any_entry(
