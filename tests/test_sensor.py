@@ -10,6 +10,7 @@ from ampio_mqtt import (
     AccessTier,
     AmpioObject,
     AvailabilityChanged,
+    ModuleRemoved,
     ModuleUpdated,
     ObjectRemoved,
     ObjectUpdated,
@@ -572,6 +573,34 @@ async def test_module_sensors_read_unknown_until_a_broadcast(
 
     assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == "12.4"
     assert hass.states.get(MODULE_TEMPERATURE_ID(hass)).state == "36.0"
+
+
+@pytest.mark.usefixtures("sensor_only")
+async def test_module_sensor_reads_unknown_once_its_row_is_removed(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """A module row dropped while the connection stays up reads unknown, not the old value.
+
+    The catalogue drops a row before it unassigns the objects on it, so
+    the connection and the object both survive the module's own removal.
+    Nothing else writes state for this entity in that window, so the
+    library's ``ModuleRemoved`` push is what moves it off the stale value.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    mock_client.modules[17] = replace(mock_client.modules[17], supply_voltage=12.4)
+    emit(mock_client, ModuleUpdated(module=mock_client.modules[17]))
+    await hass.async_block_till_done()
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == "12.4"
+
+    removed = mock_client.modules[17]
+    del mock_client.modules[17]
+    emit(mock_client, ModuleRemoved(module=removed))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == STATE_UNKNOWN
 
 
 @pytest.mark.usefixtures("sensor_only")

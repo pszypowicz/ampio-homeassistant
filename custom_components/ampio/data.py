@@ -52,9 +52,10 @@ def fingerprint(obj: AmpioObject) -> Fingerprint:
 
     A state push changes none of them, and neither does a rename: a
     name-only catalogue change needs no rebuild, because the device
-    registry picks the new name up when the device registers again.
-    Three of the address's four fields are in, so a leaf edit in Designer
-    queues a batch: the mac decides the parent device, and the
+    registry picks the new name up on its own, at the next setup or
+    reload of the entry, or the moment a new entity for the object is
+    added. Three of the address's four fields are in, so a leaf edit in
+    Designer queues a batch: the mac decides the parent device, and the
     sub-function decides how an alarm row is classified, with the
     function class beside it because the two read together. The fourth,
     ``address.channel``, stays out: it routes the object's raw channel
@@ -135,10 +136,12 @@ class RefusedRows:
 
     The ``AmpioNotConfigured`` setup catches and the ``NotConfigured``
     event are both projected into this, and neither is kept. Both carry
-    the Designer name of every row they report, and docs/debugging.md
-    promises that no object, room or module name leaves the install, so
-    the projection drops the names and nothing downstream holds one to put
-    in an issue, a log line or a translation placeholder.
+    the Designer name of every object row they report in ``objects``;
+    ``collisions`` is an override mac and Designer row ids, with no name
+    anywhere in it. docs/debugging.md promises that no object, room or
+    module name leaves the install, so the projection drops the object
+    names and nothing downstream holds one to put in an issue, a log
+    line or a translation placeholder.
 
     The field names are the library's own. ``objects`` is the row ids with
     no Designer leaf, and ``collisions`` pairs each override mac more than
@@ -309,8 +312,10 @@ class AmpioData:
         Home Assistant composes an entity id once, at first registration,
         from the device name as it stands then. A mac the catalogue has no
         row for keeps this fallback on both tiers, so its module entities
-        compose from ``Ampio module <mac>``. A row served later renames the
-        device and leaves the registered ids where they are.
+        compose from ``Ampio module <mac>``. ``ensure_module_device``
+        returns early once the mac is already in the tree, so a row served
+        later renames the device only the next time setup or a reload
+        builds it fresh, and the registered ids stay where they are.
 
         The row is passed in rather than looked up, because the caller
         holds it to decorate the device with.

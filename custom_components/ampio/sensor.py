@@ -8,6 +8,7 @@ from ampio_mqtt import (
     AmpioAdminClient,
     AmpioModule,
     AmpioObject,
+    ModuleRemoved,
     ModuleUpdated,
     SensorKind,
 )
@@ -347,15 +348,19 @@ class AmpioModuleSensor(AmpioModuleEntity, SensorEntity):
         """Follow the module's own broadcasts, on top of the connection."""
         await super().async_added_to_hass()
         self.async_on_remove(
-            self._data.client.subscribe(self._module_updated, of=ModuleUpdated)
+            self._data.client.subscribe(
+                self._module_updated, of=(ModuleUpdated, ModuleRemoved)
+            )
         )
 
     @callback
-    def _module_updated(self, event: ModuleUpdated) -> None:
-        """Write state when diagnostics change for this override mac.
+    def _module_updated(self, event: ModuleUpdated | ModuleRemoved) -> None:
+        """Write state when diagnostics change, or the row goes, for this override mac.
 
         The client filters subscriptions by object id alone, so this
-        callback compares the module's override mac.
+        callback compares the module's override mac. A removal leaves
+        ``module_row_for`` with nothing on this mac, so the write that
+        follows reads ``native_value`` back to None.
         """
         if event.module.mac == self._mac:
             self.async_write_ha_state()
@@ -366,7 +371,8 @@ class AmpioModuleSensor(AmpioModuleEntity, SensorEntity):
         """The reading, or None when the module or its reading is absent.
 
         ``module_row_for`` returns None when the catalogue drops a row,
-        whose device the stale-record repair lists in the same pass.
+        which a live object on that mac can outlast, so this reading
+        going None carries no claim about the module device being stale.
         """
         module = self._data.module_row_for(self._mac)
         if module is None:

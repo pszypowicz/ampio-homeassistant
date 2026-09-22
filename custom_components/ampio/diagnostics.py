@@ -66,13 +66,15 @@ def _designer_config(data: AmpioData) -> dict[str, Any]:
 
     No redaction here. Colors, flags, timings, function ids, channel
     counts, an override mac, and a module or object ``id`` fill this
-    section, and none of them is masked: an ``id`` here is the same local
-    Designer row number the ``snapshot`` block already carries unredacted
-    in its own ``modules`` list, and the mac beside it is the same bus
-    address that list carries. Neither the record's ``desc`` nor its
-    ``location`` is read: those are the installer's own module name and
-    mounting note, which docs/debugging.md promises the download leaves
-    behind.
+    section, and none of them is masked. A module's ``id`` here is the
+    same local Designer row number the ``snapshot`` block already
+    carries unredacted in its own ``modules`` list, and the mac beside
+    it is the same bus address that list carries. A cover's ``id`` is a
+    Designer object id instead, carrying no name of its own, so leaving
+    it unmasked reveals nothing docs/debugging.md promises to hide.
+    Neither the record's ``desc`` nor its ``location`` is read: those
+    are the installer's own module name and mounting note, which
+    docs/debugging.md promises the download leaves behind.
 
     ``AmpioData.module_row_for()`` is the codebase-wide route for a
     module-catalogue read, but it answers for one mac, and this section

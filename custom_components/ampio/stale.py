@@ -53,8 +53,9 @@ def _record_names(
     """What the issue text lists for each record, sorted.
 
     A device carries a name. An entity carries its entity id instead,
-    which is the string an automation names, and it cannot go stale inside
-    a stored issue the way a renamed device can.
+    which is the string an automation names. A user can rename either
+    one, and the issue's stored text carries whichever name was current
+    when this report last ran, not a live read of the registry.
     """
     names = [
         device.name_by_user or device.name or next(iter(device.identifiers))[1]
@@ -129,8 +130,11 @@ def find_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> StaleRec
     entity on it is stale, a device without entities included. A module
     device is stale when no eligible object resolves to it, and its
     entities are covered by the device rather than listed on their own. A
-    disabled entity is skipped by its platform on purpose, so it and its
-    device are never stale.
+    disabled entity is skipped by its platform on purpose, so the entity
+    itself is never stale, and neither is a child device that depends on
+    every one of its entities reading stale. A module device answers to
+    liveness alone, so one with no live object left reaches the list
+    whether or not the entities on it are disabled.
 
     The records of a Designer row the admission door refused are none of
     those, and they are left out of all three lists, the module device
