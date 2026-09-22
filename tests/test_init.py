@@ -453,6 +453,68 @@ async def test_tier_switch_keeps_the_full_device_and_entity_map(
     assert _full_map(device_registry, entity_registry, mock_config_entry) == baseline
 
 
+async def test_a_record_an_older_release_pinned_keeps_its_id(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """A record registered under the old pinned id keeps that id."""
+    mock_config_entry.add_to_hass(hass)
+    entity_registry.async_get_or_create(
+        "light",
+        DOMAIN,
+        unique_id(71),
+        suggested_object_id=f"ampio_{unique_id(71)}",
+        config_entry=mock_config_entry,
+    )
+
+    await setup_integration(hass, mock_config_entry)
+
+    entry = entity_registry.async_get("light.ampio_obj_71")
+    assert entry is not None
+    assert entry.unique_id == unique_id(71)
+    assert entry.suggested_object_id is None
+    assert hass.states.get("light.ampio_obj_71") is not None
+
+
+async def test_an_object_discovered_after_a_rename_composes_from_its_own_device(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+    area_registry: ar.AreaRegistry,
+) -> None:
+    """A later object composes from its own child device, not the renamed module.
+
+    The module's user rename and area move reach the composed id only
+    through the effective area a child with none of its own inherits from
+    its parent. The device name in the composition is the object's own
+    child device, named from the object, never the module's.
+    """
+    await setup_integration(hass, mock_config_entry)
+    module = device_registry.async_get_device_by_identifier(
+        MSENS_IDENTIFIER, mock_config_entry.entry_id
+    )
+    assert module is not None
+    area = area_registry.async_get_or_create("Kuchnia")
+    device_registry.async_update_device(
+        module.id, area_id=area.id, name_by_user="Sufit kuchnia"
+    )
+
+    mock_client.objects[500] = make_object(
+        500, "temp", 1, leaf_id="0_cb8f_76_0_9", name="Nowy"
+    )
+    await hass.config_entries.async_reload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert (
+        entity_registry.async_get_entity_id("sensor", DOMAIN, unique_id(500))
+        == "sensor.kuchnia_nowy"
+    )
+
+
 async def test_runtime_auth_failure_reloads_into_auth_error(
     hass: HomeAssistant,
     mock_client: MagicMock,

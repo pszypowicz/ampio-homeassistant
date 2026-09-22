@@ -303,10 +303,11 @@ class AmpioData:
         the administrator login alone, so this name follows the account
         tier.
 
-        Home Assistant composes an entity id once, at first registration.
-        A module device is created on the administrator login alone, where
-        the catalogue answers, so a module entity never composes an id from
-        this fallback.
+        Home Assistant composes an entity id once, at first registration,
+        from the device name as it stands then. A mac the catalogue has no
+        row for keeps this fallback on both tiers, so its module entities
+        compose from ``Ampio module <mac>``. A row served later renames the
+        device and leaves the registered ids where they are.
 
         The row is passed in rather than looked up, because the caller
         holds it to decorate the device with.

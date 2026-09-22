@@ -242,18 +242,22 @@ async def test_removed_object_loses_its_entity_and_keeps_its_record(
 ) -> None:
     """A row that drops out of the catalogue leaves a restored record, and a re-add restores the id."""
     await setup_integration(hass, mock_config_entry)
+    # Captured once, before the removal: the assertions below must find
+    # this exact string again, not whatever the registry happens to
+    # compose next, or a silent rename would pass unnoticed.
+    entity_id = WEJ_ENTITY_ID(hass)
 
     obj = await _remove(hass, mock_client, 146)
 
-    state = hass.states.get(WEJ_ENTITY_ID(hass))
+    state = hass.states.get(entity_id)
     assert state is not None
     assert state.state == STATE_UNAVAILABLE
     assert state.attributes[ATTR_RESTORED] is True
-    assert entity_registry.async_get(WEJ_ENTITY_ID(hass)) is not None
+    assert entity_registry.async_get(entity_id) is not None
 
     await _add(hass, mock_client, obj)
 
-    assert hass.states.get(WEJ_ENTITY_ID(hass)).state == STATE_OFF
+    assert hass.states.get(entity_id).state == STATE_OFF
 
 
 async def test_deleted_relay_loses_its_entity_until_readmitted(
@@ -458,6 +462,10 @@ async def test_deleting_a_moved_child_brings_it_back_under_the_new_module(
 ) -> None:
     """The delete the hook permits is the move, and the next batch completes it."""
     await setup_integration(hass, mock_config_entry)
+    # Captured once, before the move: the child device survives the delete
+    # and rebuild under its new parent, and the entity id must follow it,
+    # not whatever the registry happens to compose next.
+    entity_id = RELAY_SWITCH_ID(hass)
     child = _child(device_registry, mock_config_entry, 74)
     assert child is not None
     piwnica = area_registry.async_get_or_create("Piwnica")
@@ -490,7 +498,7 @@ async def test_deleting_a_moved_child_brings_it_back_under_the_new_module(
     assert moved.parent_device_id == new_module.id
     assert moved.name_by_user == "Przekaznik piwnica"
     assert moved.area_id == piwnica.id
-    assert hass.states.get(RELAY_SWITCH_ID(hass)).state == STATE_ON
+    assert hass.states.get(entity_id).state == STATE_ON
 
 
 async def test_deleting_the_old_module_brings_a_stuck_child_back_too(
@@ -508,6 +516,11 @@ async def test_deleting_the_old_module_brings_a_stuck_child_back_too(
     itself does, or its entities never return.
     """
     await setup_integration(hass, mock_config_entry)
+    # Captured once, before the move: the same identical-defect shape as
+    # the sibling test above, so the final assertion below catches a
+    # silent rename instead of finding whatever id the registry composes
+    # next.
+    entity_id = RELAY_SWITCH_ID(hass)
     child = _child(device_registry, mock_config_entry, 74)
     assert child is not None
 
@@ -520,7 +533,7 @@ async def test_deleting_the_old_module_brings_a_stuck_child_back_too(
             leaf_key="leaf_0_be82_257_2_1",
         ),
     )
-    assert hass.states.get(RELAY_SWITCH_ID(hass)).state == STATE_UNAVAILABLE
+    assert hass.states.get(entity_id).state == STATE_UNAVAILABLE
     stuck = _child(device_registry, mock_config_entry, 74)
     assert stuck is not None
     assert stuck.id == child.id
@@ -548,7 +561,7 @@ async def test_deleting_the_old_module_brings_a_stuck_child_back_too(
     assert new_module is not None
     assert moved.id == child.id
     assert moved.parent_device_id == new_module.id
-    assert hass.states.get(RELAY_SWITCH_ID(hass)).state == STATE_ON
+    assert hass.states.get(entity_id).state == STATE_ON
 
 
 async def test_module_factory_builds_now_and_for_a_new_mac(
