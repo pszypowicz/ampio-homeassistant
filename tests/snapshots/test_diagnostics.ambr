@@ -21,21 +21,21 @@
           'capabilities': dict({
           }),
           'id': 1,
-          'mac': 1,
+          'mac': '0x1',
           'panel_settings': None,
         }),
         dict({
           'capabilities': dict({
           }),
           'id': 3,
-          'mac': 48770,
+          'mac': '0xBE82',
           'panel_settings': None,
         }),
         dict({
           'capabilities': dict({
           }),
           'id': 17,
-          'mac': 52111,
+          'mac': '0xCB8F',
           'panel_settings': None,
         }),
       ]),
@@ -129,14 +129,14 @@
         'capabilities': dict({
         }),
         'id': 1,
-        'mac': 1,
+        'mac': '0x1',
         'panel_settings': None,
       }),
       dict({
         'capabilities': dict({
         }),
         'id': 3,
-        'mac': 48770,
+        'mac': '0xBE82',
         'panel_settings': None,
       }),
       dict({
@@ -144,7 +144,7 @@
           'BUZZER': 4,
         }),
         'id': 17,
-        'mac': 52111,
+        'mac': '0xCB8F',
         'panel_settings': dict({
           'backlight_active': list([
             True,

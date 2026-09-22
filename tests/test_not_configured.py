@@ -11,6 +11,7 @@ from custom_components.ampio.const import (
     DOMAIN,
     NOT_CONFIGURED_ISSUE,
     STALE_RECORDS_ISSUE,
+    format_mac,
 )
 from custom_components.ampio.stale import find_stale_records
 from homeassistant.config_entries import ConfigEntryState
@@ -36,7 +37,7 @@ from .conftest import (
 # A module mac no seeded object carries, so the objects put on it here are
 # the only ones that resolve to its device.
 PUMP_MAC = 53257
-PUMP_IDENTIFIER = (DOMAIN, f"module_mac:{PUMP_MAC}")
+PUMP_IDENTIFIER = (DOMAIN, f"module_mac:{format_mac(PUMP_MAC)}")
 PUMP_OBJECT = make_object(
     300, "przekaznik", 0, leaf_id="0_d009_257_2_1", funkcja=30, name="Pompa", state="0"
 )

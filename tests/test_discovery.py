@@ -24,8 +24,8 @@ from pytest_homeassistant_custom_component.common import (
 from syrupy.assertion import SnapshotAssertion
 
 from custom_components.ampio import async_remove_config_entry_device
-from custom_components.ampio.const import DOMAIN
-from custom_components.ampio.data import AmpioData
+from custom_components.ampio.const import DOMAIN, MODULE_KEY_STEM, format_mac
+from custom_components.ampio.data import AmpioData, module_identifier
 from homeassistant.const import ATTR_RESTORED, STATE_OFF, STATE_ON, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
@@ -49,6 +49,7 @@ from .conftest import (
     module_unique_id,
     set_access_tier,
     unique_id,
+    with_buzzer,
 )
 
 NEW_INPUT_ID = 200
@@ -182,13 +183,13 @@ async def test_new_module_mac_gets_a_device_on_a_restricted_account(
         HUB_IDENTIFIER, mock_config_entry.entry_id
     )
     module = device_registry.async_get_device_by_identifier(
-        (DOMAIN, "module_mac:53257"), mock_config_entry.entry_id
+        (DOMAIN, "module_mac:0xD009"), mock_config_entry.entry_id
     )
     child = _child(device_registry, mock_config_entry, NEW_INPUT_ID)
     assert hub is not None
     assert module is not None
     assert child is not None
-    assert module.name == "Ampio module 53257"
+    assert module.name == "Ampio module 0xD009"
     assert module.via_device_id == hub.id
     assert child.parent_device_id == module.id
     assert hass.states.get(NEW_INPUT_ENTITY_ID(hass)).state == STATE_OFF
@@ -490,7 +491,7 @@ async def test_deleting_a_moved_child_brings_it_back_under_the_new_module(
 
     moved = _child(device_registry, mock_config_entry, 74)
     new_module = device_registry.async_get_device_by_identifier(
-        (DOMAIN, "module_mac:48770"), mock_config_entry.entry_id
+        (DOMAIN, "module_mac:0xBE82"), mock_config_entry.entry_id
     )
     assert moved is not None
     assert new_module is not None
@@ -555,7 +556,7 @@ async def test_deleting_the_old_module_brings_a_stuck_child_back_too(
 
     moved = _child(device_registry, mock_config_entry, 74)
     new_module = device_registry.async_get_device_by_identifier(
-        (DOMAIN, "module_mac:48770"), mock_config_entry.entry_id
+        (DOMAIN, "module_mac:0xBE82"), mock_config_entry.entry_id
     )
     assert moved is not None
     assert new_module is not None
@@ -651,7 +652,7 @@ async def test_deleted_module_device_comes_back_with_its_object(
     new_input = _new_input(leaf_id="0_d009_257_1_1")
     await _add(hass, mock_client, new_input)
     module = device_registry.async_get_device_by_identifier(
-        (DOMAIN, "module_mac:53257"), mock_config_entry.entry_id
+        (DOMAIN, "module_mac:0xD009"), mock_config_entry.entry_id
     )
     assert module is not None
     # Cached once, while the entity exists: a remove and re-add restores
@@ -669,7 +670,7 @@ async def test_deleted_module_device_comes_back_with_its_object(
     await _add(hass, mock_client, new_input)
 
     rebuilt = device_registry.async_get_device_by_identifier(
-        (DOMAIN, "module_mac:53257"), mock_config_entry.entry_id
+        (DOMAIN, "module_mac:0xD009"), mock_config_entry.entry_id
     )
     child = _child(device_registry, mock_config_entry, NEW_INPUT_ID)
     assert rebuilt is not None
@@ -744,3 +745,31 @@ async def test_an_unnamed_object_takes_its_device_translation(
     assert entity_id is not None
     assert entity_id.startswith("sensor.object_43")
     assert entity_id != f"sensor.ampio_{unique_id(43)}"
+
+
+def test_one_function_writes_every_module_mac() -> None:
+    """The identifier, the unique id and the withheld prefix share a form."""
+    mac = 52111
+    text = format_mac(mac)
+    assert text == "0xCB8F"
+    assert module_identifier(mac) == (DOMAIN, f"{MODULE_KEY_STEM}:{text}")
+    assert str(mac) not in module_identifier(mac)[1]
+
+
+async def test_a_module_entity_keys_on_the_hex_mac(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """A module entity's unique id and its device identifier agree."""
+    with_buzzer(mock_client)
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    key = f"{MODULE_KEY_STEM}_{format_mac(52111)}_buzzer"
+    assert er.async_get(hass).async_get_entity_id("siren", DOMAIN, key) is not None
+    device = dr.async_get(hass).async_get_device_by_identifier(
+        module_identifier(52111), mock_config_entry.entry_id
+    )
+    assert device is not None

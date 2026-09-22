@@ -24,7 +24,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import VolDictType
 
-from .const import DOMAIN, MAX_WIRE_SECONDS
+from .const import DOMAIN, MAX_WIRE_SECONDS, format_mac
 from .data import AmpioConfigEntry, AmpioData
 from .entity import (
     AmpioEntity,
@@ -206,7 +206,7 @@ class AmpioIdentifyButton(AmpioModuleEntity, ButtonEntity):
                 "Could not send the identify stop to the Ampio module on mac %s "
                 "(entity %s). Its LED stays lit until Ampio Designer sends one "
                 "or the module restarts",
-                self._mac,
+                format_mac(self._mac),
                 self.entity_id,
             )
 

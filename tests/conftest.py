@@ -32,7 +32,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.syrupy import HomeAssistantSnapshotExtension
 from syrupy.assertion import SnapshotAssertion
 
-from custom_components.ampio.const import DOMAIN, MODULE_KEY_STEM
+from custom_components.ampio.const import DOMAIN, MODULE_KEY_STEM, format_mac
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -60,11 +60,11 @@ MSERV_MAC = "47846"
 # The hub has a constant identifier. Modules use their bus mac, and objects
 # use their Designer id.
 HUB_IDENTIFIER = (DOMAIN, "hub")
-MSENS_IDENTIFIER = (DOMAIN, "module_mac:52111")
+MSENS_IDENTIFIER = (DOMAIN, f"module_mac:{format_mac(52111)}")
 # The module device is named from the admin-only module catalogue, and a
 # standard account reads its bus mac instead.
 MSENS_DEVICE_NAME = "m-sens salon"
-MSENS_ROW_NAME = "Ampio module 52111"
+MSENS_ROW_NAME = "Ampio module 0xCB8F"
 
 
 def unique_id(oid: int, suffix: str = "") -> str:
@@ -74,7 +74,7 @@ def unique_id(oid: int, suffix: str = "") -> str:
 
 def module_unique_id(mac: int, suffix: str) -> str:
     """The unique id of a module entity, built from its override mac."""
-    return f"{MODULE_KEY_STEM}_{mac}{suffix}"
+    return f"{MODULE_KEY_STEM}_{format_mac(mac)}{suffix}"
 
 
 def entity_id_of(hass: HomeAssistant, domain: str, key: str) -> str:

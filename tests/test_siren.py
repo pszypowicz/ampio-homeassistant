@@ -98,7 +98,7 @@ async def test_buzzer_exists_when_the_module_reports_one(
 
     entry = entity_registry.async_get(BUZZER_ENTITY_ID(hass))
     assert entry is not None
-    assert entry.unique_id == "module_mac_52111_buzzer"
+    assert entry.unique_id == BUZZER_KEY
 
 
 @pytest.mark.usefixtures("siren_only")
@@ -357,7 +357,7 @@ async def test_withheld_enumeration_names_existing_buzzer(
     assert entity_registry.async_get(BUZZER_ENTITY_ID(hass)) is not None
     assert hass.states.get(BUZZER_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
-    assert withheld == {"module_mac_52111_buzzer"}
+    assert withheld == {BUZZER_KEY}
 
 
 @pytest.mark.usefixtures("siren_only")

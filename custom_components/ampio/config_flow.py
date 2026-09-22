@@ -21,7 +21,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 
-from .const import ADMIN_USERNAME, DEFAULT_HOST, DOMAIN
+from .const import ADMIN_USERNAME, DEFAULT_HOST, DOMAIN, format_mac
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -192,7 +192,7 @@ class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
                 data_schema=vol.Schema({}),
                 description_placeholders={
                     "host": self._pending_input[CONF_HOST],
-                    "mac": f"0x{self._pending_mac:X}",
+                    "mac": format_mac(self._pending_mac),
                 },
             )
         return self.async_update_reload_and_abort(

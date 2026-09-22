@@ -468,7 +468,7 @@ async def test_panel_lights_withheld_on_a_standard_account(
     assert hass.states.get(BACKLIGHT_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
     assert hass.states.get(STATUS_LIGHT_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
-    assert withheld == {"module_mac_52111_backlight", "module_mac_52111_status_light"}
+    assert withheld == {module_unique_id(52111, "_backlight"), STATUS_LIGHT_KEY}
 
 
 async def test_initial_color_reads_panel_settings(

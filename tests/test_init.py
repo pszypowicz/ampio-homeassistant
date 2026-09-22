@@ -912,7 +912,7 @@ async def test_server_objects_use_the_hub_without_a_matching_module_row(
     assert child.parent_device_id == hub.id
     assert (
         device_registry.async_get_device_by_identifier(
-            (DOMAIN, "module_mac:1"), mock_config_entry.entry_id
+            (DOMAIN, "module_mac:0x1"), mock_config_entry.entry_id
         )
         is None
     )
@@ -1038,7 +1038,7 @@ async def test_moved_object_is_repaired_by_a_delete(
         (DOMAIN, unique_id(74)), mock_config_entry.entry_id
     )
     new_module = device_registry.async_get_device_by_identifier(
-        (DOMAIN, "module_mac:48770"), mock_config_entry.entry_id
+        (DOMAIN, "module_mac:0xBE82"), mock_config_entry.entry_id
     )
     assert moved is not None
     assert new_module is not None

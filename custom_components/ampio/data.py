@@ -30,7 +30,7 @@ from homeassistant.helpers.entity_platform import (
     async_get_current_platform,
 )
 
-from .const import DOMAIN, MODULE_KEY_STEM
+from .const import DOMAIN, MODULE_KEY_STEM, format_mac
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ def module_identifier(mac: int) -> tuple[str, str]:
     under that bare key would read as a match for whichever number happened
     to collide.
     """
-    return (DOMAIN, f"{MODULE_KEY_STEM}:{mac}")
+    return (DOMAIN, f"{MODULE_KEY_STEM}:{format_mac(mac)}")
 
 
 # What a platform builds for one object: the entities, or nothing. The
@@ -314,7 +314,7 @@ class AmpioData:
         """
         if module is not None and module.nazwa_urzadzenia:
             return module.nazwa_urzadzenia
-        return f"Ampio module {mac}"
+        return f"Ampio module {format_mac(mac)}"
 
     @callback
     def ensure_module_device(self, obj: AmpioObject) -> int | None:

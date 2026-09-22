@@ -343,7 +343,7 @@ async def test_identify_is_withheld_on_a_standard_account(
     )
     assert module is not None
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
-    assert withheld == {"module_mac_52111_identify", "module_mac_52111_unlock_touch"}
+    assert withheld == {IDENTIFY_KEY, UNLOCK_TOUCH_KEY}
 
 
 @pytest.mark.usefixtures("button_only")
@@ -423,7 +423,7 @@ async def test_identify_stop_failure_logs(
     assert len(warnings) == 1
     message = warnings[0].getMessage()
     assert (
-        "Could not send the identify stop to the Ampio module on mac 52111" in message
+        "Could not send the identify stop to the Ampio module on mac 0xCB8F" in message
     )
     assert IDENTIFY_ENTITY_ID(hass) in message
 
@@ -521,7 +521,7 @@ async def test_unlock_touch_exists_when_the_module_reports_key_lock(
 
     entry = entity_registry.async_get(UNLOCK_TOUCH_ENTITY_ID(hass))
     assert entry is not None
-    assert entry.unique_id == "module_mac_52111_unlock_touch"
+    assert entry.unique_id == UNLOCK_TOUCH_KEY
 
 
 @pytest.mark.usefixtures("button_only")
@@ -546,7 +546,7 @@ async def test_unlock_touch_is_withheld_on_a_standard_account(
     assert entity_registry.async_get(UNLOCK_TOUCH_ENTITY_ID(hass)) is not None
     assert hass.states.get(UNLOCK_TOUCH_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
-    assert withheld == {"module_mac_52111_identify", "module_mac_52111_unlock_touch"}
+    assert withheld == {IDENTIFY_KEY, UNLOCK_TOUCH_KEY}
 
 
 @pytest.mark.usefixtures("button_only")

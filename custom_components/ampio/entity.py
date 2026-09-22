@@ -15,7 +15,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.device_registry import ChildDeviceInfo, DeviceInfo
 from homeassistant.helpers.entity import Entity
 
-from .const import DOMAIN, MODULE_KEY_STEM
+from .const import DOMAIN, MODULE_KEY_STEM, format_mac
 from .data import AmpioData, module_identifier
 
 
@@ -181,7 +181,7 @@ class AmpioModuleEntity(AmpioBaseEntity):
         """
         self._data = data
         self._mac = mac
-        self._key = f"{MODULE_KEY_STEM}_{mac}_{key_suffix}"
+        self._key = f"{MODULE_KEY_STEM}_{format_mac(mac)}_{key_suffix}"
         self._attr_unique_id = self._key
         self._attr_device_info = DeviceInfo(identifiers={module_identifier(mac)})
 

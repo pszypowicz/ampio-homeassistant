@@ -9,6 +9,7 @@ from homeassistant.components.diagnostics import REDACTED, async_redact_data
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 
+from .const import format_mac
 from .data import AmpioConfigEntry, AmpioData
 
 TO_REDACT_ENTRY = {CONF_HOST, CONF_PASSWORD, CONF_USERNAME}
@@ -86,7 +87,7 @@ def _designer_config(data: AmpioData) -> dict[str, Any]:
             modules.append(
                 {
                     "id": module.id,
-                    "mac": module.mac,
+                    "mac": format_mac(module.mac),
                     "capabilities": {
                         _capability_name(function_id): count
                         for function_id, count in admin.capabilities.get(

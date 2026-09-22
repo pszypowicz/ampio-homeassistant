@@ -24,6 +24,7 @@ from .const import (
     MODULE_KEY_STEM,
     NOT_CONFIGURED_ISSUE,
     STALE_RECORDS_ISSUE,
+    format_mac,
 )
 from .data import AmpioConfigEntry, RefusedRows
 
@@ -114,7 +115,7 @@ def _refused_records(entry: AmpioConfigEntry) -> _RefusedRecords:
         return _RefusedRecords(frozenset(), ())
     return _RefusedRecords(
         frozenset(f"obj_{oid}" for oid in refused.objects),
-        tuple(f"{MODULE_KEY_STEM}_{mac}_" for mac, _ in refused.collisions),
+        tuple(f"{MODULE_KEY_STEM}_{format_mac(mac)}_" for mac, _ in refused.collisions),
     )
 
 
@@ -329,14 +330,14 @@ def async_report_not_configured(
             "cannot tell their frames apart and left them out. Give each "
             "module its own mac in Ampio Designer and save",
             sorted(ids),
-            mac,
+            format_mac(mac),
         )
     objects = [str(oid) for oid in refused.objects]
     # One line per shared mac: the address, then the Designer device ids
     # that carry it. The mac is written the way the config flow writes the
     # server's, so one install reads one way.
     collisions = [
-        f"0x{mac:X}: {', '.join(str(row) for row in ids)}"
+        f"{format_mac(mac)}: {', '.join(str(row) for row in ids)}"
         for mac, ids in refused.collisions
     ]
     if objects and collisions:

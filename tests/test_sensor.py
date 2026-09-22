@@ -400,10 +400,10 @@ async def test_module_without_catalogue_row_gets_bare_device(
     await setup_integration(hass, mock_config_entry)
 
     device = device_registry.async_get_device_by_identifier(
-        (DOMAIN, "module_mac:57005"), mock_config_entry.entry_id
+        (DOMAIN, "module_mac:0xDEAD"), mock_config_entry.entry_id
     )
     assert device is not None
-    assert device.name == "Ampio module 57005"
+    assert device.name == "Ampio module 0xDEAD"
     assert device.model is None
     entity_id = entity_registry.async_get_entity_id(
         Platform.SENSOR, DOMAIN, unique_id(500)
@@ -622,7 +622,10 @@ async def test_module_sensors_are_withheld_on_a_standard_account(
     assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == STATE_UNAVAILABLE
     assert hass.states.get(MODULE_TEMPERATURE_ID(hass)).state == STATE_UNAVAILABLE
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
-    assert withheld == {"module_mac_52111_voltage", "module_mac_52111_temperature"}
+    assert withheld == {
+        module_unique_id(52111, "_voltage"),
+        module_unique_id(52111, "_temperature"),
+    }
 
 
 @pytest.mark.usefixtures("sensor_only")

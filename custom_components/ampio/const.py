@@ -50,3 +50,15 @@ NOT_CONFIGURED_ISSUE: Final = "not_configured"
 # drift apart, and so the stale report can tell a record of this shape from
 # one that predates it.
 MODULE_KEY_STEM: Final = "module_mac"
+
+
+def format_mac(mac: int) -> str:
+    """The one written form of a module's override mac.
+
+    A mac is a bus address, and Ampio Designer shows the field in hex, so a
+    reader moving between a repair notice, a device page and a diagnostics
+    download meets one number. The identity strings take this form too, so
+    nothing has to convert between a device identifier and the text that
+    sent someone looking for it.
+    """
+    return f"0x{mac:X}"

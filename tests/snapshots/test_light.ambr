@@ -95,7 +95,7 @@
     'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'backlight',
-    'unique_id': 'module_mac_52111_backlight',
+    'unique_id': 'module_mac_0xCB8F_backlight',
     'unit_of_measurement': None,
   })
 # ---
@@ -175,7 +175,7 @@
     'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'status_light',
-    'unique_id': 'module_mac_52111_status_light',
+    'unique_id': 'module_mac_0xCB8F_status_light',
     'unit_of_measurement': None,
   })
 # ---

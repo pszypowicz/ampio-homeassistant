@@ -261,7 +261,7 @@
     'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': 'supply_voltage',
-    'unique_id': 'module_mac_52111_voltage',
+    'unique_id': 'module_mac_0xCB8F_voltage',
     'unit_of_measurement': <UnitOfElectricPotential.VOLT: 'V'>,
   })
 # ---
@@ -319,7 +319,7 @@
     'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': None,
-    'unique_id': 'module_mac_52111_temperature',
+    'unique_id': 'module_mac_0xCB8F_temperature',
     'unit_of_measurement': <UnitOfTemperature.CELSIUS: '°C'>,
   })
 # ---
@@ -905,7 +905,7 @@
     'identifiers': set({
       tuple(
         'ampio',
-        'module_mac:52111',
+        'module_mac:0xCB8F',
       ),
     }),
     'labels': set({
