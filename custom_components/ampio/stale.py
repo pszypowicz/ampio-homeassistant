@@ -10,8 +10,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 import logging
 
-from ampio_mqtt import AmpioNotConfigured
-
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import (
     device_registry as dr,
@@ -294,46 +292,28 @@ def async_remove_stale_records(
         )
 
 
-async def async_check_not_configured(
-    hass: HomeAssistant, entry: AmpioConfigEntry
-) -> None:
-    """Raise or clear the installer repair from the door's current answer.
-
-    The door is asked again rather than read back from what setup caught,
-    because a recovery announces itself with no event. The library reports
-    a refusal only for a set that is not empty, giving two module rows
-    their own override mac emits a module event, and deleting the last
-    refused row emits no removal for a row that was never admitted.
-
-    ``wait_for_initial_discovery`` is safe to call repeatedly and runs the
-    door check on every call. Its initial-reply signals latch on first
-    completion, so once setup has connected it answers without waiting,
-    and it returns False on a timeout rather than raising.
-    """
-    data = entry.runtime_data
-    try:
-        await data.client.wait_for_initial_discovery()
-    except AmpioNotConfigured as err:
-        refused = RefusedRows.from_error(err)
-        data.not_configured = refused
-        _async_report_not_configured(hass, refused)
-        return
-    data.not_configured = None
-    ir.async_delete_issue(hass, DOMAIN, NOT_CONFIGURED_ISSUE)
-
-
 @callback
-def _async_report_not_configured(hass: HomeAssistant, refused: RefusedRows) -> None:
-    """Raise the repair for the Designer rows the admission door refused.
+def async_report_not_configured(
+    hass: HomeAssistant, entry: AmpioConfigEntry, refused: RefusedRows | None
+) -> None:
+    """Record what the admission door refuses, and raise or clear its repair.
+
+    The record and the repair move together, because the stale report
+    reads the record to keep a refused row's leftovers out of its lists.
+    None is the door refusing nothing, which takes the repair down.
 
     Ids alone, and structurally so: ``RefusedRows`` carries no name to
-    put in a placeholder, because the projection at the catch site keeps
-    the Designer names inside the library.
+    put in a placeholder, because the projection that builds it keeps the
+    Designer names inside the library.
 
     Either fault can stand without the other, so the text follows which of
     the two the door reports. An account that is not the administrator is
     served no module list and therefore meets the object fault alone.
     """
+    entry.runtime_data.not_configured = refused
+    if refused is None:
+        ir.async_delete_issue(hass, DOMAIN, NOT_CONFIGURED_ISSUE)
+        return
     objects = [str(oid) for oid in refused.objects]
     # One line per shared mac: the address, then the Designer device ids
     # that carry it. The mac is written the way the config flow writes the

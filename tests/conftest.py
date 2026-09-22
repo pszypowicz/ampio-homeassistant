@@ -25,8 +25,8 @@ from ampio_mqtt import (
     PanelSettings,
     RecordSweep,
     ThermostatState,
+    parse_module_address,
 )
-from ampio_mqtt._protocol import parse_module_address
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.syrupy import HomeAssistantSnapshotExtension
@@ -549,7 +549,6 @@ def mock_client_class() -> Generator[MagicMock]:
         admin_class.return_value = client
         client.connect.return_value = True
         client.available = True
-        client.wait_for_initial_discovery.return_value = True
         client.objects = {obj.id: obj for obj in DEFAULT_OBJECTS}
         client.server_info = SERVER_INFO
         set_access_tier(client, AccessTier.ADMIN)

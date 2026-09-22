@@ -1,27 +1,21 @@
 """Tests for catalogue admission and the installer repair."""
 
-from datetime import timedelta
 from unittest.mock import MagicMock
 
-from ampio_mqtt import AccessTier, AmpioNotConfigured, ModuleUpdated
-from ampio_mqtt._protocol import ENDPOINT_BY_NAME
-from ampio_mqtt._store import AmpioStore
+from ampio_mqtt import AccessTier, AmpioClient, AmpioNotConfigured, NotConfigured
+from ampio_mqtt.testing import AmpioStore, apply_reply, build_store
 import pytest
-from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
-    async_fire_time_changed,
-)
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ampio.const import (
     DOMAIN,
     NOT_CONFIGURED_ISSUE,
     STALE_RECORDS_ISSUE,
 )
-from custom_components.ampio.stale import async_check_not_configured, find_stale_records
+from custom_components.ampio.stale import find_stale_records
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, issue_registry as ir
-from homeassistant.util import dt as dt_util
 
 from . import setup_integration
 from .conftest import (
@@ -47,13 +41,13 @@ PUMP_OBJECT = make_object(
 def _refuse(client: MagicMock, object_id: int) -> None:
     """Take a row out of the catalogue the way the admission door does.
 
-    The door serves every other row with the connection up, so both the
-    connect and the later door reads raise while the row stands.
+    The door serves every other row with the connection up, so the
+    connect raises and setup runs on what was served.
     """
     refused = client.objects.pop(object_id)
-    error = AmpioNotConfigured(objects=((refused.id, refused.name),))
-    client.connect.side_effect = error
-    client.wait_for_initial_discovery.side_effect = error
+    client.connect.side_effect = AmpioNotConfigured(
+        objects=((refused.id, refused.name),)
+    )
 
 
 async def _reload(hass: HomeAssistant, entry: MockConfigEntry) -> None:
@@ -64,9 +58,10 @@ async def _reload(hass: HomeAssistant, entry: MockConfigEntry) -> None:
 @pytest.fixture
 def refused_catalogue() -> AmpioStore:
     """Read the leafless alarm and hidden ghost through the library door."""
-    store = AmpioStore()
-    store.apply_endpoint(
-        ENDPOINT_BY_NAME["params_devices"],
+    store = build_store(AmpioClient)
+    apply_reply(
+        store,
+        "params_devices",
         {
             "List": [
                 {"id": 168, "params": 0, "czas": 0, "url": ""},
@@ -74,9 +69,8 @@ def refused_catalogue() -> AmpioStore:
             ]
         },
     )
-    store.apply_endpoint(
-        ENDPOINT_BY_NAME["data_devices"],
-        {"List": [LEAFLESS_ALARM_ROW, HIDDEN_LEAFLESS_ROW]},
+    apply_reply(
+        store, "data_devices", {"List": [LEAFLESS_ALARM_ROW, HIDDEN_LEAFLESS_ROW]}
     )
     return store
 
@@ -93,12 +87,10 @@ async def test_leafless_alarm_raises_repair_without_an_entity(
 ) -> None:
     """An empty leaf leaves other entities loaded and reports only the refused id."""
     set_access_tier(mock_client, tier)
-    error = refused_catalogue.admission_failure()
-    assert isinstance(error, AmpioNotConfigured)
-    assert error.objects == ((168, "Alarm strefa garaz"),)
+    refused = refused_catalogue.not_configured
+    assert refused == ((168, "Alarm strefa garaz"),)
     assert refused_catalogue.objects == {}
-    mock_client.connect.side_effect = error
-    mock_client.wait_for_initial_discovery.side_effect = error
+    mock_client.connect.side_effect = AmpioNotConfigured(objects=refused)
 
     await setup_integration(hass, mock_config_entry)
 
@@ -115,12 +107,6 @@ async def test_leafless_alarm_raises_repair_without_an_entity(
     }
     assert "Alarm strefa garaz" not in caplog.text
 
-    mock_client.wait_for_initial_discovery.side_effect = None
-    await async_check_not_configured(hass, mock_config_entry)
-
-    assert mock_config_entry.runtime_data.not_configured is None
-    assert issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE) is None
-
 
 # sfId 8 is a placeholder with unknown wire provenance. System rows are
 # discarded by type before their leaf is parsed.
@@ -134,7 +120,7 @@ async def test_system_rows_do_not_enter_the_integration_catalogue(
     leaf_id: str,
 ) -> None:
     """The library drops system rows before the integration builds entities."""
-    store = AmpioStore()
+    store = build_store(AmpioClient)
     rows = [
         {
             **LEAFLESS_ALARM_ROW,
@@ -149,17 +135,18 @@ async def test_system_rows_do_not_enter_the_integration_catalogue(
             "leafId": "0_cb8f_76_0_1",
         },
     ]
-    store.apply_endpoint(
-        ENDPOINT_BY_NAME["params_devices"],
+    apply_reply(
+        store,
+        "params_devices",
         {
             "List": [
                 {"id": row["id"], "params": 0, "czas": 0, "url": ""} for row in rows
             ]
         },
     )
-    store.apply_endpoint(ENDPOINT_BY_NAME["data_devices"], {"List": rows})
+    apply_reply(store, "data_devices", {"List": rows})
     assert set(store.objects) == {36}
-    assert store.admission_failure() is None
+    assert store.not_configured == ()
     mock_client.objects = dict(store.objects)
 
     await setup_integration(hass, mock_config_entry)
@@ -167,39 +154,70 @@ async def test_system_rows_do_not_enter_the_integration_catalogue(
     assert hass.states.get(pinned_id("sensor", 36)) is not None
 
 
-async def test_not_configured_repair_clears_without_an_object_event(
+async def test_the_door_event_clears_the_repair_without_an_object_event(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
     issue_registry: ir.IssueRegistry,
     refused_catalogue: AmpioStore,
 ) -> None:
-    """A batch that queues no object clears the installer repair.
+    """The door's own event takes the installer repair down.
 
     A row the door refused is in no catalogue the integration reads, so
-    its deletion carries no object event and the batch that notices has
-    nothing to reconcile. The door is re-read ahead of the empty-batch
-    return, and the room map is not, so the count of room fetches says
-    the batch stayed empty.
+    its deletion carries no object event and nothing else announces the
+    recovery. No time is advanced here, so the debounced batch has not
+    run and the event alone is what cleared the repair.
     """
-    error = refused_catalogue.admission_failure()
-    assert isinstance(error, AmpioNotConfigured)
-    mock_client.connect.side_effect = error
-    mock_client.wait_for_initial_discovery.side_effect = error
+    mock_client.connect.side_effect = AmpioNotConfigured(
+        objects=refused_catalogue.not_configured
+    )
 
     await setup_integration(hass, mock_config_entry)
     assert issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE) is not None
-    fetched_rooms = mock_client.fetch_rooms.await_count
 
     # The installer restored the leaf in Ampio Designer and saved.
-    mock_client.wait_for_initial_discovery.side_effect = None
-    emit(mock_client, ModuleUpdated(module=mock_client.modules[17]))
-    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=2))
-    await hass.async_block_till_done(wait_background_tasks=True)
+    emit(mock_client, NotConfigured())
+    await hass.async_block_till_done()
 
     assert mock_config_entry.runtime_data.not_configured is None
     assert issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE) is None
-    assert mock_client.fetch_rooms.await_count == fetched_rooms
+
+
+async def test_the_door_event_raises_the_repair_for_both_faults(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    issue_registry: ir.IssueRegistry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A fault that appears while the entry runs raises the repair from the event.
+
+    Both sides ride every event, so one event can name a leafless object
+    row and a shared override mac at once, and the text answers for both.
+    The event carries the object row's Designer name, and neither the
+    issue nor the log may repeat it.
+    """
+    await setup_integration(hass, mock_config_entry)
+    assert issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE) is None
+
+    emit(
+        mock_client,
+        NotConfigured(
+            objects=((168, "Alarm strefa garaz"),), collisions=((52111, (17, 18)),)
+        ),
+    )
+    await hass.async_block_till_done()
+
+    issue = issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE)
+    assert issue is not None
+    assert issue.translation_key == "not_configured_both"
+    assert issue.translation_placeholders == {
+        "object_count": "1",
+        "objects": "- 168",
+        "module_count": "1",
+        "modules": "- 0xCB8F: 17, 18",
+    }
+    assert "Alarm strefa garaz" not in caplog.text
 
 
 async def test_module_device_survives_while_it_parents_a_refused_child(

@@ -14,8 +14,8 @@ from ampio_mqtt import (
     ObjectAdded,
     ObjectRemoved,
     ObjectUpdated,
+    parse_module_address,
 )
-from ampio_mqtt._protocol import parse_module_address
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,

@@ -16,6 +16,7 @@ from ampio_mqtt import (
     AuthFailed,
     AvailabilityChanged,
     ConnectionDied,
+    NotConfigured,
 )
 import voluptuous as vol
 
@@ -48,7 +49,7 @@ from .const import (
     STALE_RECORDS_ISSUE,
 )
 from .data import AmpioConfigEntry, AmpioData, RefusedRows
-from .stale import async_check_not_configured, async_report_stale_records
+from .stale import async_report_not_configured, async_report_stale_records
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -190,7 +191,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
         hass.config_entries.async_update_entry(entry, unique_id=info.server_key)
 
     entry.runtime_data = await AmpioData.async_create(hass, entry, client, info)
-    entry.runtime_data.not_configured = not_configured
+    async_report_not_configured(hass, entry, not_configured)
+
+    @callback
+    def _not_configured(event: NotConfigured) -> None:
+        """Raise or clear the installer repair as the admission door changes.
+
+        The library reports every change of what the door refuses, and
+        each event carries both sides, so a row that loses its Designer
+        leaf and the fix that gives it back both land here. Two empty
+        sides mean the door refuses nothing now.
+        """
+        async_report_not_configured(hass, entry, RefusedRows.from_event(event))
+
+    entry.async_on_unload(client.subscribe(_not_configured, of=NotConfigured))
 
     # The subscription starts before the platforms load. An event that lands
     # while a platform is still loading queues its id like any other, and a
@@ -247,14 +261,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     # user gets to delete through a repair issue, recomputed after every
     # catalogue change from here on.
     entry.runtime_data.async_mark_ready(
-        partial(async_report_stale_records, hass, entry),
-        partial(async_check_not_configured, hass, entry),
+        partial(async_report_stale_records, hass, entry)
     )
-    # The door is read first and the leftovers after it, so that a row the
-    # door refused is named by the installer repair and left out of the
-    # leftovers, and no two repairs ask for opposite things about one
-    # record.
-    await async_check_not_configured(hass, entry)
+    # The report reads what the door refuses, which is recorded above
+    # before any platform loads, so a row the door refused is named by the
+    # installer repair and left out of the leftovers, and no two repairs
+    # ask for opposite things about one record.
     async_report_stale_records(hass, entry)
     return True
 

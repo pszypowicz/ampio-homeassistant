@@ -1,7 +1,7 @@
 """Runtime data for the Ampio integration: the device tree the catalogue defines."""
 
 import asyncio
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 import logging
 from typing import Final
@@ -14,8 +14,7 @@ from ampio_mqtt import (
     AmpioNotConfigured,
     AmpioObject,
     AmpioServerInfo,
-    ModuleRemoved,
-    ModuleUpdated,
+    NotConfigured,
     ObjectRemoved,
     ObjectUpdated,
 )
@@ -131,12 +130,12 @@ class _ModulePlatformRegistration:
 class RefusedRows:
     """The Designer rows the library's admission door refused, in ids alone.
 
-    ``AmpioNotConfigured`` is projected into this where it is caught, and
-    the exception itself is not kept. Its message is built from the
-    Designer names of the rows it carries, and docs/debugging.md promises
-    that no object, room or module name leaves the install, so the catch
-    site drops the names and nothing downstream holds one to put in an
-    issue, a log line or a translation placeholder.
+    The ``AmpioNotConfigured`` setup catches and the ``NotConfigured``
+    event are both projected into this, and neither is kept. Both carry
+    the Designer name of every row they report, and docs/debugging.md
+    promises that no object, room or module name leaves the install, so
+    the projection drops the names and nothing downstream holds one to put
+    in an issue, a log line or a translation placeholder.
 
     The field names are the library's own. ``objects`` is the row ids with
     no Designer leaf, and ``collisions`` pairs each override mac more than
@@ -150,6 +149,17 @@ class RefusedRows:
     def from_error(cls, err: AmpioNotConfigured) -> RefusedRows:
         """Keep the ids the door refused and let the names go."""
         return cls(tuple(oid for oid, _ in err.objects), err.collisions)
+
+    @classmethod
+    def from_event(cls, event: NotConfigured) -> RefusedRows | None:
+        """The ids the door refuses now, or None when it refuses nothing.
+
+        Every event carries both sides of the door's answer, so two empty
+        sides are the recovery signal and read here as no refusal at all.
+        """
+        if not event.objects and not event.collisions:
+            return None
+        return cls(tuple(oid for oid, _ in event.objects), event.collisions)
 
 
 class AmpioData:
@@ -178,12 +188,10 @@ class AmpioData:
         self.admin: AmpioAdminClient | None = (
             client if isinstance(client, AmpioAdminClient) else None
         )
-        # The rows the library's admission door refused, as the last door
-        # read answered, so that the repair can name them. Setup writes it
-        # and the re-read at the head of every batch keeps it current. A
-        # recovery announces itself with no event, so a reader outside
-        # those two paths awaits ``client.wait_for_initial_discovery()``
-        # itself, which re-runs the door check, rather than trusting this.
+        # The rows the library's admission door refuses, so that the
+        # repair can name them. Setup writes what it caught at connect,
+        # and the ``NotConfigured`` event keeps it current: the library
+        # reports every change of either side, a change to empty included.
         #
         # ``RefusedRows`` holds ids and nothing else, which is what keeps
         # the Designer names of those rows inside the library. That also
@@ -218,12 +226,6 @@ class AmpioData:
         # every entity that platform has not built yet, so nothing reports
         # before setup says so.
         self._report: Callable[[], None] | None = None
-        # The admission-door re-read, handed over on the same path and for
-        # the same reason. It is a second callback rather than part of the
-        # report, because it runs on a batch the report never reaches: a
-        # module event queues no object, and a batch with nothing queued
-        # still has to answer whether the door admits every row now.
-        self._check_not_configured: Callable[[], Awaitable[None]] | None = None
 
     @classmethod
     async def async_create(
@@ -481,49 +483,23 @@ class AmpioData:
         unsubscribe_objects = self.client.subscribe(
             self._catalogue_event, of=(ObjectUpdated, ObjectRemoved)
         )
-        # The module events fire on the administrator login alone, and the
-        # two subscriptions are separate because the library types a
-        # listener by the classes it is given: beyond a pair, the callback
-        # widens to every event the client can dispatch.
-        unsubscribe_modules = self.client.subscribe(
-            self._module_event, of=(ModuleUpdated, ModuleRemoved)
-        )
 
         @callback
         def _stop() -> None:
             unsubscribe_objects()
-            unsubscribe_modules()
             self._debouncer.async_shutdown()
 
         return _stop
 
     @callback
-    def async_mark_ready(
-        self,
-        report: Callable[[], None],
-        check_not_configured: Callable[[], Awaitable[None]],
-    ) -> None:
-        """Let every batch from now on re-read the door and then call ``report``.
+    def async_mark_ready(self, report: Callable[[], None]) -> None:
+        """Let every batch from now on end by calling ``report``.
 
-        The two arrive together because the report reads what the door
-        check writes: the refused rows it leaves out of the stale list.
-        Neither may run while a platform is still loading, and one
-        handover point is what says so for both.
+        A batch that runs while a platform is still loading would report
+        every entity that platform has not built yet, so the handover is
+        what says the platforms are done.
         """
         self._report = report
-        self._check_not_configured = check_not_configured
-
-    @callback
-    def _module_event(self, _event: ModuleUpdated | ModuleRemoved) -> None:
-        """Run a batch for a module row that changed, queueing no object.
-
-        A module event carries a module and no object, so there is nothing
-        to queue and nothing to reconcile. It schedules the batch all the
-        same, because the library's admission door refuses two module rows
-        that share one override mac, and correcting that in Ampio Designer
-        changes the module catalogue with no object row behind it.
-        """
-        self._debouncer.async_schedule_call()
 
     @callback
     def _catalogue_event(self, event: ObjectUpdated | ObjectRemoved) -> None:
@@ -561,16 +537,6 @@ class AmpioData:
         """
         async with self._reconcile_lock:
             pending, self._pending = self._pending, {}
-            # Ahead of the empty-batch return, because an empty batch is
-            # what a module event brings and it queues no object. Giving
-            # two module rows their own override mac in Ampio Designer
-            # changes the module catalogue with no object row behind it,
-            # so this is where that correction is noticed. The read is a
-            # latched signal, and the issue is written only when it
-            # changes, so a batch from a module health broadcast costs the
-            # read alone.
-            if self._check_not_configured is not None:
-                await self._check_not_configured()
             if not pending:
                 return
             buildable: list[AmpioObject] = []
