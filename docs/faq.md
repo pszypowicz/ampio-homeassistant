@@ -63,7 +63,7 @@ To change the password before it breaks, open the entry, choose Reconfigure from
 
 Open the entry, choose Reconfigure from its menu, and enter the address and the credentials to use. Your devices and your entities keep their ids, their areas, and any name you gave them yourself.
 
-Do not delete the integration for this. A delete removes every device record and every entity record. You lose every rename and every area with them.
+For a change of account, address or hardware, Reconfigure is the way to do it without removing the entry. A delete removes every device record and every entity record. Home Assistant remembers both for 30 days, so an add inside that window brings back the renames, the areas and the labels of everything whose identity still matches. Anything the Ampio server no longer serves under the identity it had does not come back, and after 30 days none of it does.
 
 A different account changes what the server serves you. An app-created user receives the objects granted to it in the Ampio app, so an object outside that grant loses its entities. The repair on the Settings page lists them. Read the list before you submit it. If you move to a standard account, a second repair lists the administrator-only entities it withheld, such as the Identify buttons, the module sensors, the buzzer, the Unlock touch buttons, and the Backlight and Status light entities, and that one is explained under "The administrator-only entities are gone".
 
@@ -197,7 +197,11 @@ If the names you typed yourself are gone as well, along with your areas and your
 
 ## How do I reset every Ampio entity id?
 
-Use this to rebuild every Ampio entity id from the names you have now. The procedure deletes every Ampio entity record, so Home Assistant builds the ids again from scratch on the next start. For a single entity, the control for regenerating an entity id on its settings page does the same job without any of this.
+Use this to rebuild every Ampio entity id at once. It is a destructive reset of your entity preferences. The command deletes every Ampio entity record, the live ones and the ones Home Assistant is remembering alike, so the entity names you typed, the areas you gave entities of their own, the labels you put on them, and their per-entity settings go with them. Home Assistant then builds the ids again on the next start, from the device names that survive and from the entity names this integration supplies.
+
+Your devices keep everything, so their names, their areas and their labels come through untouched. Put your entity labels back afterwards, including the panel labels described under "My touch panels go dark when I turn off all the lights", because the template there stops finding anything without them.
+
+For a single entity, the control for regenerating an entity id on its settings page rebuilds that one id and touches nothing else.
 
 **Every automation, script, scene, and dashboard card that names an Ampio entity id stops working.** Write those ids down first, and plan to repoint them.
 
@@ -228,6 +232,7 @@ You need shell access to the Home Assistant host, through the SSH add-on or the 
 
 6. Open Settings, then Devices and services, then Ampio. Confirm that the entity count matches what you had.
 7. Repoint your automations at the new ids.
+8. Put your entity labels back, the panel labels among them, and give back any entity name and any entity area you had set yourself.
 
 The `deleted_entities` list matters as much as the `entities` list. Leave the deleted records in place, and Home Assistant restores every old id on the next start.
 

@@ -20,7 +20,7 @@ One M-SERV per Home Assistant. Object ids are unique per server only, so the int
 
 An object device takes the name you gave the object in the Ampio app. A module takes the name you gave it in Ampio Designer. When your account is not an administrator one, a module reads `Ampio module <MAC>` instead, for example `Ampio module 0xCB8F`, with the address written in hex the way Designer's MAC field shows it. A module whose Designer device row you deleted reads the same on an administrator account, because no row is left to name it. The hub is always `M-SERV`.
 
-A rename in Designer or in the app changes nothing in Home Assistant. Rename the device in Home Assistant instead.
+A rename in Designer or in the app does not reach Home Assistant straight away. The integration watches the catalogue fields that decide which entities exist and which module they hang under, and a name is none of them, so a save that changes only a name leaves the devices as they are until they register again, on a reload or a restart. A name you typed yourself in Home Assistant wins over whatever arrives then, so rename the device here when you want the name to stay put. Entity ids are settled at first registration either way, so neither rename moves one.
 
 ## The Identify button
 
@@ -78,4 +78,4 @@ If you move an object to another module in Designer, the integration removes the
 
 ## The Matter checkbox
 
-Do not clear an object's Matter checkbox in Designer once the object has an entity here. Unchecking it clears the object's leaf id, which is the pointer this integration drives the object through, so the object loses its entities and its device until you check the box again. A repair on the Settings page names the objects this happened to. To stop the M-SERV's Matter bridge, use "Clear configuration" in Designer's Matter panel instead. See [designer-quirks.md](designer-quirks.md).
+Do not clear an object's Matter checkbox in Designer once the object has an entity here. Unchecking it clears the object's leaf id, which is the pointer this integration drives the object through, so the integration stops building the object's entities until you check the box again. The records stay where they are, the object's device included, so an entity that comes back as the same type comes back with the id, the name and the area it had. A repair on the Settings page names the objects this happened to. To stop the M-SERV's Matter bridge, use "Clear configuration" in Designer's Matter panel instead. See [designer-quirks.md](designer-quirks.md).
