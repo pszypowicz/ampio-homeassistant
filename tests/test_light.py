@@ -304,6 +304,63 @@ async def test_rgbw_color_and_brightness_scale(
     mock_client.set_colors.assert_awaited_once_with(72, 20, 40, 80, 160)
 
 
+async def test_rgbw_reports_the_color_at_full_scale(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A dimmed output reports its color with the peak channel at 255."""
+    await setup_integration(hass, mock_config_entry)
+
+    obj = replace(mock_client.objects[72], state=str(30 | 15 << 8))
+    mock_client.objects[72] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+    await hass.async_block_till_done()
+
+    state = hass.states.get(RGBW_ENTITY_ID(hass))
+    assert state is not None
+    assert state.attributes[ATTR_BRIGHTNESS] == 30
+    assert state.attributes[ATTR_RGBW_COLOR] == (255, 128, 0, 0)
+
+
+async def test_rgbw_color_without_brightness_keeps_the_level(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A color with no brightness scales to the level the output holds."""
+    await setup_integration(hass, mock_config_entry)
+
+    obj = replace(mock_client.objects[72], state=str(30 | 15 << 8))
+    mock_client.objects[72] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: RGBW_ENTITY_ID(hass), ATTR_RGBW_COLOR: (0, 0, 255, 0)},
+        blocking=True,
+    )
+    mock_client.set_colors.assert_awaited_once_with(72, 0, 0, 30, 0)
+
+
+async def test_rgbw_color_without_brightness_on_a_dark_output_is_full(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A color with no brightness turns a dark output on at full scale."""
+    await setup_integration(hass, mock_config_entry)
+
+    obj = replace(mock_client.objects[72], state="0")
+    mock_client.objects[72] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: RGBW_ENTITY_ID(hass), ATTR_RGBW_COLOR: (0, 10, 20, 0)},
+        blocking=True,
+    )
+    mock_client.set_colors.assert_awaited_once_with(72, 0, 128, 255, 0)
+
+
 async def test_rgbw_turn_on_from_dark_defaults_to_white(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
@@ -375,20 +432,30 @@ def _blended(entry: MockConfigEntry) -> MockConfigEntry:
     )
 
 
+def _go_dark(mock_client: MagicMock) -> None:
+    """Push the rgbw output to all channels at zero."""
+    obj = replace(mock_client.objects[72], state="0")
+    mock_client.objects[72] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+
+
 async def test_blended_rgbw_state(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
     snapshot: SnapshotAssertion,
 ) -> None:
-    """A blended rgbw output presents one rgb color with white added back in."""
+    """A blended rgbw output presents one rgb color with white added back in.
+
+    The color reads at full scale, and the peak channel is the brightness.
+    """
     await setup_integration(hass, _blended(mock_config_entry))
 
     state = hass.states.get(RGBW_ENTITY_ID(hass))
     assert state is not None
     assert state.attributes[ATTR_COLOR_MODE] == ColorMode.RGB
     assert state.attributes[ATTR_SUPPORTED_COLOR_MODES] == [ColorMode.RGB]
-    assert state.attributes[ATTR_RGB_COLOR] == (171, 206, 240)
+    assert state.attributes[ATTR_RGB_COLOR] == (182, 219, 255)
     assert state.attributes[ATTR_BRIGHTNESS] == 240
     assert ATTR_RGBW_COLOR not in state.attributes
     assert state == snapshot
@@ -435,6 +502,8 @@ async def test_blended_turn_on_derives_the_white_channel(
 ) -> None:
     """A requested color sends white as the share red, green, and blue have in common."""
     await setup_integration(hass, _blended(mock_config_entry))
+    _go_dark(mock_client)
+    await hass.async_block_till_done()
 
     await hass.services.async_call(
         LIGHT_DOMAIN,
@@ -464,7 +533,7 @@ async def test_blended_brightness_keeps_the_held_channels(
     ("rgbw", "channels"),
     [
         pytest.param((0, 0, 0, 255), (0, 0, 0, 255), id="on_the_blend"),
-        pytest.param((10, 20, 40, 80), (0, 9, 27, 80), id="off_the_blend"),
+        pytest.param((10, 20, 40, 80), (0, 29, 86, 255), id="off_the_blend"),
     ],
 )
 async def test_blended_rgbw_request_lands_on_the_blend(
@@ -476,6 +545,8 @@ async def test_blended_rgbw_request_lands_on_the_blend(
 ) -> None:
     """An rgbw_color request arrives as its rgb blend and is written back blended."""
     await setup_integration(hass, _blended(mock_config_entry))
+    _go_dark(mock_client)
+    await hass.async_block_till_done()
 
     await hass.services.async_call(
         LIGHT_DOMAIN,
@@ -596,17 +667,22 @@ async def test_panel_lights_withheld_on_a_standard_account(
 async def test_initial_color_reads_panel_settings(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """Each entity's initial color reads its own panel_settings field."""
+    """Each entity's initial color reads its own panel_settings field.
+
+    The peak channel is the brightness, and the color reads at full scale.
+    """
     with_panel_colors(mock_client)
     with_panel_settings(mock_client)
     await setup_integration(hass, mock_config_entry)
 
     backlight = hass.states.get(BACKLIGHT_ENTITY_ID(hass))
     assert backlight is not None
-    assert backlight.attributes[ATTR_RGBW_COLOR] == TOUCH_FIELD_COLOR
+    assert backlight.attributes[ATTR_BRIGHTNESS] == max(TOUCH_FIELD_COLOR)
+    assert backlight.attributes[ATTR_RGBW_COLOR] == (64, 128, 191, 255)
     status_light = hass.states.get(STATUS_LIGHT_ENTITY_ID(hass))
     assert status_light is not None
-    assert status_light.attributes[ATTR_RGB_COLOR] == STATUS_COLOR
+    assert status_light.attributes[ATTR_BRIGHTNESS] == max(STATUS_COLOR)
+    assert status_light.attributes[ATTR_RGB_COLOR] == (232, 243, 255)
 
 
 async def test_missing_panel_settings_starts_at_zero(
@@ -632,7 +708,7 @@ async def test_missing_panel_settings_starts_at_zero(
 async def test_backlight_turn_on_with_color_sends_it(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """An explicit color is sent as the four backlight channels."""
+    """An explicit color on a dark backlight is sent with its peak at 255."""
     with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)
 
@@ -643,14 +719,14 @@ async def test_backlight_turn_on_with_color_sends_it(
         blocking=True,
     )
     mock_client.set_panel_backlight.assert_awaited_once_with(
-        17, 10, 20, 30, 40, fields=None
+        17, 64, 128, 191, 255, fields=None
     )
 
 
 async def test_status_light_turn_on_with_color_sends_it(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """An explicit color is sent as the three status light channels."""
+    """An explicit color on a dark status light is sent with its peak at 255."""
     with_panel_colors(mock_client)
     await setup_integration(hass, mock_config_entry)
 
@@ -661,7 +737,7 @@ async def test_status_light_turn_on_with_color_sends_it(
         blocking=True,
     )
     mock_client.set_panel_status_light.assert_awaited_once_with(
-        17, 50, 60, 70, fields=None
+        17, 182, 219, 255, fields=None
     )
 
 
@@ -761,6 +837,41 @@ async def test_brightness_only_turn_on_keeps_the_held_color(
     )
     mock_client.set_panel_backlight.assert_awaited_once_with(
         17, 128, 0, 0, 0, fields=None
+    )
+
+
+async def test_panel_color_without_brightness_keeps_the_level(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A dimmed panel reports its color at full scale and keeps its level."""
+    with_panel_colors(mock_client)
+    with_panel_settings(mock_client)
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {
+            ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID(hass),
+            ATTR_RGBW_COLOR: (255, 0, 0, 0),
+            ATTR_BRIGHTNESS: 64,
+        },
+        blocking=True,
+    )
+    state = hass.states.get(BACKLIGHT_ENTITY_ID(hass))
+    assert state is not None
+    assert state.attributes[ATTR_BRIGHTNESS] == 64
+    assert state.attributes[ATTR_RGBW_COLOR] == (255, 0, 0, 0)
+    mock_client.set_panel_backlight.reset_mock()
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: BACKLIGHT_ENTITY_ID(hass), ATTR_RGBW_COLOR: (0, 255, 0, 0)},
+        blocking=True,
+    )
+    mock_client.set_panel_backlight.assert_awaited_once_with(
+        17, 0, 64, 0, 0, fields=None
     )
 
 
@@ -1224,13 +1335,14 @@ async def test_set_backlight_fields_leaves_the_entity_state_unchanged(
 
     before = hass.states.get(BACKLIGHT_ENTITY_ID(hass))
     assert before is not None
-    assert before.attributes[ATTR_RGBW_COLOR] == TOUCH_FIELD_COLOR
+    assert before.attributes[ATTR_RGBW_COLOR] == (64, 128, 191, 255)
 
     await _set_backlight_fields(hass, BACKLIGHT_ENTITY_ID(hass), [2], (1, 2, 3, 4))
 
     after = hass.states.get(BACKLIGHT_ENTITY_ID(hass))
     assert after is not None
-    assert after.attributes[ATTR_RGBW_COLOR] == TOUCH_FIELD_COLOR
+    assert after.attributes[ATTR_BRIGHTNESS] == before.attributes[ATTR_BRIGHTNESS]
+    assert after.attributes[ATTR_RGBW_COLOR] == (64, 128, 191, 255)
 
 
 async def test_set_backlight_fields_uses_the_wire_ceiling_when_the_count_is_missing(

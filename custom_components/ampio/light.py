@@ -54,6 +54,20 @@ LIGHT_MATTER_TYPES = frozenset({0x0100, 0x0101, 0x010C, 0x010D})
 _DEFAULT_RGBW = (0, 0, 0, 255)
 
 
+def _at_level(color: tuple[int, ...], level: int) -> tuple[int, ...]:
+    """``color`` scaled so its peak channel reads ``level``.
+
+    Home Assistant reads a light's color apart from its brightness, so an
+    output that carries its level in the channels reports the color at
+    level 255 and takes a requested color back down to its brightness. An
+    all-zero color has no hue to scale and comes back unchanged. Rounding
+    keeps the round trip stable where truncation drops a channel by one.
+    """
+    if not (peak := max(color)):
+        return color
+    return tuple(round(channel * level / peak) for channel in color)
+
+
 def _kelvin_from_coldness(coldness: int, minimum: int, maximum: int) -> int:
     """The kelvin value a raw coldness byte presents as.
 
@@ -251,22 +265,23 @@ class AmpioLight(AmpioEntity, LightEntity):
     @property
     @override
     def rgbw_color(self) -> tuple[int, int, int, int] | None:
-        """The four channels of an rgbw output."""
-        if (obj := self._object) is None:
+        """The four channels of an rgbw output, with the peak at 255."""
+        if (obj := self._object) is None or (rgbw := obj.rgbw) is None:
             return None
-        return obj.rgbw
+        red, green, blue, white = _at_level(rgbw, 255)
+        return (red, green, blue, white)
 
     @property
     @override
     def rgb_color(self) -> tuple[int, int, int] | None:
-        """The blended color of an rgbw output, white added into each channel.
+        """The blended color of an rgbw output, with the peak at 255.
 
         ``AmpioObject.rgbw`` reads None for every other kind, so no mode
         check belongs here.
         """
         if (obj := self._object) is None or (rgbw := obj.rgbw) is None:
             return None
-        return color_rgbw_to_rgb(*rgbw)
+        return color_rgbw_to_rgb(*_at_level(rgbw, 255))
 
     @property
     @override
@@ -305,18 +320,18 @@ class AmpioLight(AmpioEntity, LightEntity):
         raise_if_read_only(self._object)
         client = self._data.client
         if self._rgbw_output:
+            current = self._object.rgbw if self._object else None
+            lit = current if current and any(current) else None
             rgbw: tuple[int, int, int, int] | None = kwargs.get(ATTR_RGBW_COLOR)
             if (rgb := kwargs.get(ATTR_RGB_COLOR)) is not None:
                 rgbw = color_rgb_to_rgbw(*rgb)
             if rgbw is None:
-                current = self._object.rgbw if self._object else None
-                rgbw = current if current and any(current) else _DEFAULT_RGBW
-            if (brightness := kwargs.get(ATTR_BRIGHTNESS)) is not None:
-                peak = max(rgbw) or 255
-                red, green, blue, white = (
-                    channel * brightness // peak for channel in rgbw
-                )
-                rgbw = (red, green, blue, white)
+                rgbw = lit or _DEFAULT_RGBW
+            brightness: int | None = kwargs.get(ATTR_BRIGHTNESS)
+            if brightness is None:
+                brightness = max(lit) if lit else 255
+            red, green, blue, white = _at_level(rgbw, brightness)
+            rgbw = (red, green, blue, white)
             if not any(rgbw):
                 await self.async_turn_off()
                 return
@@ -445,9 +460,11 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
         slider sends exactly that) from jumping to an unrelated hue, the
         same guarantee ``AmpioLight.async_turn_on`` gives an object light.
 
-        Brightness then scales every channel toward the peak, the same
-        arithmetic ``AmpioLight.async_turn_on`` uses. An explicit all-zero
-        color means darkness, and routes to turn_off the same way.
+        The color is then scaled so its peak channel reads the requested
+        brightness, or the level this entity holds when none is requested,
+        or 255 from dark, the same arithmetic ``AmpioLight.async_turn_on``
+        uses. An explicit all-zero color means darkness, and routes to
+        turn_off the same way.
         """
         color: tuple[int, ...] | None = kwargs.get(self._color_attr)
         if color is None:
@@ -456,9 +473,10 @@ class _AmpioPanelLight(AmpioModuleEntity, LightEntity):
                 stored if stored is not None and any(stored) else self._plain_default
             )
             color = self._color if any(self._color) else fallback
-        if (brightness := kwargs.get(ATTR_BRIGHTNESS)) is not None:
-            peak = max(color) or 255
-            color = tuple(channel * brightness // peak for channel in color)
+        brightness: int | None = kwargs.get(ATTR_BRIGHTNESS)
+        if brightness is None:
+            brightness = max(self._color) or 255
+        color = _at_level(color, brightness)
         if not any(color):
             await self.async_turn_off()
             return
@@ -562,8 +580,8 @@ class AmpioPanelBacklight(_AmpioPanelLight):
     @property
     @override
     def rgbw_color(self) -> tuple[int, int, int, int]:
-        """The four channels currently asked for."""
-        red, green, blue, white = self._color
+        """The four channels currently asked for, with the peak at 255."""
+        red, green, blue, white = _at_level(self._color, 255)
         return (red, green, blue, white)
 
 
@@ -602,6 +620,6 @@ class AmpioPanelStatusLight(_AmpioPanelLight):
     @property
     @override
     def rgb_color(self) -> tuple[int, int, int]:
-        """The three channels currently asked for."""
-        red, green, blue = self._color
+        """The three channels currently asked for, with the peak at 255."""
+        red, green, blue = _at_level(self._color, 255)
         return (red, green, blue)
