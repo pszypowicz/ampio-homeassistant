@@ -13,7 +13,7 @@ from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 from syrupy.assertion import SnapshotAssertion
 
 from custom_components.ampio.const import DOMAIN
-from custom_components.ampio.diagnostics import TO_REDACT_ENTRY, TO_REDACT_SNAPSHOT
+from custom_components.ampio.diagnostics import TO_REDACT_ENTRY
 from homeassistant.components.diagnostics import REDACTED, async_redact_data
 from homeassistant.const import CONF_HOST, CONF_USERNAME
 from homeassistant.core import HomeAssistant
@@ -73,12 +73,12 @@ DIAGNOSTICS_SNAPSHOT = {
             "temperature": None,
         },
     ],
-    # The library masks this payload at the source and keeps a safelist.
-    # The fixture carries fake location facts outside that safelist so the
-    # snapshot proves the integration masks the whole string again.
+    # The library keeps only the safelisted scalar fields of the info
+    # reply, so the fixture carries the shape it emits.
     "last_payloads": {
-        "info": '{"protocol": 1, "local_ip": "192.0.2.1", '
-        '"lat": "0.0", "lon": "0.0", "city": "Example City 1"}'
+        "info": '{"Status": "OK", "Results": {"mac": 47846, "userId": -1, '
+        '"serverVersion": "1865", "serverRevision": "409", '
+        '"mqttVersion": "5.133.11"}}'
     },
 }
 
@@ -90,7 +90,7 @@ async def test_config_entry_diagnostics(
     mock_config_entry: MockConfigEntry,
     snapshot: SnapshotAssertion,
 ) -> None:
-    """Snapshot the diagnostics payload with the entry and the info payload redacted."""
+    """Snapshot the diagnostics payload with the entry redacted."""
     mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
@@ -139,28 +139,6 @@ async def test_config_entry_diagnostics_carries_no_username(
     result = await get_diagnostics_for_config_entry(hass, hass_client, config_entry)
 
     assert username not in json.dumps(result)
-
-
-async def test_config_entry_diagnostics_redacts_refused_object_name(
-    hass: HomeAssistant,
-    hass_client: ClientSessionGenerator,
-    mock_client: MagicMock,
-    mock_config_entry: MockConfigEntry,
-) -> None:
-    """A refused object's Designer name is redacted while its row ID survives."""
-    designer_name = "Private room window"
-    mock_client.diagnostics_snapshot.return_value = {
-        **DIAGNOSTICS_SNAPSHOT,
-        "not_configured": [[901, designer_name]],
-    }
-    await setup_integration(hass, mock_config_entry)
-
-    result = await get_diagnostics_for_config_entry(
-        hass, hass_client, mock_config_entry
-    )
-
-    assert designer_name not in json.dumps(result)
-    assert result["snapshot"]["not_configured"] == [[901, REDACTED]]
 
 
 async def test_designer_config_standard_account_has_no_modules_and_does_not_raise(
@@ -372,6 +350,4 @@ async def test_designer_config_leaves_entry_data_and_snapshot_unchanged(
     assert result["entry_data"] == async_redact_data(
         mock_config_entry.data, TO_REDACT_ENTRY
     )
-    assert result["snapshot"] == async_redact_data(
-        DIAGNOSTICS_SNAPSHOT, TO_REDACT_SNAPSHOT
-    )
+    assert result["snapshot"] == DIAGNOSTICS_SNAPSHOT

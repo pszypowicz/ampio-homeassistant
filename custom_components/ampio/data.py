@@ -218,9 +218,7 @@ class AmpioData:
         # reports every change of either side, a change to empty included.
         #
         # ``RefusedRows`` holds ids and nothing else, which is what keeps
-        # the Designer names of those rows inside the library. That also
-        # rules out ``diagnostics_snapshot()["not_configured"]``, which
-        # carries the names too.
+        # the Designer names of those rows inside the library.
         self.not_configured: RefusedRows | None = None
         # Registry ids the object child devices parent to: the hub, and one
         # module device per override mac.
