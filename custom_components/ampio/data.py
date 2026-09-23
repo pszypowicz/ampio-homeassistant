@@ -171,9 +171,9 @@ class RefusedRows:
 class AmpioData:
     """Runtime data for one Ampio server: the device tree the catalogue defines.
 
-    ``async_create`` builds the hub, one module device per override mac the
-    objects carry, and the room map. ``ensure_module_device`` creates the
-    module device of a mac the tree meets later, through the same path, and
+    ``create`` builds the hub and one module device per override mac the
+    objects carry. ``ensure_module_device`` creates the module device of a
+    mac the tree meets later, through the same path, and
     ``forget_module_device`` drops one the user deleted.
     """
 
@@ -210,7 +210,16 @@ class AmpioData:
         self.module_device_ids: dict[int, str] = {}
         # The app room of each object, from the tier-shared room tables. It
         # seeds a child device's area once, at the device's first creation.
+        # Setup fills it before the platforms load, and every batch that
+        # builds a child refreshes it first.
         self.rooms: dict[int, str] = {}
+        # The ids of the active scenes the last fetch returned, or None
+        # while no fetch has landed on this setup. Scenes are fetched
+        # rather than pushed, and a failed fetch defers the scene platform,
+        # which leaves the catalogue unknown rather than empty. The
+        # stale-record report speaks for a scene record only while this
+        # holds a catalogue.
+        self.scene_ids: frozenset[int] | None = None
         self._platforms: list[_PlatformRegistration] = []
         self._module_platforms: list[_ModulePlatformRegistration] = []
         # One fingerprint per object in the catalogue, so that a state push
@@ -234,14 +243,25 @@ class AmpioData:
         self._report: Callable[[], None] | None = None
 
     @classmethod
-    async def async_create(
+    def create(
         cls,
         hass: HomeAssistant,
         entry: AmpioConfigEntry,
         client: AmpioClient,
         info: AmpioServerInfo,
     ) -> AmpioData:
-        """Build the tree for the catalogue as it stands after discovery."""
+        """Build the tree for the catalogue as it stands after discovery.
+
+        Not a coroutine, and it must stay that way. Setup subscribes to
+        the library's admission door as soon as this returns, and the
+        library dispatches a refusal on the event loop, so an await here
+        would hand the loop back while no subscription exists yet and a
+        row refused in that window would go unreported. Keeping the
+        signature synchronous makes an await inside a syntax error rather
+        than a silent gap; the room map, the one thing the tree wants from
+        the server, is fetched by ``async_refresh_rooms`` after the
+        subscription stands.
+        """
         # The hub is built from the server-info reply both account tiers
         # receive. Its name is the product name, because one M-SERV runs one
         # install and its catalogue row names it no better. The row
@@ -271,17 +291,6 @@ class AmpioData:
         # ``is_server_owned``.
         for obj in client.objects.values():
             data.ensure_module_device(obj)
-
-        # The room map seeds each object child's area at its first creation,
-        # and the diagnostics download carries it. Nothing in the entity or
-        # device path depends on it after that, so a failure costs the seed
-        # and must not fail setup.
-        try:
-            data.rooms = await client.fetch_rooms()
-        except AmpioConnectionError:
-            _LOGGER.warning(
-                "Could not fetch the Ampio room map; the devices get no area suggestion"
-            )
         return data
 
     @callback
@@ -565,7 +574,7 @@ class AmpioData:
             # built, so both precede the factories.
             new_macs: list[int] = []
             if buildable:
-                await self._async_refresh_rooms()
+                await self.async_refresh_rooms()
                 new_macs.extend(
                     mac
                     for obj in buildable
@@ -586,8 +595,12 @@ class AmpioData:
                         entity for uid, entity in built.items() if uid not in expected
                     )
                 for entity in to_remove:
-                    # The registry record stays, so the stale repair lists it
-                    # and a re-add restores the id.
+                    # The registry record stays behind, so the id survives
+                    # a Designer edit that takes the entity away and gives
+                    # it back. While the object is in the catalogue the
+                    # stale report has no cause to name for that record;
+                    # the entity's own page carries the delete for a record
+                    # no platform provides.
                     await entity.async_remove()
                 if to_add:
                     # Awaited, so that the platform's table holds the entities
@@ -611,13 +624,19 @@ class AmpioData:
             if self._report is not None:
                 self._report()
 
-    async def _async_refresh_rooms(self) -> None:
-        """Re-read the room map, so that a new child takes its app room."""
+    async def async_refresh_rooms(self) -> None:
+        """Read the room map, so that a new child takes its app room.
+
+        The map seeds each object child's area at that device's first
+        creation, and the diagnostics download carries it. Nothing in the
+        entity or the device path depends on it afterwards, so a failure
+        costs the seed and must not fail setup or a batch.
+        """
         try:
             self.rooms = await self.client.fetch_rooms()
         except AmpioConnectionError:
             _LOGGER.warning(
-                "Could not fetch the Ampio room map; the new devices get no area suggestion"
+                "Could not fetch the Ampio room map; the devices get no area suggestion"
             )
 
     def parent_for(self, obj: AmpioObject) -> str:
@@ -630,6 +649,22 @@ class AmpioData:
         if obj.is_server_owned:
             return self.hub_device_id
         return self.module_device_ids.get(obj.address.mac, self.hub_device_id)
+
+    @callback
+    def live_macs(self) -> set[int]:
+        """Every override mac an object this account receives names.
+
+        The module device of such a mac, and every module entity keyed on
+        it, is what the catalogue still accounts for. ``live_identifiers``
+        carries the same fact as a device identifier, for the device tree;
+        this is the number a module entity's unique id is built from. The
+        M-SERV's own objects name no module, because they hang on the hub.
+        """
+        return {
+            obj.address.mac
+            for obj in self.client.objects.values()
+            if not obj.is_server_owned
+        }
 
     def live_identifiers(
         self,

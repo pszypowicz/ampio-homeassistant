@@ -322,6 +322,53 @@ async def test_module_device_survives_while_it_parents_a_refused_child(
     }
 
 
+async def test_a_refusal_during_setup_reaches_the_repair(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """A row the door refuses while setup runs is named, not offered for deletion.
+
+    Setup subscribes to the door before it asks the server for anything
+    else, so the event lands on a listener. A refused row really is out of
+    the catalogue, so without the subscription the repair would stay away
+    and the row's records would read as leftovers.
+    """
+    mock_client.objects[PUMP_OBJECT.id] = PUMP_OBJECT
+    await setup_integration(hass, mock_config_entry)
+    entry_id = mock_config_entry.entry_id
+    child = device_registry.async_get_child_device_by_identifier(
+        (DOMAIN, unique_id(PUMP_OBJECT.id)), entry_id
+    )
+    assert child is not None
+
+    def _refuse_while_fetching() -> dict[int, str]:
+        """Refuse the row in the middle of setup's room fetch."""
+        del mock_client.objects[PUMP_OBJECT.id]
+        emit(
+            mock_client,
+            NotConfigured(objects=((PUMP_OBJECT.id, PUMP_OBJECT.name),)),
+        )
+        return {}
+
+    mock_client.fetch_rooms.side_effect = _refuse_while_fetching
+    await _reload(hass, mock_config_entry)
+
+    assert mock_config_entry.state is ConfigEntryState.LOADED
+    issue = issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE)
+    assert issue is not None
+    assert issue.translation_placeholders["objects"] == f"- {PUMP_OBJECT.id}"
+    held = device_registry.async_get_device_by_identifier(PUMP_IDENTIFIER, entry_id)
+    assert held is not None
+    stale = find_stale_records(hass, mock_config_entry)
+    assert {device.id for device in stale.devices}.isdisjoint({held.id, child.id})
+    assert unique_id(PUMP_OBJECT.id) not in {
+        entity.unique_id for entity in stale.entities
+    }
+
+
 async def test_a_dead_entity_on_a_held_module_is_still_offered(
     hass: HomeAssistant,
     mock_client: MagicMock,
@@ -377,10 +424,11 @@ async def test_collision_keeps_the_colliding_macs_module_entities_out_of_the_sta
 
     A colliding mac empties the capability map, so a capability-gated
     module entity such as the buzzer stops being built on the next
-    connect, and its registry record would otherwise read as an ordinary
-    unclaimed leftover. The module device itself stays live, because an
-    object still resolves to it, so nothing else keeps the record out of
-    the offer.
+    connect. An object still resolves to the mac, so the record is a
+    module record the catalogue accounts for and there is no cause to
+    name for it. A module prefix that drifted from the stem the entity
+    builds its key with would read the record as a shape nothing mints
+    and offer it, which is what this guards.
     """
     with_buzzer(mock_client)
     await setup_integration(hass, mock_config_entry)

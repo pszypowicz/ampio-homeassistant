@@ -50,3 +50,8 @@ NOT_CONFIGURED_ISSUE: Final = "not_configured"
 # drift apart, and so the stale report can tell a record of this shape from
 # one that predates it.
 MODULE_KEY_STEM: Final = "module_mac"
+
+# The stem of a scene entity's unique id, ``scene_<id>``. The platform
+# mints it and the stale report reads it back, so one constant keeps the
+# report from mistaking a scene record for a shape nothing mints.
+SCENE_KEY_STEM: Final = "scene"

@@ -1,21 +1,26 @@
-"""Registry records a setup left unclaimed, and the repairs that answer for them.
+"""Registry records the catalogue does not account for, and the repairs for them.
 
-A record no platform claimed is offered for deletion. The records of a
-Designer row the library's admission door refused are not, because the
-install still needs them. That repair names the Designer fix instead, and
-the records it covers stay out of the deletion lists while it stands.
+A record is offered for deletion only when the integration can name why
+it should go, and every reason is one of the catalogues this account
+received. What the integration was not served, it does not report,
+because an unknown is not an absence.
+
+The records of a Designer row the library's admission door refused are
+not offered either, because the install still needs them. That repair
+names the Designer fix instead, and the records it covers stay out of the
+deletion lists while it stands.
 """
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 import logging
+from typing import Final
 
 from ampio_mqtt import format_mac
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import (
     device_registry as dr,
-    entity_platform,
     entity_registry as er,
     issue_registry as ir,
 )
@@ -25,25 +30,36 @@ from .const import (
     DOMAIN,
     MODULE_KEY_STEM,
     NOT_CONFIGURED_ISSUE,
+    SCENE_KEY_STEM,
     STALE_RECORDS_ISSUE,
 )
-from .data import AmpioConfigEntry, RefusedRows
+from .data import AmpioConfigEntry, AmpioData, RefusedRows
 
 _LOGGER = logging.getLogger(__name__)
+
+# The prefix of every record an object stands behind: its entities' unique
+# ids and its child device's identifier are built from
+# ``AmpioObject.object_key``, which the library spells ``obj_<id>``. The
+# refusal list arrives as bare ids and is spelled back into this shape.
+OBJECT_KEY_PREFIX: Final = "obj_"
+# The prefix of every module entity's unique id, ``module_mac_<mac>_<suffix>``.
+MODULE_KEY_PREFIX: Final = f"{MODULE_KEY_STEM}_"
+# The prefix of a scene entity's unique id, ``scene_<id>``.
+SCENE_KEY_PREFIX: Final = f"{SCENE_KEY_STEM}_"
 
 
 @dataclass(frozen=True)
 class StaleRecords:
-    """What the registries hold for the entry beyond what the setup built."""
+    """What the registries hold for the entry that its catalogues do not explain."""
 
     # Children before full devices: removing a module takes its children
     # with it, and a child removed twice raises.
     devices: list[dr.AnyDeviceEntry]
-    # Entities on no stale device, such as a scene that left the catalogue.
+    # Entities on no offered device, such as a scene that left the catalogue.
     entities: list[er.RegistryEntry]
     # Entity records the administrator rule withholds from this account.
-    # Separate, because the integration knows exactly why these went and
-    # can only guess about the rest.
+    # Separate, because the account tier is why these went and the text
+    # can say so.
     withheld: list[er.RegistryEntry]
 
 
@@ -116,166 +132,213 @@ def _refused_records(entry: AmpioConfigEntry) -> _RefusedRecords:
     if refused is None:
         return _RefusedRecords(frozenset(), ())
     return _RefusedRecords(
-        frozenset(f"obj_{oid}" for oid in refused.objects),
-        tuple(f"{MODULE_KEY_STEM}_{format_mac(mac)}_" for mac, _ in refused.collisions),
+        frozenset(f"{OBJECT_KEY_PREFIX}{oid}" for oid in refused.objects),
+        tuple(
+            f"{MODULE_KEY_PREFIX}{format_mac(mac)}_" for mac, _ in refused.collisions
+        ),
     )
 
 
-def _live_platforms(hass: HomeAssistant) -> dict[str, entity_platform.EntityPlatform]:
-    """The platform object that is serving each of the integration's domains.
+@dataclass(frozen=True)
+class _LiveCatalogue:
+    """The entity keys this account's catalogues account for.
 
-    Home Assistant builds an ``EntityPlatform`` and publishes it under the
-    integration name before it runs that platform's setup, and it leaves
-    the object published when a config entry unloads. So the list
-    ``async_get_platforms`` returns gains one object per domain on every
-    reload, in the order they were built, and the one serving now is the
-    last of its domain. A superseded object holds no entity, because the
-    unload removed every one of them, so keeping the last per domain is
-    what asks the platform the entities of this setup are on.
+    One field per catalogue a record can be explained by, spelled in the
+    keys the records carry rather than in the ids the catalogues do, so
+    that a lookup is a comparison rather than a parse.
+
+    ``scenes`` is None while the scene catalogue is unknown, which is what
+    a failed fetch leaves behind. The other two fields carry no unknown,
+    because the object catalogue arrives with the connection and setup
+    stops without it, and the override macs are read off those objects.
     """
-    return {
-        platform.domain: platform
-        for platform in entity_platform.async_get_platforms(hass, DOMAIN)
-    }
+
+    # ``obj_<id>`` for every object the catalogue carries.
+    objects: frozenset[str]
+    # ``module_mac_<mac>_`` for every override mac an admitted object
+    # names: the prefix every module entity's unique id on it starts with.
+    # The trailing separator is what keeps mac 0xCB8 from claiming
+    # ``module_mac_0xCB8F_buzzer``.
+    module_prefixes: tuple[str, ...]
+    # ``scene_<id>`` for every active scene the last fetch returned, or
+    # None while no fetch has landed on this setup.
+    scenes: frozenset[str] | None
+
+    def explains(self, unique_id: str) -> bool:
+        """Whether a catalogue accounts for an entity record, or might yet.
+
+        True keeps the record out of the report. Each arm is one of the
+        key shapes this release mints, and the unknown scene catalogue
+        answers True for a scene record, because an unknown is not an
+        absence.
+
+        A key that matches no arm is one this release does not mint, and
+        the report names it. This integration does not migrate, so a
+        record an older key left behind is reported as it stands, never
+        rewritten into the shape that replaced it.
+        """
+        if unique_id.startswith(OBJECT_KEY_PREFIX):
+            return any(
+                unique_id == key or unique_id.startswith(f"{key}_")
+                for key in self.objects
+            )
+        if unique_id.startswith(MODULE_KEY_PREFIX):
+            return unique_id.startswith(self.module_prefixes)
+        if unique_id.startswith(SCENE_KEY_PREFIX):
+            return self.scenes is None or unique_id in self.scenes
+        return False
 
 
-def _unready_domains(
-    platforms: Mapping[str, entity_platform.EntityPlatform],
-) -> set[str]:
-    """The domains whose platform has not finished setting up.
+def _live_catalogue(data: AmpioData) -> _LiveCatalogue:
+    """Spell each catalogue this account received into the keys it explains.
 
-    ``EntityPlatform._setup_complete`` is False from the object's
-    construction and True once that platform's ``async_setup_entry`` has
-    returned and every entity it handed over has been added. It is
-    private, and Home Assistant publishes nothing else that carries the
-    fact. The platform object is registered before its setup runs;
-    ``async_forward_entry_setups`` returns the same way whether a platform
-    set up, deferred on ``PlatformNotReady``, timed out, or raised; and the
-    ``<integration>.<domain>`` string ``hass.config.components`` gains on a
-    successful setup is never taken out again, so it reports a first
-    success forever and cannot speak for a later reload.
-
-    Reading it matters because a platform that did not finish holds no
-    entity at all. Every registry record of its domain would read as
-    claimed by nobody, and the repair would offer live entities for
-    deletion while their platform is waiting to be retried. A deferred
-    platform is retried in the background on a growing delay, and its
-    domain stays out of the report until one of those retries lands.
+    A scene counts while it is active, because that is the column the
+    platform builds on. A scene the app deactivated is in the catalogue
+    and on no entity, so its record has nothing left to stand for.
     """
-    return {
-        domain
-        for domain, platform in platforms.items()
-        if not platform._setup_complete  # noqa: SLF001
-    }
+    scene_ids = data.scene_ids
+    return _LiveCatalogue(
+        objects=frozenset(obj.object_key for obj in data.client.objects.values()),
+        module_prefixes=tuple(
+            f"{MODULE_KEY_PREFIX}{format_mac(mac)}_" for mac in data.live_macs()
+        ),
+        scenes=(
+            None
+            if scene_ids is None
+            else frozenset(f"{SCENE_KEY_PREFIX}{sid}" for sid in scene_ids)
+        ),
+    )
+
+
+def _catalogue_accounts_for_child(
+    child: dr.ChildDeviceEntry,
+    live: set[tuple[str, str]],
+    expected_parent: Mapping[tuple[str, str], str],
+) -> bool:
+    """Whether the catalogue still accounts for a child device as it stands.
+
+    False on two counts, which are the two the removal hook permits a
+    delete for. The catalogue carries no object under the child's
+    identifier, so nothing is left to hang there. Or it carries one that
+    resolves to another module now: the registry cannot re-parent a child,
+    so the delete is the move, and the batch behind the repair's reload
+    builds the child again under the parent the object resolves to, with
+    its id, its name and its area restored from the deleted record.
+    """
+    if not child.identifiers & live:
+        return False
+    return not any(
+        identifier in expected_parent
+        and expected_parent[identifier] != child.parent_device_id
+        for identifier in child.identifiers
+    )
 
 
 @callback
 def find_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> StaleRecords:
-    """Collect the entry's records that no platform claimed on this setup.
+    """Collect the records this account's catalogues do not account for.
 
-    An entity record is stale when it is enabled and no loaded platform
-    holds an entity under its id. A child device is stale when every
-    entity on it is stale, a device without entities included. A module
-    device is stale when no eligible object resolves to it, and its
-    entities are covered by the device rather than listed on their own. A
-    disabled entity is skipped by its platform on purpose, so the entity
-    itself is never stale, and neither is a child device that depends on
-    every one of its entities reading stale. A module device answers to
-    liveness alone, so one with no live object left reaches the list
-    whether or not the entities on it are disabled.
+    A record is offered only when the integration can name why it should
+    go, and every reason is one of the catalogues. An entity record goes
+    when its object left the object catalogue, when it is a module record
+    for an override mac no admitted object names, or when its key is a
+    shape this release no longer mints. A device record answers to the
+    same catalogues: a child device whose object left, or that hangs under
+    a parent the object no longer resolves to, and a module device on a
+    mac no admitted object names. The hub answers to the entry rather
+    than to a catalogue, so it stands while the entry is set up.
+
+    What the integration was not served, it reports nothing about. The
+    scene catalogue is fetched rather than pushed, so a fetch that failed
+    leaves it unknown for this setup and every scene record stays out of
+    the report until a fetch lands. Nothing here reads what the platforms
+    built, so a platform that holds no entity says nothing about the
+    records of its domain, whether it deferred, is still loading, or built
+    nothing on purpose. A disabled record is read like any other: the
+    catalogue decides, and its platform's skip of it says nothing either
+    way.
+
+    Two consequences of that narrowing are deliberate. A record whose
+    object is in the catalogue is not offered even when no platform builds
+    an entity under its key, so a Designer edit that clears an object's
+    pulse time leaves the pulse sensor's record behind, and Home Assistant
+    carries the delete for a record no platform provides on the entity's
+    own page. A module entity a capability gate stopped building is kept
+    for the same reason, its mac still being named by an object.
 
     The records of a Designer row the admission door refused are none of
-    those, and they are left out of all three lists, the module device
-    that parents a refused object's child included. The row is missing
-    because Ampio Designer left it unaddressable, the installer repair
-    says which row and what to change, and the records come back when
-    that change lands. The exclusion names those ids alone, so a row
+    the causes, and they are left out of all three lists. The row is
+    missing because Ampio Designer left it unaddressable, the installer
+    repair says which row and what to change, and the records come back
+    when that change lands. The exclusion names those ids alone, so a row
     Designer really did delete is still reported while the installer
     repair stands.
 
-    A domain whose platform has not finished setting up is left out
-    whole, because a platform that is still on its way holds no entity
-    and every record it owns would read as claimed by nobody. The skip is
-    per domain rather than over the whole report, so one platform that
-    defers costs the report nothing about the others. It suppresses no
-    real leftover either: a platform with nothing to build finishes its
-    setup, so an install whose scene catalogue is empty still has its
-    leftover scene records reported, and a domain the integration no
-    longer ships gets no platform object and is not skipped at all. A
-    domain that is skipped is reported on the next pass after its
-    platform lands.
+    A parent device is offered only when every child under it is offered
+    too, because removing a parent removes its children. A module device
+    on a mac the catalogue dropped therefore stays while it parents a
+    child the report keeps, which is what a refused row's child is. The
+    entities of an offered device go with it, and are named once, as the
+    device.
     """
-    platforms = _live_platforms(hass)
-    unready = _unready_domains(platforms)
-    claimed = {
-        entity_id for platform in platforms.values() for entity_id in platform.entities
-    }
+    data = entry.runtime_data
     entity_registry = er.async_get(hass)
     device_registry = dr.async_get(hass)
     refused = _refused_records(entry)
-    stale_entities = {
-        entity.entity_id: entity
-        for entity in er.async_entries_for_config_entry(entity_registry, entry.entry_id)
-        if entity.disabled_by is None
-        and entity.entity_id not in claimed
-        and entity.domain not in unready
-        and not refused.holds_entity(entity.unique_id)
-    }
+    catalogue = _live_catalogue(data)
+    live, expected_parent = data.live_identifiers()
 
     devices: list[dr.AnyDeviceEntry] = []
-    covered: set[str] = set()
-    refused_parents: set[str] = set()
+    parents_of_kept: set[str] = set()
     for child in dr.async_child_entries_for_config_entry(
         device_registry, entry.entry_id
     ):
-        # A refused row's child is skipped on its own identifier, because
-        # a child that has lost every entity record would otherwise read
-        # as stale on the empty set its entity test passes.
-        if refused.holds_child(child):
-            refused_parents.add(child.parent_device_id)
+        if refused.holds_child(child) or _catalogue_accounts_for_child(
+            child, live, expected_parent
+        ):
+            parents_of_kept.add(child.parent_device_id)
             continue
-        child_entities = er.async_entries_for_device(
-            entity_registry, child.id, include_disabled_entities=True
-        )
-        if all(entity.entity_id in stale_entities for entity in child_entities):
-            devices.append(child)
-            covered.update(entity.entity_id for entity in child_entities)
-    live, _ = entry.runtime_data.live_identifiers()
+        devices.append(child)
     for device in dr.async_entries_for_config_entry(device_registry, entry.entry_id):
-        # A module device whose every object was refused resolves from no
-        # live object, so liveness alone would offer it for deletion, and
-        # the registry takes a parent's children and their entity records
-        # with it. That would destroy the records the rows above are kept
-        # for. Parenthood of a kept child is what holds the device, since
-        # the door names a refused object by id and never by its mac.
-        if device.identifiers & live or device.id in refused_parents:
+        if device.identifiers & live or device.id in parents_of_kept:
             continue
         devices.append(device)
-        covered.update(
-            entity.entity_id
-            for entity in er.async_entries_for_device(
-                entity_registry, device.id, include_disabled_entities=True
-            )
+
+    # Every record an offered device takes with it, named by the device
+    # rather than on its own. Disabled records included: the registry
+    # removes them with the device like any other.
+    covered = {
+        record.entity_id
+        for device in devices
+        for record in er.async_entries_for_device(
+            entity_registry, device.id, include_disabled_entities=True
         )
-    withheld_ids = entry.runtime_data.withheld_unique_ids()
+    }
+    withheld_ids = data.withheld_unique_ids()
     entities: list[er.RegistryEntry] = []
     withheld: list[er.RegistryEntry] = []
-    for entity_id, entity in stale_entities.items():
-        if entity_id in covered:
+    for record in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
+        if record.entity_id in covered or refused.holds_entity(record.unique_id):
             continue
-        target = withheld if entity.unique_id in withheld_ids else entities
-        target.append(entity)
+        if not catalogue.explains(record.unique_id):
+            entities.append(record)
+        elif record.unique_id in withheld_ids:
+            # A module record on a mac the catalogue still names, on an
+            # account that is served no module surface. The tier is the
+            # whole of the reason, so it is the other card that says so.
+            withheld.append(record)
     return StaleRecords(devices, entities, withheld)
 
 
 @callback
 def async_report_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> None:
-    """Raise the repair issues for what the setup left unclaimed, or clear them.
+    """Raise the repair issues for the records the catalogues left over, or clear them.
 
-    Two issues, because the two causes are not equally well understood.
-    The administrator rule withholds a known, closed set, and that text
-    names the account tier. What is left may be a Designer delete or a lost
-    app permission, and its wording follows the tier as before.
+    Two issues, because the two causes differ in what can be said about
+    them. The administrator rule withholds a known, closed set, and that
+    text names the account tier. A record the catalogue stopped accounting
+    for may be a Designer delete or a lost app permission, and its wording
+    follows the tier as before.
     """
     stale = find_stale_records(hass, entry)
     _async_report(

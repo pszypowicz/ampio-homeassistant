@@ -4,7 +4,7 @@ from datetime import timedelta
 from http import HTTPStatus
 from unittest.mock import MagicMock
 
-from ampio_mqtt import AccessTier, AmpioConnectionError
+from ampio_mqtt import AccessTier, AmpioConnectionError, RecordSweep
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
@@ -15,6 +15,7 @@ from custom_components.ampio.const import DOMAIN
 from custom_components.ampio.stale import (
     async_remove_stale_records,
     async_report_stale_records,
+    find_stale_records,
 )
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
@@ -31,14 +32,17 @@ from .conftest import (
     DEFAULT_SCENES,
     MSENS_IDENTIFIER,
     entity_id_of,
+    make_object,
     module_unique_id,
     set_access_tier,
     unique_id,
+    with_buzzer,
 )
 
 ISSUE_ID = "stale_records"
 ADMIN_ISSUE_ID = "admin_only_records"
-IDENTIFY_KEY = module_unique_id(52111, "_identify")
+MSENS_MAC = 52111
+IDENTIFY_KEY = module_unique_id(MSENS_MAC, "_identify")
 SCENE_ENTITY_ID = "scene.m_serv_wieczor"
 
 
@@ -79,7 +83,7 @@ async def test_no_issue_without_stale_records(
     mock_config_entry: MockConfigEntry,
     issue_registry: ir.IssueRegistry,
 ) -> None:
-    """A setup that claims every record raises nothing."""
+    """A setup whose catalogues account for every record raises nothing."""
     await setup_integration(hass, mock_config_entry)
 
     assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is None
@@ -91,7 +95,7 @@ async def test_stale_records_raise_a_fixable_issue(
     mock_config_entry: MockConfigEntry,
     issue_registry: ir.IssueRegistry,
 ) -> None:
-    """Records no platform claimed on this setup are listed, one issue for all."""
+    """Records the catalogues stopped accounting for are listed, one issue for all."""
     await setup_integration(hass, mock_config_entry)
     _leave_records_behind(mock_client)
     await _reload(hass, mock_config_entry)
@@ -149,7 +153,7 @@ async def test_disabled_entity_is_not_stale(
     entity_registry: er.EntityRegistry,
     issue_registry: ir.IssueRegistry,
 ) -> None:
-    """An entity the user disabled is skipped by the platform, not stale."""
+    """An entity the user disabled stands while its object is in the catalogue."""
     await setup_integration(hass, mock_config_entry)
     entity_registry.async_update_entity(
         entity_id_of(hass, "switch", unique_id(74)),
@@ -187,7 +191,7 @@ async def test_a_deferred_platform_does_not_silence_the_others(
     entity_registry: er.EntityRegistry,
     issue_registry: ir.IssueRegistry,
 ) -> None:
-    """The skip covers one domain, so a leftover in another is still named."""
+    """An unknown scene catalogue costs the report nothing about the rest."""
     await setup_integration(hass, mock_config_entry)
     del mock_client.objects[74]
     mock_client.fetch_scenes.side_effect = AmpioConnectionError("server unreachable")
@@ -205,7 +209,7 @@ async def test_a_deferred_platform_reports_once_it_lands(
     mock_config_entry: MockConfigEntry,
     issue_registry: ir.IssueRegistry,
 ) -> None:
-    """A skipped domain is deferred rather than dropped for good."""
+    """A scene record waits for a fetch rather than being dropped for good."""
     await setup_integration(hass, mock_config_entry)
     mock_client.fetch_scenes.side_effect = AmpioConnectionError("server unreachable")
     await _reload(hass, mock_config_entry)
@@ -337,6 +341,163 @@ async def test_fix_flow_removes_a_module_without_objects(
         )
         is not None
     )
+
+
+async def test_a_module_offer_names_every_record_its_delete_takes(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """A module's children are named beside it, whatever state their records are in.
+
+    Removing a device removes every child under it, so a child the offer
+    passes over is destroyed by a submit that never named it.
+    """
+    await setup_integration(hass, mock_config_entry)
+    entry_id = mock_config_entry.entry_id
+    child = device_registry.async_get_child_device_by_identifier(
+        (DOMAIN, unique_id(36)), entry_id
+    )
+    assert child is not None
+    entity_registry.async_update_entity(
+        entity_id_of(hass, "sensor", unique_id(36)),
+        disabled_by=er.RegistryEntryDisabler.USER,
+    )
+    for oid in [
+        obj.id for obj in mock_client.objects.values() if obj.address.mac == MSENS_MAC
+    ]:
+        del mock_client.objects[oid]
+    await _reload(hass, mock_config_entry)
+
+    module = device_registry.async_get_device_by_identifier(MSENS_IDENTIFIER, entry_id)
+    assert module is not None
+    offered = {
+        device.id for device in find_stale_records(hass, mock_config_entry).devices
+    }
+    assert module.id in offered
+    assert child.id in offered
+    issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID)
+    assert issue is not None
+    assert "- Temperatura" in issue.translation_placeholders["names"]
+
+
+async def test_a_moved_child_is_offered_whatever_sits_on_it(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """A child the object outgrew is offered, and the records on it are not.
+
+    Deleting the child is how the object reaches its new module, and the
+    records it carries come back with it. A record that no platform
+    rebuilds, disabled here, is no reason to leave the child stuck.
+    """
+    await setup_integration(hass, mock_config_entry)
+    entry_id = mock_config_entry.entry_id
+    child = device_registry.async_get_child_device_by_identifier(
+        (DOMAIN, unique_id(36)), entry_id
+    )
+    assert child is not None
+    # A pulse-time sensor from before a Designer edit cleared the column.
+    leftover = entity_registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        unique_id(36, "_pulse"),
+        config_entry=mock_config_entry,
+        device_id=child.id,
+        disabled_by=er.RegistryEntryDisabler.USER,
+    )
+
+    # The object is moved to another module in Ampio Designer.
+    mock_client.objects[36] = make_object(
+        36, "temp", 1, leaf_id="0_d009_76_0_1", name="Temperatura", state="24.4"
+    )
+    await _reload(hass, mock_config_entry)
+
+    stale = find_stale_records(hass, mock_config_entry)
+    assert child.id in {device.id for device in stale.devices}
+    # The object is in the catalogue, so neither record is offered on
+    # its own. The child carries both, and the rebuild restores the ids.
+    assert not any(
+        record.unique_id in {unique_id(36), leftover.unique_id}
+        for record in stale.entities
+    )
+
+
+async def test_a_silent_capability_sweep_keeps_the_buzzer_record(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """A panel that answered no sweep says nothing about the buzzer it carries.
+
+    The siren platform builds nothing without the capability, and the
+    module row and every object on it are where they were, so there is no
+    cause to name for the record and none is offered.
+    """
+    with_buzzer(mock_client)
+    await setup_integration(hass, mock_config_entry)
+    buzzer_key = module_unique_id(MSENS_MAC, "_buzzer")
+    entity_id = entity_registry.async_get_entity_id("siren", DOMAIN, buzzer_key)
+    assert entity_id is not None
+
+    mock_client.capabilities[MSENS_MAC] = {}
+    mock_client.resolve_records.return_value = RecordSweep(
+        records={}, answered_macs=frozenset(), silent_macs=frozenset({MSENS_MAC})
+    )
+    await _reload(hass, mock_config_entry)
+
+    stale = find_stale_records(hass, mock_config_entry)
+    assert buzzer_key not in {
+        record.unique_id for record in (*stale.entities, *stale.withheld)
+    }
+    assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is None
+    # The submit path reads the records again, so it is answered too.
+    async_remove_stale_records(hass, mock_config_entry, ISSUE_ID)
+    assert entity_registry.async_get(entity_id) is not None
+
+
+async def test_a_key_this_release_no_longer_mints_is_offered(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """A record under a key nothing mints again is named, and never rewritten.
+
+    This integration does not migrate, so the key an earlier release
+    minted a module entity under is reported as it stands.
+    """
+    await setup_integration(hass, mock_config_entry)
+    module = device_registry.async_get_device_by_identifier(
+        MSENS_IDENTIFIER, mock_config_entry.entry_id
+    )
+    assert module is not None
+    legacy = entity_registry.async_get_or_create(
+        "button",
+        DOMAIN,
+        "module_17_identify",
+        config_entry=mock_config_entry,
+        device_id=module.id,
+    )
+
+    async_report_stale_records(hass, mock_config_entry)
+
+    issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID)
+    assert issue is not None
+    assert f"- {legacy.entity_id}" in issue.translation_placeholders["names"]
+    still_there = entity_registry.async_get(legacy.entity_id)
+    assert still_there is not None
+    assert still_there.unique_id == "module_17_identify"
 
 
 async def test_downgrade_raises_the_admin_only_issue(

@@ -176,7 +176,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
         )
         hass.config_entries.async_update_entry(entry, unique_id=info.server_key)
 
-    entry.runtime_data = await AmpioData.async_create(hass, entry, client, info)
+    # From here to the subscriptions below, nothing awaits. The library
+    # dispatches what its admission door refuses as an event, and an event
+    # that lands while setup sits between connect and the subscription
+    # reaches nobody: the installer repair would not appear, and the
+    # refused row's records would read to the stale-record report as
+    # leftovers. ``create`` is synchronous for that reason, and the room
+    # map is fetched once the window is closed.
+    entry.runtime_data = AmpioData.create(hass, entry, client, info)
     async_report_not_configured(hass, entry, not_configured)
 
     @callback
@@ -199,6 +206,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     # and its initial add; a batch in that turn adds the same unique id, and
     # Home Assistant refuses the duplicate with a log line.
     entry.async_on_unload(entry.runtime_data.async_subscribe())
+
+    # The room map seeds a child device's area, and the platforms below
+    # create those devices, so the fetch precedes them. It runs here
+    # rather than inside the tree so that nothing between the connect and
+    # the subscriptions above awaits.
+    await entry.runtime_data.async_refresh_rooms()
 
     # The sweep fills each module's capability map and each object's
     # record bundle. Setup waits for it: the capability map decides which
