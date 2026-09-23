@@ -18,14 +18,12 @@ from homeassistant.core import HomeAssistant
 from .data import AmpioConfigEntry, AmpioData
 
 TO_REDACT_ENTRY = {CONF_HOST, CONF_PASSWORD, CONF_USERNAME}
-# The snapshot carries no credentials by the library's contract, but the
-# server self-report inside it names the M-SERV's LAN address and serial,
-# masked for the same reason the entry's host is. The raw ``info`` payload
-# under ``last_payloads`` is one JSON string, and key-based redaction
-# cannot reach inside a string, so a field the library's safelist does not
-# cover would ride through whole. The parsed ``server_info`` carries the
-# debugging value, so the string is masked here.
-TO_REDACT_SNAPSHOT = {"local_ip", "device_id", "info"}
+# ampio-mqtt masks the host identifiers of ``server_info`` and keeps a
+# safelist for the raw ``info`` payload under ``last_payloads``. That
+# payload is one JSON string, which key-based redaction cannot reach
+# inside, so the whole string is masked here as well. The parsed
+# ``server_info`` carries the debugging value.
+TO_REDACT_SNAPSHOT = {"info"}
 
 
 def _capability_name(function_id: int) -> str:

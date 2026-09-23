@@ -30,11 +30,16 @@ from .conftest import (
 )
 
 # A connected-state report shaped like the library's diagnostics_snapshot(),
-# carrying the default test server's identity.
+# carrying the default test server's identity with the host identifiers the
+# library masks.
 DIAGNOSTICS_SNAPSHOT = {
     "available": True,
     "auth_failure": None,
-    "server_info": asdict(SERVER_INFO),
+    "server_info": {
+        **asdict(SERVER_INFO),
+        "local_ip": REDACTED,
+        "device_id": REDACTED,
+    },
     "connection": {
         "started_at": "2026-08-27T06:00:00+00:00",
         "reconnect_count": 0,
@@ -85,7 +90,7 @@ async def test_config_entry_diagnostics(
     mock_config_entry: MockConfigEntry,
     snapshot: SnapshotAssertion,
 ) -> None:
-    """Snapshot the diagnostics payload with the host identifiers redacted."""
+    """Snapshot the diagnostics payload with the entry and the info payload redacted."""
     mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
@@ -104,8 +109,8 @@ async def test_config_entry_diagnostics_carries_no_username(
     """The account username reaches no part of the download.
 
     ``subscribe_failures`` and ``protocol_violations`` key on the full MQTT
-    topic, and an account topic carries the username in the middle of the
-    key, where key-based redaction cannot reach it. ampio-mqtt masks that
+    topic, and ``last_error`` can name one, with the username in the middle
+    where key-based redaction cannot reach it. ampio-mqtt masks that
     segment before the snapshot leaves the library, so the fixture carries
     the masked form it emits. Serializing the whole result, rather than
     checking the two entries by hand, catches the username anywhere else it
@@ -122,6 +127,7 @@ async def test_config_entry_diagnostics_carries_no_username(
         **DIAGNOSTICS_SNAPSHOT,
         "connection": {
             **DIAGNOSTICS_SNAPSHOT["connection"],
+            "last_error": "Publish to ampio/control/<account>/data timed out",
             "subscribe_failures": {"ampio/fromDB/<account>/ob/+/state": 135},
             "protocol_violations": {
                 "ampio/fromDB/<account>/md5/devices": "missing column"
