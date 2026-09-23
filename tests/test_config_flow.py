@@ -1,7 +1,7 @@
 """Tests for the Ampio config flow."""
 
 from dataclasses import replace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from ampio_mqtt import AmpioAuthError, AmpioConnectionError, AmpioTimeoutError
 import pytest
@@ -10,7 +10,7 @@ from pytest_homeassistant_custom_component.common import (
     get_schema_suggested_value,
 )
 
-from custom_components.ampio.const import DOMAIN
+from custom_components.ampio.const import CONF_BLEND_WHITE, DOMAIN
 from homeassistant.config_entries import SOURCE_USER, ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
@@ -405,3 +405,45 @@ async def test_entry_without_a_key_adopts_the_reported_one(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert entry.unique_id == OTHER_MSERV_MAC
+
+
+@pytest.mark.parametrize("stored", [{}, {CONF_BLEND_WHITE: True}])
+async def test_options_flow_suggests_the_stored_choice(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, stored: dict[str, bool]
+) -> None:
+    """The form offers what the entry holds, and off when it holds nothing."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(mock_config_entry, options=stored)
+
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+    assert get_schema_suggested_value(
+        result["data_schema"].schema, CONF_BLEND_WHITE
+    ) == stored.get(CONF_BLEND_WHITE)
+
+
+async def test_options_flow_stores_the_choice_and_reloads(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_setup_entry: MagicMock,
+) -> None:
+    """Saving the option stores it and sets the entry up again."""
+    mock_config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert mock_setup_entry.call_count == 1
+
+    with patch("custom_components.ampio.async_unload_entry", return_value=True):
+        result = await hass.config_entries.options.async_init(
+            mock_config_entry.entry_id
+        )
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {CONF_BLEND_WHITE: True}
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert mock_config_entry.options == {CONF_BLEND_WHITE: True}
+    assert mock_setup_entry.call_count == 2

@@ -29,8 +29,9 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv, entity_platform
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import VolDictType
+from homeassistant.util.color import color_rgb_to_rgbw, color_rgbw_to_rgb
 
-from .const import DOMAIN
+from .const import CONF_BLEND_WHITE, DOMAIN
 from .data import AmpioConfigEntry, AmpioData
 from .entity import (
     AmpioEntity,
@@ -186,14 +187,25 @@ async def async_setup_entry(
 
 
 class AmpioLight(AmpioEntity, LightEntity):
-    """A light backed by an Ampio output object."""
+    """A light backed by an Ampio output object.
+
+    An rgbw output presents its four channels as ``ColorMode.RGBW`` by
+    default. With the ``blend_white`` option it presents ``ColorMode.RGB``
+    instead: a written color takes its white channel from the common part
+    of red, green, and blue, and the reported color adds white back in.
+    """
 
     def __init__(self, data: AmpioData, obj: AmpioObject) -> None:
         """Initialize in the one color mode the object's kind supports."""
         super().__init__(data, obj)
         kind = obj.kind
-        if isinstance(kind, OutputKind) and kind.color:
-            mode = ColorMode.RGBW
+        self._rgbw_output = isinstance(kind, OutputKind) and kind.color
+        if self._rgbw_output:
+            mode = (
+                ColorMode.RGB
+                if data.entry.options.get(CONF_BLEND_WHITE, False)
+                else ColorMode.RGBW
+            )
         elif isinstance(kind, OutputKind) and kind.color_temp:
             mode = ColorMode.COLOR_TEMP
         elif isinstance(kind, OutputKind) and kind.dimmable:
@@ -228,7 +240,7 @@ class AmpioLight(AmpioEntity, LightEntity):
         """
         if (obj := self._object) is None:
             return None
-        if self._attr_color_mode is ColorMode.RGBW:
+        if self._rgbw_output:
             return None if (rgbw := obj.rgbw) is None else max(rgbw)
         if self._attr_color_mode is ColorMode.COLOR_TEMP:
             return None if (cct := obj.cct) is None else cct[0]
@@ -246,6 +258,18 @@ class AmpioLight(AmpioEntity, LightEntity):
 
     @property
     @override
+    def rgb_color(self) -> tuple[int, int, int] | None:
+        """The blended color of an rgbw output, white added into each channel.
+
+        ``AmpioObject.rgbw`` reads None for every other kind, so no mode
+        check belongs here.
+        """
+        if (obj := self._object) is None or (rgbw := obj.rgbw) is None:
+            return None
+        return color_rgbw_to_rgb(*rgbw)
+
+    @property
+    @override
     def color_temp_kelvin(self) -> int | None:
         """The presented color temperature of a CCT output.
 
@@ -260,11 +284,13 @@ class AmpioLight(AmpioEntity, LightEntity):
 
     @override
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn the light on, honoring brightness, rgbw color, and color temperature.
+        """Turn the light on, honoring brightness, color, and color temperature.
 
         Resolved rgbw channels that are all zero mean off; an explicit
         all-zero color is a request for darkness, and turn_off is its
-        honest execution. A CCT turn-on that names no temperature writes
+        honest execution. A blended rgb color becomes rgbw channels
+        before any of that, and a brightness-only call scales the
+        channels the output holds, whatever their white share. A CCT turn-on that names no temperature writes
         the power axis alone, which leaves the temperature where it
         stands. One that names no brightness writes the temperature axis
         alone, on top of whatever power the light already stands at, and
@@ -278,8 +304,10 @@ class AmpioLight(AmpioEntity, LightEntity):
         """
         raise_if_read_only(self._object)
         client = self._data.client
-        if self._attr_color_mode is ColorMode.RGBW:
+        if self._rgbw_output:
             rgbw: tuple[int, int, int, int] | None = kwargs.get(ATTR_RGBW_COLOR)
+            if (rgb := kwargs.get(ATTR_RGB_COLOR)) is not None:
+                rgbw = color_rgb_to_rgbw(*rgb)
             if rgbw is None:
                 current = self._object.rgbw if self._object else None
                 rgbw = current if current and any(current) else _DEFAULT_RGBW

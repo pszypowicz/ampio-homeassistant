@@ -21,6 +21,10 @@ PLATFORMS: Final = [
 
 DEFAULT_HOST: Final = "ampio.local"
 
+# Options flow key. When true, an rgbw output presents one color control and
+# the integration derives the white channel from it.
+CONF_BLEND_WHITE: Final = "blend_white"
+
 # The M-SERV reserves this login for the administrator, and the Ampio app
 # refuses to create a user under the name, so an account's login is what
 # decides which surfaces the server serves it. ``AmpioAdminClient`` carries

@@ -310,6 +310,19 @@
       }
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ampio options",
+        "data": {
+          "blend_white": "Blend the white channel into the color"
+        },
+        "data_description": {
+          "blend_white": "Show each RGBW light with one color control and no separate white slider. The integration sets the white channel from the part of the color that red, green, and blue share. A scene or an automation that sets rgbw_color still works, but the light shows the nearest color on the blend, so a white level you set apart from the color is not kept. The touch panel backlight keeps its separate white channel."
+        }
+      }
+    }
+  },
   "selector": {
     "roller_lock_direction": {
       "options": {

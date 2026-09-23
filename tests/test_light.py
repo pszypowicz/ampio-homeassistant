@@ -20,7 +20,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 from syrupy.assertion import SnapshotAssertion
 
-from custom_components.ampio.const import DOMAIN
+from custom_components.ampio.const import CONF_BLEND_WHITE, DOMAIN
 from custom_components.ampio.light import (
     LIGHT_MATTER_TYPES,
     _coldness_from_kelvin,
@@ -362,6 +362,128 @@ async def test_rgbw_turn_off_uses_turn_off(
         blocking=True,
     )
     mock_client.turn_off.assert_awaited_once_with(72)
+
+
+def _blended(entry: MockConfigEntry) -> MockConfigEntry:
+    """The same entry with the blend_white option turned on."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        title=entry.title,
+        data=entry.data,
+        unique_id=entry.unique_id,
+        options={CONF_BLEND_WHITE: True},
+    )
+
+
+async def test_blended_rgbw_state(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    snapshot: SnapshotAssertion,
+) -> None:
+    """A blended rgbw output presents one rgb color with white added back in."""
+    await setup_integration(hass, _blended(mock_config_entry))
+
+    state = hass.states.get(RGBW_ENTITY_ID(hass))
+    assert state is not None
+    assert state.attributes[ATTR_COLOR_MODE] == ColorMode.RGB
+    assert state.attributes[ATTR_SUPPORTED_COLOR_MODES] == [ColorMode.RGB]
+    assert state.attributes[ATTR_RGB_COLOR] == (171, 206, 240)
+    assert state.attributes[ATTR_BRIGHTNESS] == 240
+    assert ATTR_RGBW_COLOR not in state.attributes
+    assert state == snapshot
+
+
+async def test_blended_leaves_other_kinds_alone(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The option changes rgbw outputs and no other light."""
+    await setup_integration(hass, _blended(mock_config_entry))
+
+    modes = {
+        entity_id(hass): hass.states.get(entity_id(hass)).attributes[ATTR_COLOR_MODE]
+        for entity_id in (DIMMER_ENTITY_ID, CCT_ENTITY_ID)
+    }
+    assert modes == {
+        DIMMER_ENTITY_ID(hass): ColorMode.BRIGHTNESS,
+        CCT_ENTITY_ID(hass): ColorMode.COLOR_TEMP,
+    }
+
+
+@pytest.mark.parametrize(
+    ("request_data", "channels"),
+    [
+        pytest.param({ATTR_RGB_COLOR: (255, 200, 100)}, (255, 165, 0, 165), id="mix"),
+        pytest.param({ATTR_RGB_COLOR: (255, 255, 255)}, (0, 0, 0, 255), id="white"),
+        pytest.param({ATTR_RGB_COLOR: (255, 0, 0)}, (255, 0, 0, 0), id="saturated"),
+        pytest.param(
+            {ATTR_RGB_COLOR: (255, 255, 255), ATTR_BRIGHTNESS: 128},
+            (0, 0, 0, 128),
+            id="white_dimmed",
+        ),
+        pytest.param(
+            {ATTR_COLOR_TEMP_KELVIN: 6500}, (5, 4, 0, 255), id="color_temperature"
+        ),
+    ],
+)
+async def test_blended_turn_on_derives_the_white_channel(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    request_data: dict[str, object],
+    channels: tuple[int, int, int, int],
+) -> None:
+    """A requested color sends white as the share red, green, and blue have in common."""
+    await setup_integration(hass, _blended(mock_config_entry))
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: RGBW_ENTITY_ID(hass), **request_data},
+        blocking=True,
+    )
+    mock_client.set_colors.assert_awaited_once_with(72, *channels)
+
+
+async def test_blended_brightness_keeps_the_held_channels(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A brightness-only call scales the channels the output holds."""
+    await setup_integration(hass, _blended(mock_config_entry))
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: RGBW_ENTITY_ID(hass), ATTR_BRIGHTNESS: 120},
+        blocking=True,
+    )
+    mock_client.set_colors.assert_awaited_once_with(72, 30, 60, 90, 120)
+
+
+@pytest.mark.parametrize(
+    ("rgbw", "channels"),
+    [
+        pytest.param((0, 0, 0, 255), (0, 0, 0, 255), id="on_the_blend"),
+        pytest.param((10, 20, 40, 80), (0, 9, 27, 80), id="off_the_blend"),
+    ],
+)
+async def test_blended_rgbw_request_lands_on_the_blend(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    rgbw: tuple[int, int, int, int],
+    channels: tuple[int, int, int, int],
+) -> None:
+    """An rgbw_color request arrives as its rgb blend and is written back blended."""
+    await setup_integration(hass, _blended(mock_config_entry))
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: RGBW_ENTITY_ID(hass), ATTR_RGBW_COLOR: rgbw},
+        blocking=True,
+    )
+    mock_client.set_colors.assert_awaited_once_with(72, *channels)
 
 
 async def test_push_echo_updates_brightness(
