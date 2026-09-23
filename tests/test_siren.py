@@ -8,6 +8,7 @@ from ampio_mqtt import (
     AccessTier,
     AmpioConnectionError,
     AmpioTimeoutError,
+    AmpioValueError,
     AvailabilityChanged,
 )
 import pytest
@@ -27,6 +28,7 @@ from homeassistant.components.siren import (
 from homeassistant.const import (
     ATTR_ASSUMED_STATE,
     ATTR_ENTITY_ID,
+    CONF_USERNAME,
     SERVICE_TURN_OFF,
     SERVICE_TURN_ON,
     STATE_UNAVAILABLE,
@@ -38,9 +40,14 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from . import setup_integration
-from .conftest import emit, set_access_tier, with_buzzer
+from .conftest import emit, entity_id_of, module_unique_id, set_access_tier, with_buzzer
 
-BUZZER_ENTITY_ID = "siren.ampio_module_17_buzzer"
+BUZZER_KEY = module_unique_id(52111, "_buzzer")
+
+
+def BUZZER_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for the m-sens module's buzzer siren."""
+    return entity_id_of(hass, "siren", BUZZER_KEY)
 
 
 @pytest.fixture
@@ -54,7 +61,7 @@ async def _turn_on(hass: HomeAssistant, **data: object) -> None:
     await hass.services.async_call(
         SIREN_DOMAIN,
         SERVICE_TURN_ON,
-        {ATTR_ENTITY_ID: BUZZER_ENTITY_ID, **data},
+        {ATTR_ENTITY_ID: BUZZER_ENTITY_ID(hass), **data},
         blocking=True,
     )
 
@@ -74,7 +81,7 @@ async def test_buzzer_only_on_a_module_that_reports_one(
 ) -> None:
     """The capability map decides, so a module without a buzzer gets no siren."""
     await setup_integration(hass, mock_config_entry)
-    assert entity_registry.async_get(BUZZER_ENTITY_ID) is None
+    assert entity_registry.async_get_entity_id("siren", DOMAIN, BUZZER_KEY) is None
 
 
 @pytest.mark.usefixtures("siren_only")
@@ -89,9 +96,9 @@ async def test_buzzer_exists_when_the_module_reports_one(
 
     await setup_integration(hass, mock_config_entry)
 
-    entry = entity_registry.async_get(BUZZER_ENTITY_ID)
+    entry = entity_registry.async_get(BUZZER_ENTITY_ID(hass))
     assert entry is not None
-    assert entry.unique_id == "module_17_buzzer"
+    assert entry.unique_id == BUZZER_KEY
 
 
 @pytest.mark.usefixtures("siren_only")
@@ -110,7 +117,7 @@ async def test_buzzer_reports_an_assumed_state(
 
     await setup_integration(hass, mock_config_entry)
 
-    state = hass.states.get(BUZZER_ENTITY_ID)
+    state = hass.states.get(BUZZER_ENTITY_ID(hass))
     assert state is not None
     assert state.attributes[ATTR_ASSUMED_STATE] is True
 
@@ -131,7 +138,7 @@ async def test_turn_on_with_a_duration_sends_one_cycle(
     await _turn_on(hass, **{ATTR_TONE: 4, ATTR_DURATION: 5})
 
     mock_client.buzz_pattern.assert_awaited_once_with(17, tone=4, seconds=5.0, cycles=1)
-    assert hass.states.get(BUZZER_ENTITY_ID).state == "on"
+    assert hass.states.get(BUZZER_ENTITY_ID(hass)).state == "on"
 
 
 @pytest.mark.usefixtures("siren_only")
@@ -174,20 +181,25 @@ async def test_turn_on_unknown_module_raises(
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
 ) -> None:
-    """A module the catalogue cannot address raises, not a bare ValueError."""
+    """A missing module row prevents the buzzer command and names the address error."""
     with_buzzer(mock_client)
-    mock_client.buzz_pattern.side_effect = ValueError("module id 17 has no mac")
     await setup_integration(hass, mock_config_entry)
+    del mock_client.modules[17]
 
-    with pytest.raises(HomeAssistantError) as excinfo:
+    with pytest.raises(ServiceValidationError) as excinfo:
         await _turn_on(hass)
     assert excinfo.value.translation_key == "module_not_addressable"
-    assert not isinstance(excinfo.value, ServiceValidationError)
+    mock_client.buzz_pattern.assert_not_awaited()
 
 
 @pytest.mark.usefixtures("siren_only")
 @pytest.mark.parametrize(
-    "error", [AmpioConnectionError("Not connected"), AmpioTimeoutError("no ack")]
+    "error",
+    [
+        AmpioConnectionError("Not connected"),
+        AmpioTimeoutError("no ack"),
+        AmpioValueError("command rejected"),
+    ],
 )
 async def test_turn_on_command_failure_raises(
     hass: HomeAssistant,
@@ -195,7 +207,7 @@ async def test_turn_on_command_failure_raises(
     mock_config_entry: MockConfigEntry,
     error: Exception,
 ) -> None:
-    """A connection or timeout failure on the command raises its own key."""
+    """A library command failure raises the buzzer's own message."""
     with_buzzer(mock_client)
     mock_client.buzz_pattern.side_effect = error
     await setup_integration(hass, mock_config_entry)
@@ -221,13 +233,13 @@ async def test_timed_call_clears_state_when_duration_elapses(
     await setup_integration(hass, mock_config_entry)
 
     await _turn_on(hass, **{ATTR_DURATION: 5})
-    assert hass.states.get(BUZZER_ENTITY_ID).state == "on"
+    assert hass.states.get(BUZZER_ENTITY_ID(hass)).state == "on"
 
     await _elapse(hass, 4)
-    assert hass.states.get(BUZZER_ENTITY_ID).state == "on"
+    assert hass.states.get(BUZZER_ENTITY_ID(hass)).state == "on"
 
     await _elapse(hass, 6)
-    assert hass.states.get(BUZZER_ENTITY_ID).state == "off"
+    assert hass.states.get(BUZZER_ENTITY_ID(hass)).state == "off"
     mock_client.buzz_stop.assert_not_called()
 
 
@@ -245,12 +257,12 @@ async def test_turn_off_stops_the_buzzer(
     await hass.services.async_call(
         SIREN_DOMAIN,
         SERVICE_TURN_OFF,
-        {ATTR_ENTITY_ID: BUZZER_ENTITY_ID},
+        {ATTR_ENTITY_ID: BUZZER_ENTITY_ID(hass)},
         blocking=True,
     )
 
     mock_client.buzz_stop.assert_awaited_once_with(17)
-    assert hass.states.get(BUZZER_ENTITY_ID).state == "off"
+    assert hass.states.get(BUZZER_ENTITY_ID(hass)).state == "off"
 
 
 @pytest.mark.usefixtures("siren_only")
@@ -259,7 +271,7 @@ async def test_turn_off_stops_the_buzzer(
     [
         AmpioConnectionError("Not connected"),
         AmpioTimeoutError("no ack"),
-        ValueError("module id 17 has no mac"),
+        AmpioValueError("module id 17 has no mac"),
     ],
 )
 async def test_turn_off_stop_failure_raises(
@@ -278,7 +290,7 @@ async def test_turn_off_stop_failure_raises(
         await hass.services.async_call(
             SIREN_DOMAIN,
             SERVICE_TURN_OFF,
-            {ATTR_ENTITY_ID: BUZZER_ENTITY_ID},
+            {ATTR_ENTITY_ID: BUZZER_ENTITY_ID(hass)},
             blocking=True,
         )
     assert excinfo.value.translation_key == "buzzer_stop_failed"
@@ -315,32 +327,37 @@ async def test_buzzer_follows_the_connection(
     mock_client.available = False
     emit(mock_client, AvailabilityChanged(available=False))
     await hass.async_block_till_done()
-    assert hass.states.get(BUZZER_ENTITY_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(BUZZER_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
 
     mock_client.available = True
     emit(mock_client, AvailabilityChanged(available=True))
     await hass.async_block_till_done()
-    assert hass.states.get(BUZZER_ENTITY_ID).state != STATE_UNAVAILABLE
+    assert hass.states.get(BUZZER_ENTITY_ID(hass)).state != STATE_UNAVAILABLE
 
 
 @pytest.mark.usefixtures("siren_only")
-async def test_withheld_enumeration_names_every_row(
+async def test_withheld_enumeration_names_existing_buzzer(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
 ) -> None:
-    """A standard account cannot read capabilities, so it names every row.
-
-    The enumeration is what tells a withheld record apart from one Ampio
-    Designer dropped. A bare capability check would name none of them, and
-    an orphaned buzzer record would land in the wrong repair card.
-    """
-    set_access_tier(mock_client, AccessTier.RESTRICTED)
-
+    """An account downgrade preserves the buzzer record and names it as withheld."""
+    with_buzzer(mock_client)
     await setup_integration(hass, mock_config_entry)
+    assert hass.states.get(BUZZER_ENTITY_ID(hass)) is not None
 
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, data={**mock_config_entry.data, CONF_USERNAME: "user"}
+    )
+    await hass.config_entries.async_reload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entity_registry.async_get(BUZZER_ENTITY_ID(hass)) is not None
+    assert hass.states.get(BUZZER_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
-    assert "module_17_buzzer" in withheld
+    assert withheld == {BUZZER_KEY}
 
 
 @pytest.mark.usefixtures("siren_only")
@@ -357,7 +374,7 @@ async def test_buzz_pattern_passes_the_frame_fields(
         DOMAIN,
         "buzz_pattern",
         {
-            ATTR_ENTITY_ID: BUZZER_ENTITY_ID,
+            ATTR_ENTITY_ID: BUZZER_ENTITY_ID(hass),
             "tone": 6,
             "seconds": 0.3,
             "tone2": 0,
@@ -405,7 +422,7 @@ async def test_buzz_pattern_rejects_a_value_off_the_wire(
         await hass.services.async_call(
             DOMAIN,
             "buzz_pattern",
-            {ATTR_ENTITY_ID: BUZZER_ENTITY_ID, **data},
+            {ATTR_ENTITY_ID: BUZZER_ENTITY_ID(hass), **data},
             blocking=True,
         )
     mock_client.buzz_pattern.assert_not_awaited()
@@ -424,7 +441,7 @@ async def test_buzz_pattern_defaults_cycles_to_one(
     await hass.services.async_call(
         DOMAIN,
         "buzz_pattern",
-        {ATTR_ENTITY_ID: BUZZER_ENTITY_ID, "tone": 6, "seconds": 0.3},
+        {ATTR_ENTITY_ID: BUZZER_ENTITY_ID(hass), "tone": 6, "seconds": 0.3},
         blocking=True,
     )
 
@@ -449,7 +466,7 @@ async def test_buzz_pattern_finite_cycles_clears_state_when_the_run_elapses(
         DOMAIN,
         "buzz_pattern",
         {
-            ATTR_ENTITY_ID: BUZZER_ENTITY_ID,
+            ATTR_ENTITY_ID: BUZZER_ENTITY_ID(hass),
             "tone": 6,
             "seconds": 0.4,
             "tone2": 6,
@@ -459,16 +476,16 @@ async def test_buzz_pattern_finite_cycles_clears_state_when_the_run_elapses(
         },
         blocking=True,
     )
-    assert hass.states.get(BUZZER_ENTITY_ID).state == "on"
+    assert hass.states.get(BUZZER_ENTITY_ID(hass)).state == "on"
 
     # The run is delay + cycles * (seconds + seconds2) = 0.5 + 3 * 1 = 3.5 s.
     # async_fire_time_changed adds its own fixed 0.5 s, so the elapsed
     # argument sits 0.5 s under the simulated instant it produces.
     await _elapse(hass, 2.9)
-    assert hass.states.get(BUZZER_ENTITY_ID).state == "on"
+    assert hass.states.get(BUZZER_ENTITY_ID(hass)).state == "on"
 
     await _elapse(hass, 3.1)
-    assert hass.states.get(BUZZER_ENTITY_ID).state == "off"
+    assert hass.states.get(BUZZER_ENTITY_ID(hass)).state == "off"
 
 
 @pytest.mark.usefixtures("siren_only")
@@ -484,10 +501,15 @@ async def test_buzz_pattern_cycles_zero_leaves_it_on_with_no_timer(
     await hass.services.async_call(
         DOMAIN,
         "buzz_pattern",
-        {ATTR_ENTITY_ID: BUZZER_ENTITY_ID, "tone": 6, "seconds": 0.3, "cycles": 0},
+        {
+            ATTR_ENTITY_ID: BUZZER_ENTITY_ID(hass),
+            "tone": 6,
+            "seconds": 0.3,
+            "cycles": 0,
+        },
         blocking=True,
     )
-    assert hass.states.get(BUZZER_ENTITY_ID).state == "on"
+    assert hass.states.get(BUZZER_ENTITY_ID(hass)).state == "on"
 
     await _elapse(hass, 100000)
-    assert hass.states.get(BUZZER_ENTITY_ID).state == "on"
+    assert hass.states.get(BUZZER_ENTITY_ID(hass)).state == "on"

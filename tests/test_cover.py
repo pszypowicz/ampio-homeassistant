@@ -4,7 +4,16 @@ from collections.abc import Generator
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
-from ampio_mqtt import ObjectRemoved, ObjectUpdated
+from ampio_mqtt import (
+    AccessTier,
+    AmpioConnectionError,
+    AmpioNotConfigured,
+    AmpioTimeoutError,
+    AmpioUnsupported,
+    AmpioValueError,
+    ObjectRemoved,
+    ObjectUpdated,
+)
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -12,6 +21,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 from syrupy.assertion import SnapshotAssertion
 
+from custom_components.ampio.const import DOMAIN
 from homeassistant.components.cover import (
     ATTR_CURRENT_POSITION,
     ATTR_POSITION,
@@ -35,15 +45,30 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceNotSupported, ServiceValidationError
+from homeassistant.exceptions import (
+    HomeAssistantError,
+    ServiceNotSupported,
+    ServiceValidationError,
+)
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import emit, pinned_id
+from .conftest import emit, entity_id_of, set_access_tier, unique_id
 
-PLAIN_ENTITY_ID = pinned_id("cover", 81)
-POSITION_ENTITY_ID = pinned_id("cover", 82)
-TILT_ENTITY_ID = pinned_id("cover", 83)
+
+def PLAIN_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 81, composed from the registry."""
+    return entity_id_of(hass, "cover", unique_id(81))
+
+
+def POSITION_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 82, composed from the registry."""
+    return entity_id_of(hass, "cover", unique_id(82))
+
+
+def TILT_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 83, composed from the registry."""
+    return entity_id_of(hass, "cover", unique_id(83))
 
 
 @pytest.fixture(autouse=True)
@@ -74,7 +99,7 @@ async def test_travel_services_map_to_verbs(
     await hass.services.async_call(
         COVER_DOMAIN,
         SERVICE_OPEN_COVER,
-        {ATTR_ENTITY_ID: POSITION_ENTITY_ID},
+        {ATTR_ENTITY_ID: POSITION_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.open.assert_awaited_once_with(82)
@@ -82,7 +107,7 @@ async def test_travel_services_map_to_verbs(
     await hass.services.async_call(
         COVER_DOMAIN,
         SERVICE_CLOSE_COVER,
-        {ATTR_ENTITY_ID: POSITION_ENTITY_ID},
+        {ATTR_ENTITY_ID: POSITION_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.close.assert_awaited_once_with(82)
@@ -90,7 +115,7 @@ async def test_travel_services_map_to_verbs(
     await hass.services.async_call(
         COVER_DOMAIN,
         SERVICE_STOP_COVER,
-        {ATTR_ENTITY_ID: POSITION_ENTITY_ID},
+        {ATTR_ENTITY_ID: POSITION_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.stop.assert_awaited_once_with(82)
@@ -105,7 +130,7 @@ async def test_set_position_maps_to_percent(
     await hass.services.async_call(
         COVER_DOMAIN,
         SERVICE_SET_COVER_POSITION,
-        {ATTR_ENTITY_ID: POSITION_ENTITY_ID, ATTR_POSITION: 60},
+        {ATTR_ENTITY_ID: POSITION_ENTITY_ID(hass), ATTR_POSITION: 60},
         blocking=True,
     )
     mock_client.set_roller_pos.assert_awaited_once_with(82, 60)
@@ -120,7 +145,7 @@ async def test_tilt_services_map_to_lamella(
     await hass.services.async_call(
         COVER_DOMAIN,
         SERVICE_SET_COVER_TILT_POSITION,
-        {ATTR_ENTITY_ID: TILT_ENTITY_ID, ATTR_TILT_POSITION: 25},
+        {ATTR_ENTITY_ID: TILT_ENTITY_ID(hass), ATTR_TILT_POSITION: 25},
         blocking=True,
     )
     mock_client.set_roller_lamella.assert_awaited_once_with(83, 25)
@@ -129,7 +154,7 @@ async def test_tilt_services_map_to_lamella(
     await hass.services.async_call(
         COVER_DOMAIN,
         SERVICE_OPEN_COVER_TILT,
-        {ATTR_ENTITY_ID: TILT_ENTITY_ID},
+        {ATTR_ENTITY_ID: TILT_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_roller_lamella.assert_awaited_once_with(83, 100)
@@ -138,7 +163,7 @@ async def test_tilt_services_map_to_lamella(
     await hass.services.async_call(
         COVER_DOMAIN,
         SERVICE_CLOSE_COVER_TILT,
-        {ATTR_ENTITY_ID: TILT_ENTITY_ID},
+        {ATTR_ENTITY_ID: TILT_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_roller_lamella.assert_awaited_once_with(83, 0)
@@ -153,7 +178,7 @@ async def test_stop_tilt_maps_to_stop(
     await hass.services.async_call(
         COVER_DOMAIN,
         SERVICE_STOP_COVER_TILT,
-        {ATTR_ENTITY_ID: TILT_ENTITY_ID},
+        {ATTR_ENTITY_ID: TILT_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.stop.assert_awaited_once_with(83)
@@ -170,7 +195,7 @@ async def test_push_echo_updates_position(
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
-    state = hass.states.get(POSITION_ENTITY_ID)
+    state = hass.states.get(POSITION_ENTITY_ID(hass))
     assert state.attributes[ATTR_CURRENT_POSITION] == 80
 
 
@@ -185,7 +210,7 @@ async def test_zero_position_reads_closed(
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
-    assert hass.states.get(POSITION_ENTITY_ID).state == STATE_CLOSED
+    assert hass.states.get(POSITION_ENTITY_ID(hass)).state == STATE_CLOSED
 
 
 async def test_plain_cover_has_no_position(
@@ -194,7 +219,7 @@ async def test_plain_cover_has_no_position(
     """A cover without a position axis reports neither position nor closed."""
     await setup_integration(hass, mock_config_entry)
 
-    state = hass.states.get(PLAIN_ENTITY_ID)
+    state = hass.states.get(PLAIN_ENTITY_ID(hass))
     assert ATTR_CURRENT_POSITION not in state.attributes
     assert state.state == "unknown"
 
@@ -223,14 +248,18 @@ async def test_a_lock_drops_the_feature_it_refuses(
 ) -> None:
     """Each lock bit removes the travel service the module would drop."""
     await setup_integration(hass, mock_config_entry)
-    unlocked = hass.states.get(POSITION_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
+    unlocked = hass.states.get(POSITION_ENTITY_ID(hass)).attributes[
+        ATTR_SUPPORTED_FEATURES
+    ]
 
     obj = replace(mock_client.objects[82], block=block)
     mock_client.objects[82] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
-    features = hass.states.get(POSITION_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
+    features = hass.states.get(POSITION_ENTITY_ID(hass)).attributes[
+        ATTR_SUPPORTED_FEATURES
+    ]
     assert features == unlocked & ~expected_missing
     assert CoverEntityFeature.STOP & features
 
@@ -276,14 +305,14 @@ async def test_a_lock_drops_the_tilt_feature_it_refuses(
     stay, because the allowed direction can still be running.
     """
     await setup_integration(hass, mock_config_entry)
-    unlocked = hass.states.get(TILT_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
+    unlocked = hass.states.get(TILT_ENTITY_ID(hass)).attributes[ATTR_SUPPORTED_FEATURES]
 
     obj = replace(mock_client.objects[83], block=block)
     mock_client.objects[83] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
-    features = hass.states.get(TILT_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
+    features = hass.states.get(TILT_ENTITY_ID(hass)).attributes[ATTR_SUPPORTED_FEATURES]
     assert features == unlocked & ~expected_missing
     assert CoverEntityFeature.STOP & features
     assert CoverEntityFeature.STOP_TILT & features
@@ -320,7 +349,7 @@ async def test_a_blocked_tilt_move_is_refused(
         await hass.services.async_call(
             COVER_DOMAIN,
             SERVICE_SET_COVER_TILT_POSITION,
-            {ATTR_ENTITY_ID: TILT_ENTITY_ID, ATTR_TILT_POSITION: target},
+            {ATTR_ENTITY_ID: TILT_ENTITY_ID(hass), ATTR_TILT_POSITION: target},
             blocking=True,
         )
     assert excinfo.value.translation_key == expected_key
@@ -352,7 +381,7 @@ async def test_a_tilt_move_the_lock_allows_goes_out(
     await hass.services.async_call(
         COVER_DOMAIN,
         SERVICE_SET_COVER_TILT_POSITION,
-        {ATTR_ENTITY_ID: TILT_ENTITY_ID, ATTR_TILT_POSITION: target},
+        {ATTR_ENTITY_ID: TILT_ENTITY_ID(hass), ATTR_TILT_POSITION: target},
         blocking=True,
     )
     mock_client.set_roller_lamella.assert_awaited_once_with(83, target)
@@ -372,7 +401,7 @@ async def test_an_unknown_tilt_allows_the_move(
     await hass.services.async_call(
         COVER_DOMAIN,
         SERVICE_SET_COVER_TILT_POSITION,
-        {ATTR_ENTITY_ID: TILT_ENTITY_ID, ATTR_TILT_POSITION: 90},
+        {ATTR_ENTITY_ID: TILT_ENTITY_ID(hass), ATTR_TILT_POSITION: 90},
         blocking=True,
     )
     mock_client.set_roller_lamella.assert_awaited_once_with(83, 90)
@@ -412,7 +441,7 @@ async def test_a_blocked_position_move_is_refused(
         await hass.services.async_call(
             COVER_DOMAIN,
             SERVICE_SET_COVER_POSITION,
-            {ATTR_ENTITY_ID: POSITION_ENTITY_ID, ATTR_POSITION: target},
+            {ATTR_ENTITY_ID: POSITION_ENTITY_ID(hass), ATTR_POSITION: target},
             blocking=True,
         )
     assert excinfo.value.translation_key == expected_key
@@ -437,7 +466,7 @@ async def test_an_unknown_position_allows_the_move(
     await hass.services.async_call(
         COVER_DOMAIN,
         SERVICE_SET_COVER_POSITION,
-        {ATTR_ENTITY_ID: POSITION_ENTITY_ID, ATTR_POSITION: 50},
+        {ATTR_ENTITY_ID: POSITION_ENTITY_ID(hass), ATTR_POSITION: 50},
         blocking=True,
     )
     mock_client.set_roller_pos.assert_awaited_once_with(82, 50)
@@ -469,7 +498,7 @@ async def test_a_move_the_lock_allows_goes_out(
     await hass.services.async_call(
         COVER_DOMAIN,
         SERVICE_SET_COVER_POSITION,
-        {ATTR_ENTITY_ID: POSITION_ENTITY_ID, ATTR_POSITION: target},
+        {ATTR_ENTITY_ID: POSITION_ENTITY_ID(hass), ATTR_POSITION: target},
         blocking=True,
     )
     mock_client.set_roller_pos.assert_awaited_once_with(82, target)
@@ -502,7 +531,7 @@ async def test_a_blocked_travel_service_is_not_supported(
         await hass.services.async_call(
             COVER_DOMAIN,
             service,
-            {ATTR_ENTITY_ID: POSITION_ENTITY_ID},
+            {ATTR_ENTITY_ID: POSITION_ENTITY_ID(hass)},
             blocking=True,
         )
     getattr(mock_client, verb).assert_not_awaited()
@@ -527,7 +556,9 @@ async def test_read_only_object_drops_every_feature(
     reading the state the entity started with.
     """
     await setup_integration(hass, mock_config_entry)
-    unblocked = hass.states.get(POSITION_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
+    unblocked = hass.states.get(POSITION_ENTITY_ID(hass)).attributes[
+        ATTR_SUPPORTED_FEATURES
+    ]
     assert unblocked
 
     obj = mock_client.objects[82]
@@ -536,7 +567,9 @@ async def test_read_only_object_drops_every_feature(
     emit(mock_client, ObjectUpdated(object=mock_client.objects[82]))
     await hass.async_block_till_done()
 
-    features = hass.states.get(POSITION_ENTITY_ID).attributes[ATTR_SUPPORTED_FEATURES]
+    features = hass.states.get(POSITION_ENTITY_ID(hass)).attributes[
+        ATTR_SUPPORTED_FEATURES
+    ]
 
     if read_only:
         assert features == CoverEntityFeature(0)
@@ -544,7 +577,7 @@ async def test_read_only_object_drops_every_feature(
             await hass.services.async_call(
                 COVER_DOMAIN,
                 SERVICE_OPEN_COVER,
-                {ATTR_ENTITY_ID: POSITION_ENTITY_ID},
+                {ATTR_ENTITY_ID: POSITION_ENTITY_ID(hass)},
                 blocking=True,
             )
         mock_client.open.assert_not_awaited()
@@ -553,7 +586,7 @@ async def test_read_only_object_drops_every_feature(
         await hass.services.async_call(
             COVER_DOMAIN,
             SERVICE_OPEN_COVER,
-            {ATTR_ENTITY_ID: POSITION_ENTITY_ID},
+            {ATTR_ENTITY_ID: POSITION_ENTITY_ID(hass)},
             blocking=True,
         )
         mock_client.open.assert_awaited_once_with(82)
@@ -569,4 +602,203 @@ async def test_removed_object_becomes_unavailable(
     emit(mock_client, ObjectRemoved(object=obj))
     await hass.async_block_till_done()
 
-    assert hass.states.get(PLAIN_ENTITY_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(PLAIN_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
+
+
+async def _set_roller_lock(
+    hass: HomeAssistant, entity_id: str, direction: str, blocked: bool
+) -> None:
+    """Call ``ampio.set_roller_lock`` against ``entity_id``."""
+    await hass.services.async_call(
+        DOMAIN,
+        "set_roller_lock",
+        {ATTR_ENTITY_ID: entity_id, "direction": direction, "blocked": blocked},
+        blocking=True,
+    )
+
+
+async def test_set_roller_lock_registers_under_the_ampio_domain(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """An entity service registers under the integration domain, not the platform's."""
+    await setup_integration(hass, mock_config_entry)
+
+    assert hass.services.has_service(DOMAIN, "set_roller_lock")
+    assert not hass.services.has_service(COVER_DOMAIN, "set_roller_lock")
+
+
+@pytest.mark.parametrize(
+    ("direction", "blocked", "verb"),
+    [
+        pytest.param("opening", True, "block_opening", id="block-opening"),
+        pytest.param("opening", False, "unblock_opening", id="unblock-opening"),
+        pytest.param("closing", True, "block_closing", id="block-closing"),
+        pytest.param("closing", False, "unblock_closing", id="unblock-closing"),
+    ],
+)
+async def test_set_roller_lock_sends_the_matching_verb(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    direction: str,
+    blocked: bool,
+    verb: str,
+) -> None:
+    """Each direction and hold state maps to its own library call."""
+    await setup_integration(hass, mock_config_entry)
+
+    await _set_roller_lock(hass, POSITION_ENTITY_ID(hass), direction, blocked)
+
+    getattr(mock_client, verb).assert_awaited_once_with(82)
+
+
+@pytest.mark.parametrize(
+    ("blocked", "verbs"),
+    [
+        pytest.param(True, ("block_opening", "block_closing"), id="block-both"),
+        pytest.param(False, ("unblock_opening", "unblock_closing"), id="unblock-both"),
+    ],
+)
+async def test_set_roller_lock_both_sends_one_call_per_direction(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    blocked: bool,
+    verbs: tuple[str, str],
+) -> None:
+    """Direction "both" sends one call for opening and one for closing."""
+    await setup_integration(hass, mock_config_entry)
+
+    await _set_roller_lock(hass, POSITION_ENTITY_ID(hass), "both", blocked)
+
+    for verb in verbs:
+        getattr(mock_client, verb).assert_awaited_once_with(82)
+
+
+async def test_set_roller_lock_refuses_on_a_standard_account(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A standard account is not served the raw tree, so the action says so."""
+    block_opening = mock_client.block_opening
+    block_closing = mock_client.block_closing
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _set_roller_lock(hass, POSITION_ENTITY_ID(hass), "both", True)
+    assert excinfo.value.translation_key == "cover_lock_not_admin"
+    block_opening.assert_not_awaited()
+    block_closing.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("error", "key"),
+    [
+        pytest.param(
+            AmpioNotConfigured(collisions=((52111, ()),)),
+            "cover_lock_not_configured",
+            id="deleted-module",
+        ),
+        pytest.param(
+            AmpioNotConfigured(collisions=((52111, (17, 18)),)),
+            "cover_lock_not_configured",
+            id="mac-collision",
+        ),
+        pytest.param(
+            AmpioValueError("no sweep answered"), "cover_lock_not_swept", id="not-swept"
+        ),
+        pytest.param(
+            AmpioUnsupported("not a cover"), "cover_lock_unsupported", id="not-a-cover"
+        ),
+        pytest.param(
+            AmpioUnsupported("no roller count"),
+            "cover_lock_unsupported",
+            id="no-roller-count",
+        ),
+        pytest.param(
+            AmpioUnsupported("past last channel"),
+            "cover_lock_unsupported",
+            id="past-last-channel",
+        ),
+    ],
+)
+async def test_set_roller_lock_translates_refusal(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    error: Exception,
+    key: str,
+) -> None:
+    """Each lock refusal reports the matching translated reason."""
+    mock_client.block_opening.side_effect = error
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _set_roller_lock(hass, POSITION_ENTITY_ID(hass), "opening", True)
+    assert excinfo.value.translation_key == key
+    assert excinfo.value.__cause__ is error
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(AmpioConnectionError("broker down"), id="connection"),
+        pytest.param(AmpioTimeoutError("no reply"), id="timeout"),
+    ],
+)
+async def test_set_roller_lock_translates_a_transport_failure(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    error: Exception,
+) -> None:
+    """A transport error on the lock reports the translated roller lock failure."""
+    mock_client.block_opening.side_effect = error
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(HomeAssistantError) as excinfo:
+        await _set_roller_lock(hass, POSITION_ENTITY_ID(hass), "opening", True)
+    assert not isinstance(excinfo.value, ServiceValidationError)
+    assert excinfo.value.translation_key == "cover_lock_failed"
+    assert excinfo.value.__cause__ is error
+
+
+async def test_set_roller_lock_reports_a_missing_object(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A cover lost during a write reports a missing object instead of a silent sweep."""
+    error = AmpioValueError("object 82 is not in the catalogue")
+
+    async def missing_object(object_id: int) -> None:
+        mock_client.objects.pop(object_id)
+        raise error
+
+    mock_client.block_opening.side_effect = missing_object
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _set_roller_lock(hass, POSITION_ENTITY_ID(hass), "opening", True)
+
+    assert excinfo.value.translation_key == "cover_lock_object_missing"
+    assert excinfo.value.__cause__ is error
+
+
+async def test_set_roller_lock_ignores_the_read_only_marker(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The read-only marker gates the /api path, not the raw tree this write rides.
+
+    An administrator can still hold or release a read-only cover's lock,
+    the way the FAQ promises, so this write must not call
+    ``raise_if_read_only`` the way the other write methods on this entity do.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    obj = mock_client.objects[82]
+    mock_client.objects[82] = replace(obj, params=obj.params | (1 << 6))
+    emit(mock_client, ObjectUpdated(object=mock_client.objects[82]))
+    await hass.async_block_till_done()
+
+    await _set_roller_lock(hass, POSITION_ENTITY_ID(hass), "opening", True)
+
+    mock_client.block_opening.assert_awaited_once_with(82)

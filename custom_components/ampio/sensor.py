@@ -4,7 +4,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Final, override
 
-from ampio_mqtt import AmpioModule, AmpioObject, ModuleUpdated, SensorKind
+from ampio_mqtt import (
+    AmpioAdminClient,
+    AmpioModule,
+    AmpioObject,
+    ModuleRemoved,
+    ModuleUpdated,
+    SensorKind,
+)
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -194,10 +201,12 @@ def build_sensors(data: AmpioData, obj: AmpioObject) -> list[SensorEntity]:
     return entities
 
 
-def build_module_sensors(data: AmpioData, module_id: int) -> list[AmpioModuleSensor]:
+def build_module_sensors(
+    data: AmpioData, admin: AmpioAdminClient, mac: int
+) -> list[AmpioModuleSensor]:
     """The sensor platform's entities for one module device."""
     return [
-        AmpioModuleSensor(data, module_id, description)
+        AmpioModuleSensor(data, mac, description)
         for description in MODULE_SENSOR_DESCRIPTIONS
     ]
 
@@ -209,8 +218,8 @@ async def async_setup_entry(
 ) -> None:
     """Register the sensor platform; the runtime data builds and keeps its entities."""
     entry.runtime_data.async_add_platform(build_sensors, async_add_entities)
-    entry.runtime_data.async_add_module_platform(
-        build_module_sensors, async_add_entities, admin_only=True
+    entry.runtime_data.async_add_admin_module_platform(
+        build_module_sensors, async_add_entities
     )
 
 
@@ -327,11 +336,11 @@ class AmpioModuleSensor(AmpioModuleEntity, SensorEntity):
     def __init__(
         self,
         data: AmpioData,
-        module_id: int,
+        mac: int,
         description: AmpioModuleSensorEntityDescription,
     ) -> None:
         """Attach to the module device, and carry the reading's description."""
-        super().__init__(data, module_id, key_suffix=description.key)
+        super().__init__(data, mac, key_suffix=description.key)
         self.entity_description = description
 
     @override
@@ -339,28 +348,38 @@ class AmpioModuleSensor(AmpioModuleEntity, SensorEntity):
         """Follow the module's own broadcasts, on top of the connection."""
         await super().async_added_to_hass()
         self.async_on_remove(
-            self._data.client.subscribe(self._module_updated, of=ModuleUpdated)
+            self._data.client.subscribe(
+                self._module_updated, of=(ModuleUpdated, ModuleRemoved)
+            )
         )
 
     @callback
-    def _module_updated(self, event: ModuleUpdated) -> None:
-        """Write state when this module's own diagnostics change.
+    def _module_updated(self, event: ModuleUpdated | ModuleRemoved) -> None:
+        """Write state when this override mac's row changes, gains a reading, or goes.
 
-        The client filters a subscription by object id and nothing else, so
-        the module id is compared here.
+        The client filters subscriptions by object id alone, so this
+        callback compares the module's override mac. A row can also leave
+        this mac without a removal, because the library reports a mac
+        reassigned on an existing row as a ``ModuleUpdated`` carrying the
+        new mac alone. So an event on any mac writes state while no row
+        holds this one, and ``native_value`` reads back to None.
         """
-        if event.module.id == self._module_id:
+        if (
+            event.module.mac == self._mac
+            or self._data.module_row_for(self._mac) is None
+        ):
             self.async_write_ha_state()
 
     @property
     @override
     def native_value(self) -> float | None:
-        """The reading, or None until the module broadcasts one.
+        """The reading, or None when the module or its reading is absent.
 
-        ``module_row()`` covers a row the catalogue dropped mid-session,
-        whose device the stale repair lists in the same pass.
+        ``module_row_for`` returns None when the catalogue drops a row,
+        which a live object on that mac can outlast, so this reading
+        going None carries no claim about the module device being stale.
         """
-        module = self._data.module_row(self._module_id)
+        module = self._data.module_row_for(self._mac)
         if module is None:
             return None
         return self.entity_description.value_fn(module)

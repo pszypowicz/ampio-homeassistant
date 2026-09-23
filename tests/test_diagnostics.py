@@ -1,6 +1,6 @@
 """Tests for the Ampio diagnostics platform."""
 
-from dataclasses import asdict, replace
+from dataclasses import asdict
 import json
 from unittest.mock import MagicMock
 
@@ -14,7 +14,7 @@ from syrupy.assertion import SnapshotAssertion
 
 from custom_components.ampio.const import DOMAIN
 from custom_components.ampio.diagnostics import TO_REDACT_ENTRY, TO_REDACT_SNAPSHOT
-from homeassistant.components.diagnostics import async_redact_data
+from homeassistant.components.diagnostics import REDACTED, async_redact_data
 from homeassistant.const import CONF_HOST, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 
@@ -32,7 +32,6 @@ from .conftest import (
 # A connected-state report shaped like the library's diagnostics_snapshot(),
 # carrying the default test server's identity.
 DIAGNOSTICS_SNAPSHOT = {
-    "access_tier": "admin",
     "available": True,
     "auth_failure": None,
     "server_info": asdict(SERVER_INFO),
@@ -42,14 +41,17 @@ DIAGNOSTICS_SNAPSHOT = {
         "last_message_at": "2026-08-27T06:05:00+00:00",
         "last_error": None,
         "subscribe_failures": {},
+        "protocol_violations": {},
     },
+    "params_gap": [],
+    "not_configured": [],
     "mac_collisions": [],
     # One row per module: the relay has pushed since the connect and carries
     # its health broadcast, the sensor module has not spoken yet.
     "modules": [
         {
             "id": 3,
-            "mac": 48770,
+            "mac": "0xBE82",
             "typ_urzadzenia": 4,
             "model": "M-REL-8s",
             "last_seen": 1782108300.0,
@@ -58,7 +60,7 @@ DIAGNOSTICS_SNAPSHOT = {
         },
         {
             "id": 17,
-            "mac": 52111,
+            "mac": "0xCB8F",
             "typ_urzadzenia": 44,
             "model": "M-SENS",
             "last_seen": None,
@@ -84,7 +86,7 @@ async def test_config_entry_diagnostics(
     snapshot: SnapshotAssertion,
 ) -> None:
     """Snapshot the diagnostics payload with the host identifiers redacted."""
-    mock_client.diagnostics_snapshot.return_value = DIAGNOSTICS_SNAPSHOT
+    mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
     result = await get_diagnostics_for_config_entry(
@@ -133,6 +135,28 @@ async def test_config_entry_diagnostics_carries_no_username(
     assert username not in json.dumps(result)
 
 
+async def test_config_entry_diagnostics_redacts_refused_object_name(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """A refused object's Designer name is redacted while its row ID survives."""
+    designer_name = "Private room window"
+    mock_client.diagnostics_snapshot.return_value = {
+        **DIAGNOSTICS_SNAPSHOT,
+        "not_configured": [[901, designer_name]],
+    }
+    await setup_integration(hass, mock_config_entry)
+
+    result = await get_diagnostics_for_config_entry(
+        hass, hass_client, mock_config_entry
+    )
+
+    assert designer_name not in json.dumps(result)
+    assert result["snapshot"]["not_configured"] == [[901, REDACTED]]
+
+
 async def test_designer_config_standard_account_has_no_modules_and_does_not_raise(
     hass: HomeAssistant,
     hass_client: ClientSessionGenerator,
@@ -148,7 +172,7 @@ async def test_designer_config_standard_account_has_no_modules_and_does_not_rais
     None because the sweep that would fill it in is admin-only.
     """
     set_access_tier(mock_client, AccessTier.RESTRICTED)
-    mock_client.diagnostics_snapshot.return_value = DIAGNOSTICS_SNAPSHOT
+    mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
     result = await get_diagnostics_for_config_entry(
@@ -179,7 +203,7 @@ async def test_designer_config_reports_modules_and_covers(
     with_buzzer(mock_client)
     with_panel_settings(mock_client)
     with_cover_parameters(mock_client)
-    mock_client.diagnostics_snapshot.return_value = DIAGNOSTICS_SNAPSHOT
+    mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
     result = await get_diagnostics_for_config_entry(
@@ -211,7 +235,7 @@ async def test_designer_config_emits_only_the_reviewed_keys(
     """
     with_panel_settings(mock_client)
     with_cover_parameters(mock_client)
-    mock_client.diagnostics_snapshot.return_value = DIAGNOSTICS_SNAPSHOT
+    mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
     result = await get_diagnostics_for_config_entry(
@@ -260,11 +284,12 @@ async def test_designer_config_names_known_capability_and_numbers_unknown(
 ) -> None:
     """A capability id the library names reads as a name, and one it does not as a number."""
     with_buzzer(mock_client)
-    module = mock_client.modules[17]
-    mock_client.modules[17] = replace(
-        module, capabilities={**module.capabilities, 200: 11}
-    )
-    mock_client.diagnostics_snapshot.return_value = DIAGNOSTICS_SNAPSHOT
+    module_mac = mock_client.modules[17].mac
+    mock_client.capabilities[module_mac] = {
+        **mock_client.capabilities[module_mac],
+        200: 11,
+    }
+    mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
     result = await get_diagnostics_for_config_entry(
@@ -282,7 +307,7 @@ async def test_designer_config_module_without_panel_settings_reports_none(
     mock_config_entry: MockConfigEntry,
 ) -> None:
     """A module the fixture never gave panel settings reports None, not an absent key."""
-    mock_client.diagnostics_snapshot.return_value = DIAGNOSTICS_SNAPSHOT
+    mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
     result = await get_diagnostics_for_config_entry(
@@ -307,7 +332,7 @@ async def test_designer_config_lists_every_cover_reporting_none_without_paramete
     report most needs to rule out.
     """
     with_cover_parameters(mock_client)
-    mock_client.diagnostics_snapshot.return_value = DIAGNOSTICS_SNAPSHOT
+    mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
     result = await get_diagnostics_for_config_entry(
@@ -331,7 +356,7 @@ async def test_designer_config_leaves_entry_data_and_snapshot_unchanged(
     mock_config_entry: MockConfigEntry,
 ) -> None:
     """Adding the section changes neither the entry data nor the client snapshot block."""
-    mock_client.diagnostics_snapshot.return_value = DIAGNOSTICS_SNAPSHOT
+    mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
     result = await get_diagnostics_for_config_entry(

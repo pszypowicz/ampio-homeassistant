@@ -34,9 +34,12 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import emit, pinned_id
+from .conftest import emit, entity_id_of, unique_id
 
-THERMOSTAT_ENTITY_ID = pinned_id("climate", 91)
+
+def THERMOSTAT_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 91, composed from the registry."""
+    return entity_id_of(hass, "climate", unique_id(91))
 
 
 @pytest.fixture(autouse=True)
@@ -74,19 +77,25 @@ async def test_set_temperature_waits_for_the_echo(
 ) -> None:
     """The setpoint command passes through; the state follows the readback."""
     await setup_integration(hass, mock_config_entry)
-    assert hass.states.get(THERMOSTAT_ENTITY_ID).attributes[ATTR_TEMPERATURE] == 22.5
+    assert (
+        hass.states.get(THERMOSTAT_ENTITY_ID(hass)).attributes[ATTR_TEMPERATURE] == 22.5
+    )
 
     await hass.services.async_call(
         CLIMATE_DOMAIN,
         SERVICE_SET_TEMPERATURE,
-        {ATTR_ENTITY_ID: THERMOSTAT_ENTITY_ID, ATTR_TEMPERATURE: 21.5},
+        {ATTR_ENTITY_ID: THERMOSTAT_ENTITY_ID(hass), ATTR_TEMPERATURE: 21.5},
         blocking=True,
     )
     mock_client.set_temperature.assert_awaited_once_with(91, 21.5)
-    assert hass.states.get(THERMOSTAT_ENTITY_ID).attributes[ATTR_TEMPERATURE] == 22.5
+    assert (
+        hass.states.get(THERMOSTAT_ENTITY_ID(hass)).attributes[ATTR_TEMPERATURE] == 22.5
+    )
 
     await _push_thermostat(hass, mock_client, set_temperature=21.5)
-    assert hass.states.get(THERMOSTAT_ENTITY_ID).attributes[ATTR_TEMPERATURE] == 21.5
+    assert (
+        hass.states.get(THERMOSTAT_ENTITY_ID(hass)).attributes[ATTR_TEMPERATURE] == 21.5
+    )
 
 
 async def test_set_preset_mode_maps_to_heating_mode(
@@ -95,13 +104,14 @@ async def test_set_preset_mode_maps_to_heating_mode(
     """Choosing a preset sends the matching wire letter."""
     await setup_integration(hass, mock_config_entry)
     assert (
-        hass.states.get(THERMOSTAT_ENTITY_ID).attributes[ATTR_PRESET_MODE] == "schedule"
+        hass.states.get(THERMOSTAT_ENTITY_ID(hass)).attributes[ATTR_PRESET_MODE]
+        == "schedule"
     )
 
     await hass.services.async_call(
         CLIMATE_DOMAIN,
         SERVICE_SET_PRESET_MODE,
-        {ATTR_ENTITY_ID: THERMOSTAT_ENTITY_ID, ATTR_PRESET_MODE: "manual"},
+        {ATTR_ENTITY_ID: THERMOSTAT_ENTITY_ID(hass), ATTR_PRESET_MODE: "manual"},
         blocking=True,
     )
     mock_client.set_heating_mode.assert_awaited_once_with(91, "M")
@@ -112,7 +122,7 @@ async def test_action_follows_running_and_cooling_flags(
 ) -> None:
     """Idle, heating, and cooling derive from the running and cooling flags."""
     await setup_integration(hass, mock_config_entry)
-    state = hass.states.get(THERMOSTAT_ENTITY_ID)
+    state = hass.states.get(THERMOSTAT_ENTITY_ID(hass))
     assert state.attributes[ATTR_HVAC_ACTION] == HVACAction.HEATING
 
     obj = replace(mock_client.objects[91], state="0")
@@ -120,7 +130,7 @@ async def test_action_follows_running_and_cooling_flags(
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
     assert (
-        hass.states.get(THERMOSTAT_ENTITY_ID).attributes[ATTR_HVAC_ACTION]
+        hass.states.get(THERMOSTAT_ENTITY_ID(hass)).attributes[ATTR_HVAC_ACTION]
         == HVACAction.IDLE
     )
 
@@ -132,7 +142,7 @@ async def test_action_follows_running_and_cooling_flags(
     mock_client.objects[91] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
-    state = hass.states.get(THERMOSTAT_ENTITY_ID)
+    state = hass.states.get(THERMOSTAT_ENTITY_ID(hass))
     assert state.attributes[ATTR_HVAC_ACTION] == HVACAction.COOLING
     assert state.state == HVACMode.COOL
     assert state.attributes[ATTR_HVAC_MODES] == [HVACMode.COOL]
@@ -144,11 +154,14 @@ async def test_unknown_mode_letter_reads_no_preset(
     """A wire letter outside the vocabulary maps to no preset, not a guess."""
     await setup_integration(hass, mock_config_entry)
     assert (
-        hass.states.get(THERMOSTAT_ENTITY_ID).attributes[ATTR_PRESET_MODE] == "schedule"
+        hass.states.get(THERMOSTAT_ENTITY_ID(hass)).attributes[ATTR_PRESET_MODE]
+        == "schedule"
     )
 
     await _push_thermostat(hass, mock_client, mode="X")
-    assert hass.states.get(THERMOSTAT_ENTITY_ID).attributes[ATTR_PRESET_MODE] is None
+    assert (
+        hass.states.get(THERMOSTAT_ENTITY_ID(hass)).attributes[ATTR_PRESET_MODE] is None
+    )
 
 
 async def test_missing_readback_reads_no_temperature_or_preset(
@@ -162,7 +175,7 @@ async def test_missing_readback_reads_no_temperature_or_preset(
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
-    state = hass.states.get(THERMOSTAT_ENTITY_ID)
+    state = hass.states.get(THERMOSTAT_ENTITY_ID(hass))
     assert state.attributes[ATTR_CURRENT_TEMPERATURE] is None
     assert state.attributes[ATTR_TEMPERATURE] is None
     assert state.attributes[ATTR_PRESET_MODE] is None
@@ -183,12 +196,15 @@ async def test_preset_round_trip(
     await setup_integration(hass, mock_config_entry)
 
     await _push_thermostat(hass, mock_client, mode=letter)
-    assert hass.states.get(THERMOSTAT_ENTITY_ID).attributes[ATTR_PRESET_MODE] == preset
+    assert (
+        hass.states.get(THERMOSTAT_ENTITY_ID(hass)).attributes[ATTR_PRESET_MODE]
+        == preset
+    )
 
     await hass.services.async_call(
         CLIMATE_DOMAIN,
         SERVICE_SET_PRESET_MODE,
-        {ATTR_ENTITY_ID: THERMOSTAT_ENTITY_ID, ATTR_PRESET_MODE: preset},
+        {ATTR_ENTITY_ID: THERMOSTAT_ENTITY_ID(hass), ATTR_PRESET_MODE: preset},
         blocking=True,
     )
     mock_client.set_heating_mode.assert_awaited_once_with(91, letter)
@@ -211,7 +227,7 @@ async def test_read_only_object_rejects_writes(
         await hass.services.async_call(
             CLIMATE_DOMAIN,
             SERVICE_SET_TEMPERATURE,
-            {ATTR_ENTITY_ID: THERMOSTAT_ENTITY_ID, ATTR_TEMPERATURE: 21.5},
+            {ATTR_ENTITY_ID: THERMOSTAT_ENTITY_ID(hass), ATTR_TEMPERATURE: 21.5},
             blocking=True,
         )
     mock_client.set_temperature.assert_not_called()
@@ -220,7 +236,7 @@ async def test_read_only_object_rejects_writes(
         await hass.services.async_call(
             CLIMATE_DOMAIN,
             SERVICE_SET_PRESET_MODE,
-            {ATTR_ENTITY_ID: THERMOSTAT_ENTITY_ID, ATTR_PRESET_MODE: "manual"},
+            {ATTR_ENTITY_ID: THERMOSTAT_ENTITY_ID(hass), ATTR_PRESET_MODE: "manual"},
             blocking=True,
         )
     mock_client.set_heating_mode.assert_not_called()
@@ -236,4 +252,4 @@ async def test_removed_object_becomes_unavailable(
     emit(mock_client, ObjectRemoved(object=obj))
     await hass.async_block_till_done()
 
-    assert hass.states.get(THERMOSTAT_ENTITY_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(THERMOSTAT_ENTITY_ID(hass)).state == STATE_UNAVAILABLE

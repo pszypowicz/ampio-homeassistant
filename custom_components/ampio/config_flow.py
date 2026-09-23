@@ -5,10 +5,12 @@ import logging
 from typing import Any, override
 
 from ampio_mqtt import (
+    AccessTier,
     AmpioAuthError,
     AmpioClient,
     AmpioConnectionError,
     AmpioServerInfo,
+    format_mac,
 )
 import voluptuous as vol
 
@@ -20,7 +22,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 
-from .const import DEFAULT_HOST, DOMAIN
+from .const import ADMIN_USERNAME, DEFAULT_HOST, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,6 +53,16 @@ class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
         ``AmpioConnectionError``, so a slow broker and a transport failure
         read alike: something is wrong with the connection, not the
         account.
+
+        The account tier is the login name, and setup gives the reserved
+        name the administrator client and every other name the standard
+        one. The server decides the same question from the account id it
+        answers with, so the two verdicts have to agree before the name is
+        stored. They disagree when the administrator signs in under a
+        spelling that is not the reserved one, which setup would serve as
+        a standard account, taking every administrator entity with it and
+        saying nothing. Every step that takes credentials comes through
+        here, so create, reauth and reconfigure are all held to it.
         """
         try:
             info = await AmpioClient.check_connection(
@@ -66,6 +78,10 @@ class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Unexpected exception")
             return None, {"base": "unknown"}
         else:
+            if (info.access_tier is AccessTier.ADMIN) != (
+                user_input[CONF_USERNAME] == ADMIN_USERNAME
+            ):
+                return None, {CONF_USERNAME: "admin_login_name"}
             return info, {}
 
     @override
@@ -177,7 +193,7 @@ class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
                 data_schema=vol.Schema({}),
                 description_placeholders={
                     "host": self._pending_input[CONF_HOST],
-                    "mac": f"0x{self._pending_mac:X}",
+                    "mac": format_mac(self._pending_mac),
                 },
             )
         return self.async_update_reload_and_abort(

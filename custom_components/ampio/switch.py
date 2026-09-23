@@ -1,23 +1,13 @@
 """Switch platform for the Ampio integration."""
 
-from collections.abc import Callable, Coroutine
-from dataclasses import dataclass
-from typing import Any, Final, override
+from typing import Any, override
 
-from ampio_mqtt import AmpioClient, AmpioObject, AmpioValueError, InputKind, OutputKind
+from ampio_mqtt import AmpioObject, InputKind, OutputKind
 
-from homeassistant.components.switch import (
-    SwitchDeviceClass,
-    SwitchEntity,
-    SwitchEntityDescription,
-)
-from homeassistant.const import EntityCategory
+from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN
-from .cover import is_cover
 from .data import AmpioConfigEntry, AmpioData
 from .entity import AmpioEntity, async_turn_on_honoring_pulse, raise_if_read_only
 from .light import LIGHT_MATTER_TYPES
@@ -48,57 +38,15 @@ def is_switch(obj: AmpioObject) -> bool:
     return kind.key == "relay" and obj.matter_device_type not in LIGHT_MATTER_TYPES
 
 
-@dataclass(kw_only=True, frozen=True)
-class AmpioCoverLockEntityDescription(SwitchEntityDescription):
-    """One direction of a cover's roller lock."""
-
-    is_locked_fn: Callable[[AmpioObject], bool]
-    block_fn: Callable[[AmpioClient, int], Coroutine[Any, Any, None]]
-    unblock_fn: Callable[[AmpioClient, int], Coroutine[Any, Any, None]]
-
-
-# The lock is configuration, not a control, because a house-wide
-# switch.turn_off aimed at an area must not release every cover.
-# EntityCategory.CONFIG keeps these out of area, device, and floor
-# targeting, and out of Assist and HomeKit. It does not filter a direct
-# entity id list, entity_id: all, or a template over states.switch, so a
-# script written either of those ways can still release a lock a Designer
-# alarm rule is holding. See docs/faq.md.
-COVER_LOCK_DESCRIPTIONS: Final = (
-    AmpioCoverLockEntityDescription(
-        key="lock_opening",
-        translation_key="lock_opening",
-        entity_category=EntityCategory.CONFIG,
-        is_locked_fn=lambda obj: obj.blocks_opening,
-        block_fn=lambda client, object_id: client.block_opening(object_id),
-        unblock_fn=lambda client, object_id: client.unblock_opening(object_id),
-    ),
-    AmpioCoverLockEntityDescription(
-        key="lock_closing",
-        translation_key="lock_closing",
-        entity_category=EntityCategory.CONFIG,
-        is_locked_fn=lambda obj: obj.blocks_closing,
-        block_fn=lambda client, object_id: client.block_closing(object_id),
-        unblock_fn=lambda client, object_id: client.unblock_closing(object_id),
-    ),
-)
-
-
 def build_switches(data: AmpioData, obj: AmpioObject) -> list[SwitchEntity]:
     """The switch platform's entities for one object.
 
-    A relay or a writable flag takes one switch. A cover takes one lock
-    switch per direction instead: the lock is a property of the cover
-    channel, and the cover entity itself can only report it by dropping a
-    feature.
+    A relay or a writable flag takes one switch. A cover takes none: its
+    roller lock reads through the binary sensor platform and is written
+    through the ampio.set_roller_lock action.
     """
     if is_switch(obj):
         return [AmpioSwitch(data, obj)]
-    if is_cover(obj):
-        return [
-            AmpioCoverLockSwitch(data, obj, description)
-            for description in COVER_LOCK_DESCRIPTIONS
-        ]
     return []
 
 
@@ -149,85 +97,3 @@ class AmpioSwitch(AmpioEntity, SwitchEntity):
         """Turn the object off."""
         raise_if_read_only(self._object)
         await self._data.client.turn_off(self._object_id)
-
-
-class AmpioCoverLockSwitch(AmpioEntity, SwitchEntity):
-    """One direction of a cover's roller lock.
-
-    The read works on both account tiers, because ``block`` rides the
-    object state push. The write rides the raw tree, which the
-    administrator login alone receives, and it needs the module's roller
-    channel count: that count sizes the frame's channel mask, and one
-    module generation drops a lock frame in silence without it.
-    """
-
-    entity_description: AmpioCoverLockEntityDescription
-
-    def __init__(
-        self,
-        data: AmpioData,
-        obj: AmpioObject,
-        description: AmpioCoverLockEntityDescription,
-    ) -> None:
-        """Initialize beside the cover, with a suffixed key per direction."""
-        super().__init__(data, obj, key_suffix=f"_{description.key}")
-        self.entity_description = description
-        # The base class silences a named object's primary entity in favor
-        # of the device name; each lock keeps its translated name.
-        if hasattr(self, "_attr_name"):
-            del self._attr_name
-
-    @property
-    @override
-    def available(self) -> bool:
-        """False when the module's firmware carries no lock sub-functions.
-
-        ``block_writable`` is filled by the administrator sweep, so a
-        standard account reads None on every cover. None means no sweep
-        covered the module, never False, and the entity stays available
-        there: a write on that tier raises and the refusal explains it.
-        """
-        if not super().available:
-            return False
-        obj = self._object
-        return obj is not None and obj.block_writable is not False
-
-    @property
-    @override
-    def is_on(self) -> bool | None:
-        """Whether this direction is held, or None once the object is gone."""
-        if (obj := self._object) is None:
-            return None
-        return self.entity_description.is_locked_fn(obj)
-
-    async def _write(
-        self, call: Callable[[AmpioClient, int], Coroutine[Any, Any, None]]
-    ) -> None:
-        """Send one lock frame, and say why the module refused it.
-
-        The lock write rides the raw tree, which the library reserves for
-        the administrator login and refuses with a bare ``RuntimeError``
-        on any other tier.
-        """
-        if not self._data.is_admin:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="cover_lock_unavailable",
-            )
-        try:
-            await call(self._data.client, self._object_id)
-        except AmpioValueError as err:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="cover_lock_unavailable",
-            ) from err
-
-    @override
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        """Hold this direction until something releases it."""
-        await self._write(self.entity_description.block_fn)
-
-    @override
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        """Release this direction, leaving the other one as it is."""
-        await self._write(self.entity_description.unblock_fn)

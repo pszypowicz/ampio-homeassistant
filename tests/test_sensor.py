@@ -10,6 +10,7 @@ from ampio_mqtt import (
     AccessTier,
     AmpioObject,
     AvailabilityChanged,
+    ModuleRemoved,
     ModuleUpdated,
     ObjectRemoved,
     ObjectUpdated,
@@ -24,6 +25,7 @@ from syrupy.assertion import SnapshotAssertion
 from custom_components.ampio.const import DOMAIN
 from custom_components.ampio.sensor import SENSOR_DESCRIPTIONS, VALUE_KEY_PREFIX
 from homeassistant.const import (
+    CONF_USERNAME,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
     EntityCategory,
@@ -38,18 +40,42 @@ from .conftest import (
     MSENS_IDENTIFIER,
     MSENS_ROW_NAME,
     emit,
+    entity_id_of,
     make_object,
-    pinned_id,
+    module_unique_id,
     set_access_tier,
     unique_id,
 )
 
-TEMPERATURE_ENTITY_ID = pinned_id("sensor", 36)
-HUMIDITY_ENTITY_ID = pinned_id("sensor", 37)
-CO2_ENTITY_ID = pinned_id("sensor", 43)
-CURRENT_ENTITY_ID = pinned_id("sensor", 160)
-ENERGY_ENTITY_ID = pinned_id("sensor", 161)
-COUNTER_ENTITY_ID = pinned_id("sensor", 162)
+
+def TEMPERATURE_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 36, composed from the registry."""
+    return entity_id_of(hass, "sensor", unique_id(36))
+
+
+def HUMIDITY_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 37, composed from the registry."""
+    return entity_id_of(hass, "sensor", unique_id(37))
+
+
+def CO2_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 43, composed from the registry."""
+    return entity_id_of(hass, "sensor", unique_id(43))
+
+
+def CURRENT_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 160, composed from the registry."""
+    return entity_id_of(hass, "sensor", unique_id(160))
+
+
+def ENERGY_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 161, composed from the registry."""
+    return entity_id_of(hass, "sensor", unique_id(161))
+
+
+def COUNTER_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 162, composed from the registry."""
+    return entity_id_of(hass, "sensor", unique_id(162))
 
 
 @pytest.fixture(autouse=True)
@@ -120,7 +146,7 @@ async def test_push_update_changes_state(
 
     await _push_value(hass, mock_client, 36, "25.5")
 
-    assert hass.states.get(TEMPERATURE_ENTITY_ID).state == "25.5"
+    assert hass.states.get(TEMPERATURE_ENTITY_ID(hass)).state == "25.5"
 
 
 async def test_unusable_value_surfaces_as_unknown(
@@ -138,7 +164,7 @@ async def test_unusable_value_surfaces_as_unknown(
 
     await _push_value(hass, mock_client, 36, "INVALID")
 
-    assert hass.states.get(TEMPERATURE_ENTITY_ID).state == STATE_UNKNOWN
+    assert hass.states.get(TEMPERATURE_ENTITY_ID(hass)).state == STATE_UNKNOWN
 
 
 @pytest.mark.usefixtures("mock_client")
@@ -150,17 +176,17 @@ async def test_value_sensor_reads_the_designer_unit(
     """An integer slot carries the unit, class, state class, and precision Designer stores."""
     await setup_integration(hass, mock_config_entry)
 
-    current = hass.states.get(CURRENT_ENTITY_ID)
+    current = hass.states.get(CURRENT_ENTITY_ID(hass))
     assert current is not None
     assert current.state == "0.37"
     assert current.attributes["unit_of_measurement"] == "A"
     assert current.attributes["device_class"] == "current"
     assert current.attributes["state_class"] == "measurement"
-    entry = entity_registry.async_get(CURRENT_ENTITY_ID)
+    entry = entity_registry.async_get(CURRENT_ENTITY_ID(hass))
     assert entry is not None
     assert entry.options["sensor"]["suggested_display_precision"] == 3
 
-    energy = hass.states.get(ENERGY_ENTITY_ID)
+    energy = hass.states.get(ENERGY_ENTITY_ID(hass))
     assert energy is not None
     assert energy.attributes["unit_of_measurement"] == "kWh"
     assert energy.attributes["device_class"] == "energy"
@@ -174,7 +200,7 @@ async def test_value_sensor_without_unit_is_a_plain_number(
     """A slot with neither a Unit field nor a format tail keeps its value and no state class."""
     await setup_integration(hass, mock_config_entry)
 
-    counter = hass.states.get(COUNTER_ENTITY_ID)
+    counter = hass.states.get(COUNTER_ENTITY_ID(hass))
     assert counter is not None
     assert counter.state == "42.0"
     assert "unit_of_measurement" not in counter.attributes
@@ -193,7 +219,7 @@ async def test_value_sensor_follows_a_unit_change(
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
-    counter = hass.states.get(COUNTER_ENTITY_ID)
+    counter = hass.states.get(COUNTER_ENTITY_ID(hass))
     assert counter is not None
     assert counter.attributes["unit_of_measurement"] == "V"
     assert counter.attributes["device_class"] == "voltage"
@@ -208,7 +234,7 @@ async def test_value_sensor_non_numeric_push_reads_unknown(
 
     await _push_value(hass, mock_client, 160, "INVALID")
 
-    assert hass.states.get(CURRENT_ENTITY_ID).state == STATE_UNKNOWN
+    assert hass.states.get(CURRENT_ENTITY_ID(hass)).state == STATE_UNKNOWN
 
 
 async def test_push_only_updates_target_entity(
@@ -220,39 +246,32 @@ async def test_push_only_updates_target_entity(
     is the signal that catches a spurious fan-out.
     """
     await setup_integration(hass, mock_config_entry)
-    temperature_before = hass.states.get(TEMPERATURE_ENTITY_ID).last_reported
+    temperature_before = hass.states.get(TEMPERATURE_ENTITY_ID(hass)).last_reported
 
     await _push_value(hass, mock_client, 37, "45.5")
 
-    assert hass.states.get(HUMIDITY_ENTITY_ID).state == "45.5"
-    assert hass.states.get(TEMPERATURE_ENTITY_ID).last_reported == temperature_before
+    assert hass.states.get(HUMIDITY_ENTITY_ID(hass)).state == "45.5"
+    assert (
+        hass.states.get(TEMPERATURE_ENTITY_ID(hass)).last_reported == temperature_before
+    )
 
 
+@pytest.mark.parametrize("tier", [AccessTier.ADMIN, AccessTier.RESTRICTED])
 async def test_removed_object_becomes_unavailable(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    tier: AccessTier,
 ) -> None:
-    """An object evicted from the catalogue flips its entity unavailable."""
+    """A library removal makes the object's entity unavailable on either account tier."""
+    set_access_tier(mock_client, tier)
     await setup_integration(hass, mock_config_entry)
 
     obj = mock_client.objects.pop(43)
     emit(mock_client, ObjectRemoved(object=obj))
     await hass.async_block_till_done()
 
-    assert hass.states.get(CO2_ENTITY_ID).state == STATE_UNAVAILABLE
-
-
-async def test_hidden_object_becomes_unavailable(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
-) -> None:
-    """A Designer delete keeps the row with the hidden bit set on the admin tier."""
-    await setup_integration(hass, mock_config_entry)
-
-    obj = replace(mock_client.objects[43], params=16)
-    mock_client.objects[43] = obj
-    emit(mock_client, ObjectUpdated(object=obj))
-    await hass.async_block_till_done()
-
-    assert hass.states.get(CO2_ENTITY_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(CO2_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
 
 
 async def test_broker_availability_flips_entities(
@@ -265,15 +284,15 @@ async def test_broker_availability_flips_entities(
     emit(mock_client, AvailabilityChanged(available=False))
     await hass.async_block_till_done()
 
-    assert hass.states.get(TEMPERATURE_ENTITY_ID).state == STATE_UNAVAILABLE
-    assert hass.states.get(HUMIDITY_ENTITY_ID).state == STATE_UNAVAILABLE
-    assert hass.states.get(CO2_ENTITY_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(TEMPERATURE_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
+    assert hass.states.get(HUMIDITY_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
+    assert hass.states.get(CO2_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
 
     mock_client.available = True
     emit(mock_client, AvailabilityChanged(available=True))
     await hass.async_block_till_done()
 
-    assert hass.states.get(TEMPERATURE_ENTITY_ID).state == "24.4"
+    assert hass.states.get(TEMPERATURE_ENTITY_ID(hass)).state == "24.4"
 
 
 @pytest.mark.parametrize(
@@ -281,31 +300,13 @@ async def test_broker_availability_flips_entities(
     [
         pytest.param(
             make_object(
-                200,
-                "lin_wej",
-                1,
-                leaf_id="",
-                funkcja=5,
-                opis_menu="Ghost",
-                state="55.0",
-                params=16,
-            ),
-            id="hidden-ghost-without-leaf",
-        ),
-        pytest.param(
-            make_object(
-                201, "lin_wej", 7, leaf_id="0_cb8f_lin_0_9", funkcja=6, params=16
-            ),
-            id="hidden",
-        ),
-        pytest.param(
-            make_object(
                 202,
                 "lin_wej",
                 9,
-                leaf_id="0_cb8f_lin_0_10",
+                # sfId 74 is the default fixture's representative analog value.
+                leaf_id="0_cb8f_74_0_10",
                 funkcja=7,
-                opis_menu="Status",
+                name="Status",
                 state="42.0",
             ),
             id="kind-without-description",
@@ -315,9 +316,9 @@ async def test_broker_availability_flips_entities(
                 203,
                 "przekaznik",
                 0,
-                leaf_id="0_cb8f_prz_0_1",
+                leaf_id="0_cb8f_257_2_1",
                 funkcja=8,
-                opis_menu="Relay",
+                name="Relay",
                 state="1",
             ),
             id="not-a-sensor",
@@ -331,7 +332,7 @@ async def test_unexposable_objects_are_skipped(
     entity_registry: er.EntityRegistry,
     extra: AmpioObject,
 ) -> None:
-    """Invisible objects and kinds outside the sensor table produce no entity."""
+    """Kinds outside the sensor table produce no sensor entity."""
     mock_client.objects[extra.id] = extra
 
     await setup_integration(hass, mock_config_entry)
@@ -340,6 +341,10 @@ async def test_unexposable_objects_are_skipped(
         entity_registry, mock_config_entry.entry_id
     )
     assert len(entities) == 15
+    assert (
+        entity_registry.async_get_entity_id("sensor", DOMAIN, unique_id(extra.id))
+        is None
+    )
 
 
 async def test_hub_anchored_objects(
@@ -349,20 +354,14 @@ async def test_hub_anchored_objects(
     device_registry: dr.DeviceRegistry,
     entity_registry: er.EntityRegistry,
 ) -> None:
-    """The M-SERV's own objects get a child of the hub.
-
-    The object below carries ``id_urzadzenia=17``, a real module row, but its
-    ``leaf_id`` embeds the M-SERV's own mac, and the M-SERV's own leaf
-    outranks the row the object carries.
-    """
+    """An object addressed to the M-SERV's own MAC gets a child of the hub."""
     mock_client.objects[500] = make_object(
         500,
         "temp",
         1,
-        leaf_id="0_1_temp_0_1",
-        id_urzadzenia=17,
+        leaf_id="0_1_76_0_1",
         funkcja=5,
-        opis_menu="Hub sensor",
+        name="Hub sensor",
     )
 
     await setup_integration(hass, mock_config_entry)
@@ -395,18 +394,17 @@ async def test_module_without_catalogue_row_gets_bare_device(
         500,
         "temp",
         1,
-        leaf_id="0_dead_temp_0_1",
-        id_urzadzenia=99,
-        opis_menu="Dangling",
+        leaf_id="0_dead_76_0_1",
+        name="Dangling",
     )
 
     await setup_integration(hass, mock_config_entry)
 
     device = device_registry.async_get_device_by_identifier(
-        (DOMAIN, "module:99"), mock_config_entry.entry_id
+        (DOMAIN, "module_mac:0xDEAD"), mock_config_entry.entry_id
     )
     assert device is not None
-    assert device.name == "Ampio module 99"
+    assert device.name == "Ampio module 0xDEAD"
     assert device.model is None
     entity_id = entity_registry.async_get_entity_id(
         Platform.SENSOR, DOMAIN, unique_id(500)
@@ -429,9 +427,7 @@ async def test_module_without_catalogue_row_gets_bare_device(
             "M-SENS",
             id="nameless-module",
         ),
-        # The catalogue row joins on the row id alone, so its name and
-        # model apply whatever address it carries.
-        pytest.param({"mac": 99999}, "m-sens salon", "M-SENS", id="disagreeing-mac"),
+        pytest.param({"mac": 99999}, MSENS_ROW_NAME, None, id="disagreeing-mac"),
     ],
 )
 async def test_module_name_follows_the_catalogue(
@@ -443,7 +439,7 @@ async def test_module_name_follows_the_catalogue(
     expected_name: str,
     expected_model: str | None,
 ) -> None:
-    """A nameless row falls back to its row id."""
+    """A device reads catalogue metadata from the row with its override MAC."""
     mock_client.modules[17] = replace(mock_client.modules[17], **changes)
 
     await setup_integration(hass, mock_config_entry)
@@ -463,13 +459,7 @@ async def test_module_row_missing_from_the_catalogue(
     mock_config_entry: MockConfigEntry,
     device_registry: dr.DeviceRegistry,
 ) -> None:
-    """A visible object on a row the catalogue lacks still gets its device.
-
-    Ampio Designer deletes a device at once and only unassigns its objects
-    into a collapsed UNGROUPED section, so a visible object can point at a
-    row that no longer exists. The device takes the row id and no
-    decoration, rather than costing the whole setup.
-    """
+    """An addressed object keeps its module device when the catalogue row is absent."""
     del mock_client.modules[17]
 
     await setup_integration(hass, mock_config_entry)
@@ -500,10 +490,12 @@ async def test_pulse_time_diagnostic(
         mock_client.objects[oid] = replace(mock_client.objects[oid], czas=500)
     await setup_integration(hass, mock_config_entry)
 
-    entry = entity_registry.async_get(pinned_id("sensor", 150, "_pulse"))
+    entry = entity_registry.async_get(
+        entity_id_of(hass, "sensor", unique_id(150, "_pulse"))
+    )
     assert entry is not None
     assert entry.entity_category is EntityCategory.DIAGNOSTIC
-    state = hass.states.get(pinned_id("sensor", 150, "_pulse"))
+    state = hass.states.get(entity_id_of(hass, "sensor", unique_id(150, "_pulse")))
     assert state is not None
     assert float(state.state) == 3.0
 
@@ -544,8 +536,14 @@ async def test_analog_flag_has_no_pulse_diagnostic(
         )
 
 
-MODULE_VOLTAGE_ID = "sensor.ampio_module_17_voltage"
-MODULE_TEMPERATURE_ID = "sensor.ampio_module_17_temperature"
+def MODULE_VOLTAGE_ID(hass: HomeAssistant) -> str:
+    """Entity id for the m-sens module's voltage sensor."""
+    return entity_id_of(hass, "sensor", module_unique_id(52111, "_voltage"))
+
+
+def MODULE_TEMPERATURE_ID(hass: HomeAssistant) -> str:
+    """Entity id for the m-sens module's temperature sensor."""
+    return entity_id_of(hass, "sensor", module_unique_id(52111, "_temperature"))
 
 
 @pytest.mark.usefixtures("sensor_only")
@@ -562,7 +560,7 @@ async def test_module_sensors_read_unknown_until_a_broadcast(
     """
     await setup_integration(hass, mock_config_entry)
 
-    for entity_id in (MODULE_VOLTAGE_ID, MODULE_TEMPERATURE_ID):
+    for entity_id in (MODULE_VOLTAGE_ID(hass), MODULE_TEMPERATURE_ID(hass)):
         state = hass.states.get(entity_id)
         assert state is not None
         assert state.state == STATE_UNKNOWN
@@ -573,8 +571,61 @@ async def test_module_sensors_read_unknown_until_a_broadcast(
     emit(mock_client, ModuleUpdated(module=mock_client.modules[17]))
     await hass.async_block_till_done()
 
-    assert hass.states.get(MODULE_VOLTAGE_ID).state == "12.4"
-    assert hass.states.get(MODULE_TEMPERATURE_ID).state == "36.0"
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == "12.4"
+    assert hass.states.get(MODULE_TEMPERATURE_ID(hass)).state == "36.0"
+
+
+@pytest.mark.usefixtures("sensor_only")
+async def test_module_sensor_reads_unknown_once_its_row_is_removed(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """A module row dropped while the connection stays up reads unknown, not the old value.
+
+    The catalogue drops a row before it unassigns the objects on it, so
+    the connection and the object both survive the module's own removal.
+    Nothing else writes state for this entity in that window, so the
+    library's ``ModuleRemoved`` push is what moves it off the stale value.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    mock_client.modules[17] = replace(mock_client.modules[17], supply_voltage=12.4)
+    emit(mock_client, ModuleUpdated(module=mock_client.modules[17]))
+    await hass.async_block_till_done()
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == "12.4"
+
+    removed = mock_client.modules[17]
+    del mock_client.modules[17]
+    emit(mock_client, ModuleRemoved(module=removed))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == STATE_UNKNOWN
+
+
+@pytest.mark.usefixtures("sensor_only")
+async def test_module_sensor_reads_unknown_once_its_row_moves_to_another_mac(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """A row that takes a new override mac leaves the old mac's reading unknown.
+
+    The library reports the reassignment as a ``ModuleUpdated`` carrying
+    the new mac, with no removal for the old one.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    mock_client.modules[17] = replace(mock_client.modules[17], supply_voltage=12.4)
+    emit(mock_client, ModuleUpdated(module=mock_client.modules[17]))
+    await hass.async_block_till_done()
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == "12.4"
+
+    mock_client.modules[17] = replace(mock_client.modules[17], mac=0xD00A)
+    emit(mock_client, ModuleUpdated(module=mock_client.modules[17]))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == STATE_UNKNOWN
 
 
 @pytest.mark.usefixtures("sensor_only")
@@ -586,8 +637,8 @@ async def test_module_sensor_ignores_another_module(
     """A broadcast from a different module leaves this one alone.
 
     The client's subscribe filters by object id and nothing else, so each
-    sensor compares the module id itself. Module 17's own reading is set
-    without emitting anything, so a guard that fails to compare the id
+    sensor compares the module MAC itself. Module 17's own reading is set
+    without emitting anything, so a guard that fails to compare the MAC
     would write it into the state a spurious event triggers.
     """
     await setup_integration(hass, mock_config_entry)
@@ -598,7 +649,7 @@ async def test_module_sensor_ignores_another_module(
     emit(mock_client, ModuleUpdated(module=other))
     await hass.async_block_till_done()
 
-    assert hass.states.get(MODULE_VOLTAGE_ID).state == STATE_UNKNOWN
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == STATE_UNKNOWN
 
 
 @pytest.mark.usefixtures("sensor_only")
@@ -608,15 +659,27 @@ async def test_module_sensors_are_withheld_on_a_standard_account(
     mock_config_entry: MockConfigEntry,
     entity_registry: er.EntityRegistry,
 ) -> None:
-    """A standard account gets neither, and the withheld set names both."""
-    set_access_tier(mock_client, AccessTier.RESTRICTED)
-
+    """An account downgrade withholds both existing module-sensor records."""
     await setup_integration(hass, mock_config_entry)
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)) is not None
+    assert hass.states.get(MODULE_TEMPERATURE_ID(hass)) is not None
 
-    assert entity_registry.async_get(MODULE_VOLTAGE_ID) is None
-    assert entity_registry.async_get(MODULE_TEMPERATURE_ID) is None
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, data={**mock_config_entry.data, CONF_USERNAME: "user"}
+    )
+    await hass.config_entries.async_reload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entity_registry.async_get(MODULE_VOLTAGE_ID(hass)) is not None
+    assert entity_registry.async_get(MODULE_TEMPERATURE_ID(hass)) is not None
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == STATE_UNAVAILABLE
+    assert hass.states.get(MODULE_TEMPERATURE_ID(hass)).state == STATE_UNAVAILABLE
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
-    assert withheld == {"module_17_voltage", "module_17_temperature"}
+    assert withheld == {
+        module_unique_id(52111, "_voltage"),
+        module_unique_id(52111, "_temperature"),
+    }
 
 
 @pytest.mark.usefixtures("sensor_only")
@@ -629,9 +692,9 @@ async def test_module_sensor_follows_the_connection(
     mock_client.available = False
     emit(mock_client, AvailabilityChanged(available=False))
     await hass.async_block_till_done()
-    assert hass.states.get(MODULE_VOLTAGE_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == STATE_UNAVAILABLE
 
     mock_client.available = True
     emit(mock_client, AvailabilityChanged(available=True))
     await hass.async_block_till_done()
-    assert hass.states.get(MODULE_VOLTAGE_ID).state != STATE_UNAVAILABLE
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state != STATE_UNAVAILABLE

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from ampio_mqtt import (
     INPUT_KIND_KEYS,
+    AccessTier,
     AmpioObject,
     InputKind,
     ObjectRemoved,
@@ -27,19 +28,40 @@ from homeassistant.const import (
     STATE_OFF,
     STATE_ON,
     STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+    EntityCategory,
     Platform,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
-from .conftest import emit, make_object, pinned_id
+from .conftest import emit, entity_id_of, make_object, set_access_tier, unique_id
 
-SYSTEM_ENTITY_ID = pinned_id("binary_sensor", 62)
-WEJ_ENTITY_ID = pinned_id("binary_sensor", 146)
-ARMED_ENTITY_ID = pinned_id("binary_sensor", 166)
-ALARMED_ENTITY_ID = pinned_id("binary_sensor", 167)
-BASE_ALARM_ENTITY_ID = pinned_id("binary_sensor", 168)
+
+def WEJ_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 146, composed from the registry."""
+    return entity_id_of(hass, "binary_sensor", unique_id(146))
+
+
+def ARMED_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 166, composed from the registry."""
+    return entity_id_of(hass, "binary_sensor", unique_id(166))
+
+
+def ALARMED_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 167, composed from the registry."""
+    return entity_id_of(hass, "binary_sensor", unique_id(167))
+
+
+def LOCK_OPENING_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 82, composed from the registry."""
+    return entity_id_of(hass, "binary_sensor", unique_id(82, "_blocks_opening"))
+
+
+def LOCK_CLOSING_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 82, composed from the registry."""
+    return entity_id_of(hass, "binary_sensor", unique_id(82, "_blocks_closing"))
 
 
 @pytest.fixture(autouse=True)
@@ -54,13 +76,26 @@ def binary_sensor_only() -> Generator[None]:
 # sub-function picks the half, and any other sub-function reads as the base
 # kind. Every other key is its own `typ_komponentu`.
 _ALARM_SUB_SF: Final = {"alarm_armed": 3, "alarm_alarmed": 4, "alarm": 0}
+# Binary flag 3 and input 257/1 follow the library's identity table.
+# Analog flags 17 and 18 are placeholders with no documented counterpart.
+_INPUT_LEAF_FIELDS: Final = {
+    "flaga": (3, 0),
+    "wej": (257, 1),
+    "flaga_liniowa": (17, 0),
+    "flaga_liniowa16": (18, 0),
+}
 
 
 def _object_for(key: str) -> AmpioObject:
     """An object that classifies into the given input kind."""
     if (sub_sf := _ALARM_SUB_SF.get(key)) is not None:
         return make_object(1, "satel_alarm", 0, leaf_id=f"0_1_296_{sub_sf}_1")
-    return make_object(1, key, 0, leaf_id="0_1_x_0_1")
+    assert key in _INPUT_LEAF_FIELDS, (
+        f"Input kind {key!r} has no leaf fixture. "
+        "Add its address fields and review its platform mapping."
+    )
+    sf_id, sub_sf_id = _INPUT_LEAF_FIELDS[key]
+    return make_object(1, key, 0, leaf_id=f"0_1_{sf_id}_{sub_sf_id}_1")
 
 
 def test_input_kind_vocabulary_is_mapped_or_excluded() -> None:
@@ -80,9 +115,7 @@ def test_input_kind_vocabulary_is_mapped_or_excluded() -> None:
         # The switch and number platforms partition on these two checks as
         # mutually exclusive branches, so no kind may satisfy both.
         assert not (obj.kind.switchable and obj.kind.value_range is not None)
-        if obj.is_system:
-            assert key not in BINARY_SENSOR_DESCRIPTIONS
-        elif obj.kind.switchable:
+        if obj.kind.switchable:
             assert is_switch(obj)
             assert key not in BINARY_SENSOR_DESCRIPTIONS
         elif obj.kind.value_range is not None:
@@ -93,47 +126,20 @@ def test_input_kind_vocabulary_is_mapped_or_excluded() -> None:
 
 
 @pytest.mark.usefixtures("mock_client")
-async def test_alarm_objects_surface_on_every_leaf_shape(
+async def test_alarm_halves_surface_with_valid_leaves(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry
 ) -> None:
-    """Both halves and a leafless alarm object each get one sensor.
-
-    An object whose Matter box is unchecked carries no leaf, so the library
-    classifies it into the base alarm kind. The entity exists either way,
-    and no half takes a device class: the alarmed half also reads on
-    through the panel's exit delay.
-    """
+    """Each admitted alarm half gets a sensor without a device class."""
     await setup_integration(hass, mock_config_entry)
 
-    armed = hass.states.get(ARMED_ENTITY_ID)
+    armed = hass.states.get(ARMED_ENTITY_ID(hass))
     assert armed is not None
     assert armed.state == STATE_ON
     assert ATTR_DEVICE_CLASS not in armed.attributes
 
-    alarmed = hass.states.get(ALARMED_ENTITY_ID)
+    alarmed = hass.states.get(ALARMED_ENTITY_ID(hass))
     assert alarmed is not None
     assert alarmed.state == STATE_OFF
-
-    base = hass.states.get(BASE_ALARM_ENTITY_ID)
-    assert base is not None
-    assert base.state == STATE_OFF
-
-
-@pytest.mark.usefixtures("mock_client")
-async def test_system_typed_objects_are_never_entities(
-    hass: HomeAssistant,
-    mock_config_entry: MockConfigEntry,
-    entity_registry: er.EntityRegistry,
-) -> None:
-    """A system-typed object stays out of the entity set, leaf id or not.
-
-    ``detekcja`` and ``symulacja`` name the M-SERV's own detection and
-    presence-simulation objects. The library marks the types as system,
-    and the M-SERV serves no state row for them.
-    """
-    await setup_integration(hass, mock_config_entry)
-
-    assert entity_registry.async_get(SYSTEM_ENTITY_ID) is None
 
 
 @pytest.mark.usefixtures("mock_client")
@@ -148,19 +154,92 @@ async def test_all_entities(
     await snapshot_platform(hass, entity_registry, snapshot, mock_config_entry.entry_id)
 
 
+@pytest.mark.parametrize("restricted", [False, True], ids=["admin", "restricted"])
+async def test_cover_lock_sensors_exist_on_both_tiers(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    restricted: bool,
+) -> None:
+    """A cover reports both lock directions as diagnostic binary sensors, on either tier."""
+    if restricted:
+        set_access_tier(mock_client, AccessTier.RESTRICTED)
+    await setup_integration(hass, mock_config_entry)
+
+    assert hass.states.get(LOCK_OPENING_ENTITY_ID(hass)) is not None
+    assert hass.states.get(LOCK_CLOSING_ENTITY_ID(hass)) is not None
+
+
+@pytest.mark.parametrize("restricted", [False, True], ids=["admin", "restricted"])
+async def test_cover_lock_sensor_reads_the_state_bit(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    restricted: bool,
+) -> None:
+    """The sensor follows the object's block bits, on either tier.
+
+    ``block`` rides the object state push, which both account tiers
+    receive, so the read needs no administrator login.
+    """
+    if restricted:
+        set_access_tier(mock_client, AccessTier.RESTRICTED)
+    await setup_integration(hass, mock_config_entry)
+    assert hass.states.get(LOCK_OPENING_ENTITY_ID(hass)).state == STATE_UNKNOWN
+    assert hass.states.get(LOCK_CLOSING_ENTITY_ID(hass)).state == STATE_UNKNOWN
+
+    released = replace(mock_client.objects[82], block=0)
+    mock_client.objects[82] = released
+    emit(mock_client, ObjectUpdated(object=released))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(LOCK_OPENING_ENTITY_ID(hass)).state == STATE_OFF
+    assert hass.states.get(LOCK_CLOSING_ENTITY_ID(hass)).state == STATE_OFF
+
+    opening_blocked = replace(mock_client.objects[82], block=2)
+    mock_client.objects[82] = opening_blocked
+    emit(mock_client, ObjectUpdated(object=opening_blocked))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(LOCK_OPENING_ENTITY_ID(hass)).state == STATE_ON
+    assert hass.states.get(LOCK_CLOSING_ENTITY_ID(hass)).state == STATE_OFF
+
+    closing_blocked = replace(mock_client.objects[82], block=1)
+    mock_client.objects[82] = closing_blocked
+    emit(mock_client, ObjectUpdated(object=closing_blocked))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(LOCK_OPENING_ENTITY_ID(hass)).state == STATE_OFF
+    assert hass.states.get(LOCK_CLOSING_ENTITY_ID(hass)).state == STATE_ON
+
+
+@pytest.mark.usefixtures("mock_client")
+async def test_cover_lock_sensor_is_diagnostic(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """The lock reading is configuration-adjacent, not a control."""
+    await setup_integration(hass, mock_config_entry)
+
+    entry = entity_registry.async_get(LOCK_OPENING_ENTITY_ID(hass))
+    assert entry is not None
+    assert entry.entity_category is EntityCategory.DIAGNOSTIC
+
+
 async def test_wej_push_update_toggles_state(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
     """A pushed wired-button input update flips the entity between on and off."""
     await setup_integration(hass, mock_config_entry)
-    assert hass.states.get(WEJ_ENTITY_ID).state == STATE_OFF
+    assert hass.states.get(WEJ_ENTITY_ID(hass)).state == STATE_OFF
 
     obj = replace(mock_client.objects[146], state="1")
     mock_client.objects[146] = obj
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
-    assert hass.states.get(WEJ_ENTITY_ID).state == STATE_ON
+    assert hass.states.get(WEJ_ENTITY_ID(hass)).state == STATE_ON
 
 
 async def test_nonzero_values_read_as_on(
@@ -174,7 +253,7 @@ async def test_nonzero_values_read_as_on(
     emit(mock_client, ObjectUpdated(object=obj))
     await hass.async_block_till_done()
 
-    assert hass.states.get(WEJ_ENTITY_ID).state == STATE_ON
+    assert hass.states.get(WEJ_ENTITY_ID(hass)).state == STATE_ON
 
 
 async def test_removed_object_becomes_unavailable(
@@ -187,4 +266,4 @@ async def test_removed_object_becomes_unavailable(
     emit(mock_client, ObjectRemoved(object=obj))
     await hass.async_block_till_done()
 
-    assert hass.states.get(WEJ_ENTITY_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(WEJ_ENTITY_ID(hass)).state == STATE_UNAVAILABLE

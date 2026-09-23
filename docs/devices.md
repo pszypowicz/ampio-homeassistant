@@ -1,6 +1,6 @@
 # Devices, areas, and entity ids
 
-This page explains how the integration builds its devices, and where the names and the areas come from. It also explains why an entity id never changes, and what a change in Ampio Designer does.
+This page explains how the integration builds its devices, and where the names and the areas come from. It also explains where an entity id comes from, and what a change in Ampio Designer does.
 
 ## The device tree
 
@@ -18,19 +18,19 @@ One M-SERV per Home Assistant. Object ids are unique per server only, so the int
 
 ## Names
 
-An object device takes the name you gave the object in the Ampio app. A module takes the name you gave it in Ampio Designer. When your account is not an administrator one, a module reads `Ampio module <row>` instead, where the row is its number in Ampio Designer. The hub is always `M-SERV`.
+An object device takes the name you gave the object in the Ampio app. A module takes the name you gave it in Ampio Designer. When your account is not an administrator one, a module reads `Ampio module <MAC>` instead, for example `Ampio module 0xCB8F`, with the address written in hex the way Designer's MAC field shows it. A module whose Designer device row you deleted reads the same on an administrator account, because no row is left to name it. The hub is always `M-SERV`.
 
-A rename in Designer or in the app changes nothing in Home Assistant. Rename the device in Home Assistant instead.
+A rename in Designer or in the app does not reach Home Assistant straight away. The integration watches the catalogue fields that decide which entities exist and which module they hang under, and a name is none of them, so a save that changes only a name leaves the devices as they are until they register again, on a reload or a restart. A name you typed yourself in Home Assistant wins over whatever arrives then, so rename the device here when you want the name to stay put. Entity ids are settled at first registration either way, so neither rename moves one.
 
 ## The Identify button
 
-Each module device has an Identify button. A press lights the module's CAN LED for 30 s, so you can find the module in the cabinet. The button exists with the administrator login alone. A standard account is given none, because the Ampio server would not carry the frame. A DIN-rail module lights its CAN LED steadily. An M-DOT panel lights the LED on its back only, so a wall-mounted panel gives no visible sign.
+On the administrator login, each module device has an Identify button. A press lights the module's CAN LED for 30 s, so you can find the module in the cabinet. A standard account is given no Identify button, because the Ampio server would not carry the frame. A DIN-rail module lights its CAN LED steadily. An M-DOT panel lights the LED on its back only, so a wall-mounted panel gives no visible sign.
 
-The module keeps the LED lit until it receives a stop. The integration sends the stop after 30 s, and again at once when you reload or remove the integration. If Home Assistant restarts during those 30 s, the stop is never sent. Then the LED stays lit until Ampio Designer sends a stop or the module restarts.
+The module keeps the LED lit until it receives a stop. The integration sends the stop after 30 s. If you reload or remove the integration before then, it sends the stop at that moment instead. If Home Assistant restarts during those 30 s, the stop is never sent. Then the LED stays lit until Ampio Designer sends a stop or the module restarts.
 
 ## The module sensors
 
-Each module device also carries two diagnostic sensors, a supply voltage and a temperature, both readings the module reports about itself. They exist with the administrator login alone, for the same reason as the Identify button. A module that never sends that reading leaves its sensor unknown rather than unavailable, because the reading is not replayed at connect and silence says nothing about the module's health.
+On the administrator login, each module device also carries two diagnostic sensors, a supply voltage and a temperature, both readings the module reports about itself. A standard account is given neither, for the same reason as the Identify button. A module that never sends that reading leaves its sensor unknown rather than unavailable, because the reading is not replayed at connect and silence says nothing about the module's health.
 
 ## The buzzer
 
@@ -54,7 +54,15 @@ Home Assistant matches rooms to areas by name. If your Ampio rooms and your area
 
 ## Entity ids
 
-Rename the devices and assign the areas to suit yourself. Nothing you do there moves an entity id. Home Assistant normally builds an id from the area and the device name. An Ampio entity carries its own instead, the same string as its unique id. An entity backed by an Ampio object reads `<domain>.ampio_obj_<object id>`, for example `light.ampio_obj_7`. An entity that belongs to a module device instead reads `<domain>.ampio_module_<row>_<name>`, for example `button.ampio_module_12_identify`. The ids are not pretty, and they never change. Your automations keep working through a rename, an area move, an Ampio account tier change, and an M-SERV replacement alike.
+Home Assistant builds an entity id when it first registers the entity, and the id holds still after that. By default it takes the area name, the device name and the entity name, in that order, and it leaves out any part that is empty, which is why an object's main entity, whose own name is empty, reads as the area and the device name alone. A rename in Ampio Designer or in Home Assistant changes the name you see and leaves the id alone, so your automations keep working. An object with no name in Designer takes a numbered placeholder instead.
+
+The Entity ID format setting under Settings, then System, can leave out the area or add the floor, and it cannot leave out the device name or the entity name. Ampio entities follow it like any other integration's. An object called Taras LED in the room Taras reads `light.taras_taras_led`. A module called M-SENS Salon gives its Identify button `button.m_sens_salon_identify`, with no area in front of it, because the integration seeds no area on a module device. With the default format, if you give a module device an area, an id on it that registers or that you regenerate after that carries the area in front.
+
+Two objects that carry the same name in Ampio Designer and share a room, or share having none, cannot share an id, so one of the two takes Home Assistant's `_2` suffix and reads `button.dzwonek_2` beside `button.dzwonek`. The same two names in different rooms read `button.salon_dzwonek` and `button.kuchnia_dzwonek`, and nothing collides. Give a colliding pair distinct names in Designer if you want to tell them apart by their ids.
+
+An install from an earlier release keeps the ids it already has, because an id is stored against the entity's unique id, and a release changes those only where the release note says it does. To rebuild one from the names you have now, open the entity, select the cog icon, and use Home Assistant's control for regenerating an entity id. It works on an entity from an earlier release as well as on a fresh one.
+
+Neither an Ampio account tier change nor an M-SERV replacement moves an id.
 
 See [faq.md](faq.md) for what an update does to an entity id, and for the reset procedure.
 
@@ -62,12 +70,12 @@ See [faq.md](faq.md) for what an update does to an entity id, and for the reset 
 
 The integration follows the Ampio catalogue while it runs, on both account tiers. An object you add in Designer gets its entity within seconds, under its module, in its app room. On a standard account the object must also be granted to the Home Assistant user in the app. An object you delete or hide loses its entity at once, and the repair on the Settings page lists it. The delete stays yours, because on a standard account a lost app permission looks the same as a delete. A relay you re-tag as a light, or a pulse time you set, is followed the same way.
 
-The administrator login gets no catalogue push from the M-SERV. It gets a digest of the app tables on every save instead. The integration re-reads the catalogue when that digest changes, so a change in Designer appears a few seconds later there too.
+The M-SERV pushes the object tables to both account tiers when you save in Designer, so objects follow a save the same way on either login. It never pushes the module list, which the administrator login alone receives. The administrator login re-reads the module list when the digest of the app tables changes on a save, so the module list follows a Designer save a few seconds later.
 
 ## Moving an object to another module
 
-If you move an object to another module in Designer, or a replacement gives a module a new row, the integration removes the object's entities. The repair on the Settings page then offers the delete of its device. After the delete, the object comes back under the new module with its area and its name. See [designer-quirks.md](designer-quirks.md) for the reason.
+If you move an object to another module in Designer, the integration removes the object's entities. The repair on the Settings page then offers the delete of its device. After the delete, the object comes back under the new module with its area and its name. Replacing a module is not a move, because the replacement takes the same MAC address and the object stays where it was. See [designer-quirks.md](designer-quirks.md) for the reason.
 
 ## The Matter checkbox
 
-Avoid toggling an object's Matter checkbox in Designer once the object has an entity here. Unchecking it clears the object's leaf id, which the diagnostics use to join the object to its Designer record. The device tree does not depend on it. To stop the M-SERV's Matter bridge, use "Clear configuration" in Designer's Matter panel instead. See [designer-quirks.md](designer-quirks.md).
+Do not clear an object's Matter checkbox in Designer once the object has an entity here. Unchecking it clears the object's leaf id, which is the pointer this integration drives the object through, so the integration stops building the object's entities until you check the box again. The records stay where they are, the object's device included, so an entity that comes back as the same type comes back with the id, the name and the area it had. A repair on the Settings page names the objects this happened to. To stop the M-SERV's Matter bridge, use "Clear configuration" in Designer's Matter panel instead. See [designer-quirks.md](designer-quirks.md).

@@ -10,6 +10,7 @@ from ampio_mqtt import (
     AccessTier,
     AmpioConnectionError,
     AmpioTimeoutError,
+    AmpioValueError,
     AvailabilityChanged,
     ModuleFunction,
     ObjectAdded,
@@ -26,7 +27,12 @@ import voluptuous as vol
 from custom_components.ampio.button import IDENTIFY_HOLD_SECONDS
 from custom_components.ampio.const import DOMAIN
 from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN, SERVICE_PRESS
-from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE, Platform
+from homeassistant.const import (
+    ATTR_ENTITY_ID,
+    CONF_USERNAME,
+    STATE_UNAVAILABLE,
+    Platform,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import device_registry as dr, entity_registry as er
@@ -36,9 +42,9 @@ from . import setup_integration
 from .conftest import (
     MSENS_IDENTIFIER,
     emit,
+    entity_id_of,
     make_object,
-    module_pinned_id,
-    pinned_id,
+    module_unique_id,
     set_access_tier,
     unique_id,
     with_buzzer,
@@ -46,10 +52,28 @@ from .conftest import (
     with_panel_colors,
 )
 
-RELAY_ENTITY_ID = pinned_id("button", 150)
-FLAG_ENTITY_ID = pinned_id("button", 149)
-IDENTIFY_ENTITY_ID = module_pinned_id("button", 17, "_identify")
-UNLOCK_TOUCH_ENTITY_ID = module_pinned_id("button", 17, "_unlock_touch")
+IDENTIFY_KEY = module_unique_id(52111, "_identify")
+UNLOCK_TOUCH_KEY = module_unique_id(52111, "_unlock_touch")
+
+
+def RELAY_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 150, composed from the registry."""
+    return entity_id_of(hass, "button", unique_id(150))
+
+
+def FLAG_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for object 149, composed from the registry."""
+    return entity_id_of(hass, "button", unique_id(149))
+
+
+def IDENTIFY_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for the m-sens module's identify button."""
+    return entity_id_of(hass, "button", IDENTIFY_KEY)
+
+
+def UNLOCK_TOUCH_ENTITY_ID(hass: HomeAssistant) -> str:
+    """Entity id for the m-sens module's touch-unlock button."""
+    return entity_id_of(hass, "button", UNLOCK_TOUCH_KEY)
 
 
 @pytest.fixture
@@ -91,21 +115,21 @@ def test_capability_helpers_compose(mock_client: MagicMock) -> None:
     helper has written something for it to clobber.
     """
     module = mock_client.modules[17]
-    mock_client.modules[17] = replace(module, capabilities={ModuleFunction.RGBW: 3})
+    mock_client.capabilities[module.mac] = {ModuleFunction.RGBW: 3}
 
     with_buzzer(mock_client)
-    capabilities = mock_client.modules[17].capabilities
+    capabilities = mock_client.capabilities[52111]
     assert ModuleFunction.RGBW in capabilities
     assert ModuleFunction.BUZZER in capabilities
 
     with_key_lock(mock_client)
-    capabilities = mock_client.modules[17].capabilities
+    capabilities = mock_client.capabilities[52111]
     assert ModuleFunction.RGBW in capabilities
     assert ModuleFunction.BUZZER in capabilities
     assert ModuleFunction.KEY_LOCK in capabilities
 
     with_panel_colors(mock_client)
-    capabilities = mock_client.modules[17].capabilities
+    capabilities = mock_client.capabilities[52111]
     assert ModuleFunction.RGBW in capabilities
     assert ModuleFunction.BUZZER in capabilities
     assert ModuleFunction.KEY_LOCK in capabilities
@@ -137,7 +161,7 @@ async def test_press_maps_to_turn_on(
     await hass.services.async_call(
         BUTTON_DOMAIN,
         SERVICE_PRESS,
-        {ATTR_ENTITY_ID: RELAY_ENTITY_ID},
+        {ATTR_ENTITY_ID: RELAY_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.set_value.assert_awaited_once_with(150, 255, pulse_ms=3000)
@@ -146,7 +170,7 @@ async def test_press_maps_to_turn_on(
     await hass.services.async_call(
         BUTTON_DOMAIN,
         SERVICE_PRESS,
-        {ATTR_ENTITY_ID: FLAG_ENTITY_ID},
+        {ATTR_ENTITY_ID: FLAG_ENTITY_ID(hass)},
         blocking=True,
     )
     mock_client.turn_on.assert_awaited_once_with(149)
@@ -198,7 +222,7 @@ async def test_read_only_bell_rejects_press(
         await hass.services.async_call(
             BUTTON_DOMAIN,
             SERVICE_PRESS,
-            {ATTR_ENTITY_ID: RELAY_ENTITY_ID},
+            {ATTR_ENTITY_ID: RELAY_ENTITY_ID(hass)},
             blocking=True,
         )
     mock_client.turn_on.assert_not_called()
@@ -219,12 +243,12 @@ async def test_identify_press_lights_then_stops(
         MSENS_IDENTIFIER, mock_config_entry.entry_id
     )
     assert module is not None
-    entity = entity_registry.async_get(IDENTIFY_ENTITY_ID)
+    entity = entity_registry.async_get(IDENTIFY_ENTITY_ID(hass))
     assert entity is not None
     assert entity.device_id == module.id
     assert mock_config_entry.runtime_data.withheld_unique_ids() == set()
 
-    await _press(hass, IDENTIFY_ENTITY_ID)
+    await _press(hass, IDENTIFY_ENTITY_ID(hass))
 
     mock_client.identify.assert_awaited_once_with(17)
     mock_client.identify_stop.assert_not_called()
@@ -242,13 +266,13 @@ async def test_identify_second_press_sends_one_stop(
 
     The test loop's clock does not advance with the fired time, so the two
     presses schedule the same deadline. What the test proves is that the
-    first timer is cancelled, not that the deadline moves.
+    first timer is canceled, not that the deadline moves.
     """
     await setup_integration(hass, mock_config_entry)
 
-    await _press(hass, IDENTIFY_ENTITY_ID)
+    await _press(hass, IDENTIFY_ENTITY_ID(hass))
     await _elapse(hass, 20)
-    await _press(hass, IDENTIFY_ENTITY_ID)
+    await _press(hass, IDENTIFY_ENTITY_ID(hass))
 
     assert mock_client.identify.await_count == 2
     mock_client.identify_stop.assert_not_called()
@@ -256,6 +280,35 @@ async def test_identify_second_press_sends_one_stop(
     await _elapse(hass, IDENTIFY_HOLD_SECONDS + 1)
 
     mock_client.identify_stop.assert_awaited_once_with(17)
+
+
+@pytest.mark.usefixtures("button_only")
+async def test_module_entity_resolves_the_row_id_per_command(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A row id reassigned between two presses reaches the second press.
+
+    The entity keys on the override mac, and the row id is the argument
+    the module commands take. Designer reassigns the row id when a module
+    is replaced and re-stamps the mac onto the replacement, so a row id
+    read once at construction would address the unit that left.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    await _press(hass, IDENTIFY_ENTITY_ID(hass))
+    mock_client.identify.assert_awaited_once_with(17)
+
+    replaced = mock_client.modules.pop(17)
+    mock_client.modules[42] = replace(replaced, id=42)
+
+    await _press(hass, IDENTIFY_ENTITY_ID(hass))
+
+    assert mock_client.identify.await_count == 2
+    mock_client.identify.assert_awaited_with(42)
+
+    await _elapse(hass, IDENTIFY_HOLD_SECONDS + 1)
+
+    mock_client.identify_stop.assert_awaited_once_with(42)
 
 
 @pytest.mark.usefixtures("button_only")
@@ -268,36 +321,70 @@ async def test_identify_is_withheld_on_a_standard_account(
 ) -> None:
     """A standard account gets no identify entity, and keeps its module device.
 
-    The frame rides the CAN write tree, which the M-SERV serves the
-    administrator login alone. An entity that could never send it is not
-    built at all.
+    The module device survives the account change, and its existing
+    administrator-only records identify the withheld entities.
     """
-    set_access_tier(mock_client, AccessTier.RESTRICTED)
-
+    with_key_lock(mock_client)
     await setup_integration(hass, mock_config_entry)
+    assert entity_registry.async_get(IDENTIFY_ENTITY_ID(hass)) is not None
+    assert entity_registry.async_get(UNLOCK_TOUCH_ENTITY_ID(hass)) is not None
 
-    assert entity_registry.async_get(IDENTIFY_ENTITY_ID) is None
-    assert hass.states.get(IDENTIFY_ENTITY_ID) is None
-    # The device is built from the Designer row, which both tiers receive.
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, data={**mock_config_entry.data, CONF_USERNAME: "user"}
+    )
+    await hass.config_entries.async_reload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entity_registry.async_get(IDENTIFY_ENTITY_ID(hass)) is not None
+    assert hass.states.get(IDENTIFY_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
     module = device_registry.async_get_device_by_identifier(
         MSENS_IDENTIFIER, mock_config_entry.entry_id
     )
     assert module is not None
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
-    assert withheld == {"module_17_identify", "module_17_unlock_touch"}
+    assert withheld == {IDENTIFY_KEY, UNLOCK_TOUCH_KEY}
 
 
 @pytest.mark.usefixtures("button_only")
-async def test_identify_unknown_module_raises(
+async def test_identify_missing_row_raises(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """A module the catalogue cannot address raises, and schedules no stop."""
-    mock_client.identify.side_effect = ValueError("module id 17 has no mac")
+    """A module the catalogue no longer carries raises before any command is sent."""
+    await setup_integration(hass, mock_config_entry)
+    del mock_client.modules[17]
+
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _press(hass, IDENTIFY_ENTITY_ID(hass))
+    assert excinfo.value.translation_key == "module_not_addressable"
+    mock_client.identify.assert_not_awaited()
+
+    await _elapse(hass, IDENTIFY_HOLD_SECONDS + 1)
+    mock_client.identify_stop.assert_not_called()
+
+
+@pytest.mark.usefixtures("button_only")
+@pytest.mark.parametrize(
+    "error",
+    [
+        AmpioValueError("module id 17 has no mac"),
+        AmpioConnectionError("Not connected"),
+        AmpioTimeoutError("no ack"),
+    ],
+)
+async def test_identify_command_failure_raises(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    error: Exception,
+) -> None:
+    """A library or broker failure on the press raises the identify message, and schedules no stop."""
+    mock_client.identify.side_effect = error
     await setup_integration(hass, mock_config_entry)
 
     with pytest.raises(HomeAssistantError) as excinfo:
-        await _press(hass, IDENTIFY_ENTITY_ID)
-    assert excinfo.value.translation_key == "module_not_addressable"
+        await _press(hass, IDENTIFY_ENTITY_ID(hass))
+    assert excinfo.value.translation_key == "identify_failed"
     assert not isinstance(excinfo.value, ServiceValidationError)
 
     await _elapse(hass, IDENTIFY_HOLD_SECONDS + 1)
@@ -306,7 +393,12 @@ async def test_identify_unknown_module_raises(
 
 @pytest.mark.usefixtures("button_only")
 @pytest.mark.parametrize(
-    "error", [AmpioConnectionError("Not connected"), AmpioTimeoutError("no ack")]
+    "error",
+    [
+        AmpioConnectionError("Not connected"),
+        AmpioTimeoutError("no ack"),
+        AmpioValueError("command rejected"),
+    ],
 )
 async def test_identify_stop_failure_logs(
     hass: HomeAssistant,
@@ -319,7 +411,7 @@ async def test_identify_stop_failure_logs(
     mock_client.identify_stop.side_effect = error
     await setup_integration(hass, mock_config_entry)
 
-    await _press(hass, IDENTIFY_ENTITY_ID)
+    await _press(hass, IDENTIFY_ENTITY_ID(hass))
     await _elapse(hass, IDENTIFY_HOLD_SECONDS + 1)
 
     warnings = [
@@ -330,7 +422,10 @@ async def test_identify_stop_failure_logs(
     ]
     assert len(warnings) == 1
     message = warnings[0].getMessage()
-    assert "Could not send the identify stop to Ampio module 17" in message
+    assert (
+        "Could not send the identify stop to the Ampio module on mac 0xCB8F" in message
+    )
+    assert IDENTIFY_ENTITY_ID(hass) in message
 
 
 @pytest.mark.usefixtures("button_only")
@@ -339,7 +434,7 @@ async def test_identify_unload_sends_stop(
 ) -> None:
     """An unload during the hold sends the stop at once, and the timer dies with it."""
     await setup_integration(hass, mock_config_entry)
-    await _press(hass, IDENTIFY_ENTITY_ID)
+    await _press(hass, IDENTIFY_ENTITY_ID(hass))
 
     await hass.config_entries.async_unload(mock_config_entry.entry_id)
     await hass.async_block_till_done()
@@ -359,19 +454,18 @@ async def test_identify_button_follows_new_module(
 ) -> None:
     """A module row met after setup gets its button; the M-SERV row never does."""
     await setup_integration(hass, mock_config_entry)
-    hub_button = module_pinned_id("button", 1, "_identify")
-    new_button = module_pinned_id("button", 21, "_identify")
-    assert entity_registry.async_get(hub_button) is None
-    assert entity_registry.async_get(new_button) is None
+    hub_key = module_unique_id(1, "_identify")
+    new_key = module_unique_id(53257, "_identify")
+    assert entity_registry.async_get_entity_id("button", DOMAIN, hub_key) is None
+    assert entity_registry.async_get_entity_id("button", DOMAIN, new_key) is None
 
     obj = make_object(
         200,
         "wej",
         7,
-        leaf_id="0_d009_wej_0_1",
-        id_urzadzenia=21,
+        leaf_id="0_d009_257_1_1",
         funkcja=12,
-        opis_menu="Przycisk taras",
+        name="Przycisk taras",
         state="0",
     )
     mock_client.objects[200] = obj
@@ -379,9 +473,10 @@ async def test_identify_button_follows_new_module(
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=2))
     await hass.async_block_till_done(wait_background_tasks=True)
 
+    new_button = entity_id_of(hass, "button", new_key)
     assert entity_registry.async_get(new_button) is not None
     assert hass.states.get(new_button) is not None
-    assert entity_registry.async_get(hub_button) is None
+    assert entity_registry.async_get_entity_id("button", DOMAIN, hub_key) is None
 
 
 @pytest.mark.usefixtures("button_only")
@@ -395,7 +490,7 @@ async def test_identify_follows_the_connection(
     emit(mock_client, AvailabilityChanged(available=False))
     await hass.async_block_till_done()
 
-    assert hass.states.get(IDENTIFY_ENTITY_ID).state == STATE_UNAVAILABLE
+    assert hass.states.get(IDENTIFY_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
 
 
 @pytest.mark.usefixtures("button_only")
@@ -407,7 +502,9 @@ async def test_unlock_touch_only_on_a_module_that_reports_key_lock(
 ) -> None:
     """The capability map decides, so a module without a lock gets no button."""
     await setup_integration(hass, mock_config_entry)
-    assert entity_registry.async_get(UNLOCK_TOUCH_ENTITY_ID) is None
+    assert (
+        entity_registry.async_get_entity_id("button", DOMAIN, UNLOCK_TOUCH_KEY) is None
+    )
 
 
 @pytest.mark.usefixtures("button_only")
@@ -422,9 +519,9 @@ async def test_unlock_touch_exists_when_the_module_reports_key_lock(
 
     await setup_integration(hass, mock_config_entry)
 
-    entry = entity_registry.async_get(UNLOCK_TOUCH_ENTITY_ID)
+    entry = entity_registry.async_get(UNLOCK_TOUCH_ENTITY_ID(hass))
     assert entry is not None
-    assert entry.unique_id == "module_17_unlock_touch"
+    assert entry.unique_id == UNLOCK_TOUCH_KEY
 
 
 @pytest.mark.usefixtures("button_only")
@@ -434,21 +531,22 @@ async def test_unlock_touch_is_withheld_on_a_standard_account(
     mock_config_entry: MockConfigEntry,
     entity_registry: er.EntityRegistry,
 ) -> None:
-    """A standard account gets no unlock button, and the withheld set names it.
-
-    A standard account cannot read capabilities, so the factory owes every
-    module row an entity, which the withheld enumeration then names; a bare
-    capability check would name none of them. ``button_only`` scopes the
-    platform to its two admin-only registrations over one module device, so
-    the withheld set is exactly these two ids and no others.
-    """
-    set_access_tier(mock_client, AccessTier.RESTRICTED)
-
+    """An account downgrade withholds the existing touch-unlock record."""
+    with_key_lock(mock_client)
     await setup_integration(hass, mock_config_entry)
+    assert entity_registry.async_get(UNLOCK_TOUCH_ENTITY_ID(hass)) is not None
 
-    assert entity_registry.async_get(UNLOCK_TOUCH_ENTITY_ID) is None
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    hass.config_entries.async_update_entry(
+        mock_config_entry, data={**mock_config_entry.data, CONF_USERNAME: "user"}
+    )
+    await hass.config_entries.async_reload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entity_registry.async_get(UNLOCK_TOUCH_ENTITY_ID(hass)) is not None
+    assert hass.states.get(UNLOCK_TOUCH_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
     withheld = mock_config_entry.runtime_data.withheld_unique_ids()
-    assert withheld == {"module_17_identify", "module_17_unlock_touch"}
+    assert withheld == {IDENTIFY_KEY, UNLOCK_TOUCH_KEY}
 
 
 @pytest.mark.usefixtures("button_only")
@@ -459,7 +557,7 @@ async def test_unlock_touch_press_unlocks(
     with_key_lock(mock_client)
     await setup_integration(hass, mock_config_entry)
 
-    await _press(hass, UNLOCK_TOUCH_ENTITY_ID)
+    await _press(hass, UNLOCK_TOUCH_ENTITY_ID(hass))
 
     mock_client.unlock_panel.assert_awaited_once_with(17)
 
@@ -472,7 +570,7 @@ async def test_lock_touch_sends_the_duration(
     with_key_lock(mock_client)
     await setup_integration(hass, mock_config_entry)
 
-    await _lock(hass, UNLOCK_TOUCH_ENTITY_ID, 30)
+    await _lock(hass, UNLOCK_TOUCH_ENTITY_ID(hass), 30)
 
     mock_client.lock_panel.assert_awaited_once_with(17, seconds=30.0)
 
@@ -490,7 +588,7 @@ async def test_lock_touch_rejects_a_value_off_the_wire(
     await setup_integration(hass, mock_config_entry)
 
     with pytest.raises(vol.Invalid):
-        await _lock(hass, UNLOCK_TOUCH_ENTITY_ID, seconds)
+        await _lock(hass, UNLOCK_TOUCH_ENTITY_ID(hass), seconds)
     mock_client.lock_panel.assert_not_awaited()
 
 
@@ -498,35 +596,40 @@ async def test_lock_touch_rejects_a_value_off_the_wire(
 async def test_unlock_touch_unknown_module_raises(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """A module the catalogue cannot address raises, not a bare ValueError."""
+    """A missing module row prevents the unlock command and names the address error."""
     with_key_lock(mock_client)
-    mock_client.unlock_panel.side_effect = ValueError("module id 17 has no mac")
     await setup_integration(hass, mock_config_entry)
+    del mock_client.modules[17]
 
-    with pytest.raises(HomeAssistantError) as excinfo:
-        await _press(hass, UNLOCK_TOUCH_ENTITY_ID)
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _press(hass, UNLOCK_TOUCH_ENTITY_ID(hass))
     assert excinfo.value.translation_key == "module_not_addressable"
-    assert not isinstance(excinfo.value, ServiceValidationError)
+    mock_client.unlock_panel.assert_not_awaited()
 
 
 @pytest.mark.usefixtures("button_only")
 async def test_lock_touch_unknown_module_raises(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """A module the catalogue cannot address raises, not a bare ValueError."""
+    """A missing module row prevents the lock command and names the address error."""
     with_key_lock(mock_client)
-    mock_client.lock_panel.side_effect = ValueError("module id 17 has no mac")
     await setup_integration(hass, mock_config_entry)
+    del mock_client.modules[17]
 
-    with pytest.raises(HomeAssistantError) as excinfo:
-        await _lock(hass, UNLOCK_TOUCH_ENTITY_ID, 30)
+    with pytest.raises(ServiceValidationError) as excinfo:
+        await _lock(hass, UNLOCK_TOUCH_ENTITY_ID(hass), 30)
     assert excinfo.value.translation_key == "module_not_addressable"
-    assert not isinstance(excinfo.value, ServiceValidationError)
+    mock_client.lock_panel.assert_not_awaited()
 
 
 @pytest.mark.usefixtures("button_only")
 @pytest.mark.parametrize(
-    "error", [AmpioConnectionError("Not connected"), AmpioTimeoutError("no ack")]
+    "error",
+    [
+        AmpioConnectionError("Not connected"),
+        AmpioTimeoutError("no ack"),
+        AmpioValueError("command rejected"),
+    ],
 )
 async def test_unlock_touch_command_failure_raises(
     hass: HomeAssistant,
@@ -534,20 +637,25 @@ async def test_unlock_touch_command_failure_raises(
     mock_config_entry: MockConfigEntry,
     error: Exception,
 ) -> None:
-    """A connection or timeout failure on the press raises the unlock message."""
+    """A library command failure on the press raises the unlock message."""
     with_key_lock(mock_client)
     mock_client.unlock_panel.side_effect = error
     await setup_integration(hass, mock_config_entry)
 
     with pytest.raises(HomeAssistantError) as excinfo:
-        await _press(hass, UNLOCK_TOUCH_ENTITY_ID)
+        await _press(hass, UNLOCK_TOUCH_ENTITY_ID(hass))
     assert excinfo.value.translation_key == "touch_unlock_failed"
     assert not isinstance(excinfo.value, ServiceValidationError)
 
 
 @pytest.mark.usefixtures("button_only")
 @pytest.mark.parametrize(
-    "error", [AmpioConnectionError("Not connected"), AmpioTimeoutError("no ack")]
+    "error",
+    [
+        AmpioConnectionError("Not connected"),
+        AmpioTimeoutError("no ack"),
+        AmpioValueError("command rejected"),
+    ],
 )
 async def test_lock_touch_command_failure_raises(
     hass: HomeAssistant,
@@ -555,7 +663,7 @@ async def test_lock_touch_command_failure_raises(
     mock_config_entry: MockConfigEntry,
     error: Exception,
 ) -> None:
-    """A connection or timeout failure on the service raises the lock message.
+    """A library command failure on the service raises the lock message.
 
     The key differs from the press's ``touch_unlock_failed``, because a lock
     that does not arrive leaves the panel usable and an unlock that does not
@@ -566,7 +674,7 @@ async def test_lock_touch_command_failure_raises(
     await setup_integration(hass, mock_config_entry)
 
     with pytest.raises(HomeAssistantError) as excinfo:
-        await _lock(hass, UNLOCK_TOUCH_ENTITY_ID, 30)
+        await _lock(hass, UNLOCK_TOUCH_ENTITY_ID(hass), 30)
     assert excinfo.value.translation_key == "touch_lock_failed"
     assert not isinstance(excinfo.value, ServiceValidationError)
 
@@ -579,7 +687,7 @@ async def test_lock_touch_on_a_bell_raises(
     await setup_integration(hass, mock_config_entry)
 
     with pytest.raises(ServiceValidationError) as excinfo:
-        await _lock(hass, RELAY_ENTITY_ID, 30)
+        await _lock(hass, RELAY_ENTITY_ID(hass), 30)
     assert excinfo.value.translation_key == "not_a_touch_panel"
     mock_client.lock_panel.assert_not_awaited()
 
@@ -592,6 +700,6 @@ async def test_lock_touch_on_an_identify_button_raises(
     await setup_integration(hass, mock_config_entry)
 
     with pytest.raises(ServiceValidationError) as excinfo:
-        await _lock(hass, IDENTIFY_ENTITY_ID, 30)
+        await _lock(hass, IDENTIFY_ENTITY_ID(hass), 30)
     assert excinfo.value.translation_key == "not_a_touch_panel"
     mock_client.lock_panel.assert_not_awaited()

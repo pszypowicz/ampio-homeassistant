@@ -1,6 +1,5 @@
 """Base entity for the Ampio integration."""
 
-import asyncio
 from typing import override
 
 from ampio_mqtt import (
@@ -9,15 +8,15 @@ from ampio_mqtt import (
     AvailabilityChanged,
     ObjectRemoved,
     ObjectUpdated,
+    format_mac,
 )
 
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.device_registry import ChildDeviceInfo, DeviceInfo
 from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.entity_platform import EntityPlatform
 
-from .const import DOMAIN
+from .const import DOMAIN, MODULE_KEY_PREFIX
 from .data import AmpioData, module_identifier
 
 
@@ -51,40 +50,29 @@ def raise_if_read_only(obj: AmpioObject | None) -> None:
         )
 
 
-class AmpioPinnedEntity(Entity):
-    """Entity whose id is pinned to its unique id, so that no name composes it."""
+class AmpioBaseEntity(Entity):
+    """Entity that carries this integration's naming and key conventions.
+
+    Home Assistant composes the entity id once, at first registration,
+    from the area name, the device name and the entity name by default,
+    leaving out any part that is empty. The user's Entity ID format setting
+    can leave out the area or add the floor, and it cannot leave out the
+    device or the entity name. This class writes no id, so an Ampio entity
+    follows that setting like any other.
+
+    Every device this integration creates carries a name, so Home
+    Assistant's own ``<platform>_<unique id>`` fallback is not reached: an
+    object with no Designer name takes the ``object`` device translation.
+    """
 
     _attr_has_entity_name = True
     _attr_should_poll = False
-    # The unique id, and the object part of the pinned entity id. A subclass
-    # sets it before the add, and sets ``_attr_unique_id`` to the same string.
+    # The unique id. A subclass sets it before the add, and sets
+    # ``_attr_unique_id`` to the same string.
     _key: str
 
-    @override
-    def add_to_platform_start(
-        self,
-        hass: HomeAssistant,
-        platform: EntityPlatform,
-        parallel_updates: asyncio.Semaphore | None,
-    ) -> None:
-        """Pin the entity id, so that no name composes one.
 
-        Home Assistant builds an entity id from the area name, the device
-        name, and the entity name, once, at first registration. An entity
-        that carries an ``entity_id`` into the add is exempt: the platform
-        stores the object part as the registry's ``suggested_object_id``,
-        and the composition then skips every name part. The module device
-        is therefore free to take its administrator-tier name, which the
-        restricted tier is not served, without moving an id.
-
-        The pinned id is the unique id with the domain in front, so the two
-        identities are one string and cannot drift apart.
-        """
-        super().add_to_platform_start(hass, platform, parallel_updates)
-        self.entity_id = f"{platform.domain}.ampio_{self._key}"
-
-
-class AmpioEntity(AmpioPinnedEntity):
+class AmpioEntity(AmpioBaseEntity):
     """Entity backed by one Ampio object."""
 
     def __init__(
@@ -93,9 +81,10 @@ class AmpioEntity(AmpioPinnedEntity):
         """Initialize from the discovery-time object snapshot.
 
         ``key_suffix`` separates a second entity built from one object, and
-        it lands in the unique id and the entity id alike, because the two
-        are the same string. No server scope: object ids are unique per
-        M-SERV, and one M-SERV is allowed.
+        it reaches the unique id alone: Home Assistant composes the entity
+        id from the area name, the device name and the entity name by
+        default. No server scope: object ids are unique per M-SERV, and one
+        M-SERV is allowed.
         """
         self._data = data
         self._object_id = obj.id
@@ -112,13 +101,13 @@ class AmpioEntity(AmpioPinnedEntity):
         device_info = ChildDeviceInfo(
             identifiers={(DOMAIN, obj.object_key)}, parent_device_id=parent
         )
-        # ``opis_menu`` is the Designer menu description, which is the name
+        # ``name`` is the Designer ``opis_menu`` column, which is the name
         # the user gave the object in the Ampio app. The device carries it,
         # so the primary entity adds no name of its own. An unnamed object
         # reads a translated placeholder, and its entity keeps the
         # platform's kind name.
-        if obj.opis_menu:
-            device_info["name"] = obj.opis_menu
+        if obj.name:
+            device_info["name"] = obj.name
             self._attr_name = None
         else:
             device_info["translation_key"] = "object"
@@ -159,38 +148,70 @@ class AmpioEntity(AmpioPinnedEntity):
     @property
     @override
     def available(self) -> bool:
-        """Available while the broker is connected and the object is still shown.
+        """Available while the broker is connected and the object is still served.
 
-        A Designer delete keeps the row on the administrator tier and sets
-        its hidden bit, so ``visible`` is the delete signal there. The
-        restricted tier drops the row instead, and ``_object`` goes None.
+        The library's admission door evicts a hidden row before any
+        consumer sees it, so a Designer delete reads the same on either
+        account tier: the object leaves ``objects`` and ``_object`` goes
+        None. There is no hidden bit left for an entity to read, and no
+        tier the delete signal differs on.
         """
-        obj = self._object
-        return self._data.client.available and obj is not None and obj.visible
+        return self._data.client.available and self._object is not None
 
 
-class AmpioModuleEntity(AmpioPinnedEntity):
+class AmpioModuleEntity(AmpioBaseEntity):
     """Entity that attaches to a module device rather than to an object.
 
-    The key is the Designer row id. An object carries that same id in its
-    own ``id_urzadzenia`` field on both account tiers, which is how the row
-    id survives a tier change. Availability tracks the connection and nothing
-    else. A subclass whose surface reports something of its own overrides
-    ``available``.
+    The key is the module's override mac, which every object carries in
+    its address on both account tiers and which Ampio Designer re-stamps
+    onto a replacement unit, so a swapped module keeps its device and its
+    entities. The Designer row id is no identity here: it is reassigned
+    when a module is replaced, and only the administrator login is served
+    it at all. It is the argument the module commands take, and
+    ``_require_module_id`` resolves it at call time.
+
+    Availability follows the connection and nothing else. A reading of
+    module data whose catalogue row is missing reports an unknown value,
+    and the entity stays available.
     """
 
-    def __init__(self, data: AmpioData, module_id: int, *, key_suffix: str) -> None:
-        """Attach to the module device of Designer row ``module_id``.
+    def __init__(self, data: AmpioData, mac: int, *, key_suffix: str) -> None:
+        """Attach to the module device on override mac ``mac``.
 
         ``key_suffix`` names what the entity does on the module, and it
-        lands in the unique id and the entity id alike, because the two are
-        the same string.
+        reaches the unique id alone: Home Assistant composes the entity id
+        from the area name, the device name and the entity name by default.
+        The key is built from ``MODULE_KEY_PREFIX``, which is also what the
+        stale-record report reads a module record back through.
         """
         self._data = data
-        self._module_id = module_id
-        self._key = f"module_{module_id}_{key_suffix}"
+        self._mac = mac
+        self._key = f"{MODULE_KEY_PREFIX}{format_mac(mac)}_{key_suffix}"
         self._attr_unique_id = self._key
-        self._attr_device_info = DeviceInfo(identifiers={module_identifier(module_id)})
+        self._attr_device_info = DeviceInfo(identifiers={module_identifier(mac)})
+
+    def _require_module_id(self) -> int:
+        """The Designer row id the module commands address, resolved now.
+
+        The name carries the raise, because a caller that cannot accept one
+        has no business here. It raises when the catalogue holds no
+        admitted row on this entity's mac, which is the right answer to a
+        press that cannot reach the module and the wrong answer to a read:
+        a surface that reports module data asks
+        ``AmpioData.module_row_for`` with ``self._mac`` instead and reports
+        an unknown reading on None. Losing the connection is what makes the
+        entity unavailable; a missing catalogue row does not.
+
+        Never cached. The row id is reassigned when a module is replaced,
+        while the mac this entity keys on survives the swap.
+        """
+        module = self._data.module_row_for(self._mac)
+        if module is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="module_not_addressable",
+            )
+        return module.id
 
     @override
     async def async_added_to_hass(self) -> None:

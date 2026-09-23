@@ -9,10 +9,12 @@ the same public surface the library exposes: the state properties and the
 from collections.abc import Generator
 from dataclasses import replace
 from typing import Any, Final
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, create_autospec, patch
 
 from ampio_mqtt import (
     AccessTier,
+    AmpioAdminClient,
+    AmpioClient,
     AmpioModule,
     AmpioObject,
     AmpioScene,
@@ -23,14 +25,18 @@ from ampio_mqtt import (
     PanelSettings,
     RecordSweep,
     ThermostatState,
+    format_mac,
+    parse_module_address,
 )
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.syrupy import HomeAssistantSnapshotExtension
 from syrupy.assertion import SnapshotAssertion
 
-from custom_components.ampio.const import DOMAIN
+from custom_components.ampio.const import DOMAIN, MODULE_KEY_STEM
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 
 @pytest.fixture(autouse=True)
@@ -52,14 +58,14 @@ def snapshot(snapshot: SnapshotAssertion) -> SnapshotAssertion:
 
 
 MSERV_MAC = "47846"
-# Identifiers carry no server mac: the hub is one constant, a module is its
-# Designer row id, an object is its Designer id.
+# The hub has a constant identifier. Modules use their bus mac, and objects
+# use their Designer id.
 HUB_IDENTIFIER = (DOMAIN, "hub")
-MSENS_IDENTIFIER = (DOMAIN, "module:17")
+MSENS_IDENTIFIER = (DOMAIN, f"module_mac:{format_mac(52111)}")
 # The module device is named from the admin-only module catalogue, and a
-# standard account reads its Designer row id instead.
+# standard account reads its bus mac instead.
 MSENS_DEVICE_NAME = "m-sens salon"
-MSENS_ROW_NAME = "Ampio module 17"
+MSENS_ROW_NAME = "Ampio module 0xCB8F"
 
 
 def unique_id(oid: int, suffix: str = "") -> str:
@@ -67,22 +73,21 @@ def unique_id(oid: int, suffix: str = "") -> str:
     return f"obj_{oid}{suffix}"
 
 
-def pinned_id(domain: str, oid: int, suffix: str = "") -> str:
-    """The pinned entity id of an object's entity in ``domain``.
+def module_unique_id(mac: int, suffix: str) -> str:
+    """The unique id of a module entity, built from its override mac."""
+    return f"{MODULE_KEY_STEM}_{format_mac(mac)}{suffix}"
 
-    The integration carries this id into the add, so no device name and no
-    area name compose it. It is the unique id with the domain in front.
+
+def entity_id_of(hass: HomeAssistant, domain: str, key: str) -> str:
+    """The entity id Home Assistant composed for the unique id ``key``.
+
+    Composition reads the area, the device name and the entity name, so a
+    test that spells an id out by hand pins the fixture's names rather than
+    the behavior under test. Ask the registry instead.
     """
-    return f"{domain}.ampio_{unique_id(oid, suffix)}"
-
-
-def module_pinned_id(domain: str, module_id: int, suffix: str) -> str:
-    """The pinned entity id of a module device's entity in ``domain``.
-
-    A module has no object, so the key is the Designer row id and a suffix
-    that names the entity, with the domain in front.
-    """
-    return f"{domain}.ampio_module_{module_id}{suffix}"
+    entity_id = er.async_get(hass).async_get_entity_id(domain, DOMAIN, key)
+    assert entity_id is not None, f"no {domain} entity registered for {key}"
+    return entity_id
 
 
 # A sweep that read every module and joined nothing.
@@ -92,7 +97,7 @@ EMPTY_SWEEP = RecordSweep(
 
 USER_INPUT = {
     CONF_HOST: "ampio.test",
-    CONF_USERNAME: "user",
+    CONF_USERNAME: "admin",
     CONF_PASSWORD: "pass",
 }
 
@@ -119,9 +124,8 @@ def make_object(
     interpretacja: int,
     *,
     leaf_id: str,
-    id_urzadzenia: int = 17,
     funkcja: int = 1,
-    opis_menu: str | None = None,
+    name: str | None = None,
     state: str | None = None,
     params: int = 0,
     matter_device_type: int | None = None,
@@ -134,12 +138,12 @@ def make_object(
     """Build a classified object the way discovery would."""
     return AmpioObject(
         id=oid,
-        id_urzadzenia=id_urzadzenia,
         typ_komponentu=typ,
-        opis_menu=opis_menu,
+        name=name,
         interpretacja=interpretacja,
         funkcja=funkcja,
-        leaf_id=leaf_id,
+        address=parse_module_address(leaf_id),
+        leaf_key=f"leaf_{leaf_id}",
         params=params,
         state=state,
         matter_device_type=matter_device_type,
@@ -151,57 +155,46 @@ def make_object(
     )
 
 
-# The default object catalogue: one visible sensor per supported kind on
-# module 17, so the entity snapshot pins every description's device class,
-# unit, precision, and display name. The hidden phantom mirrors a real M-SENS
-# where adding a CO2 object in Designer leaves an unnamed stub sharing the
-# leafId behind; the ghost is a removed-but-still-returned row, hidden bit
-# set and no leafId. The three input objects (a named flag, a system-typed
-# detection row that must never surface, a named wired-button input) feed
-# the binary_sensor and switch platforms the same way.
-# The five output objects (a named dimmer, an rgbw, a warm/cold white
-# whose state packs a power and a coldness byte, a Matter-tagged relay
-# light, an untagged relay for the switch platform) feed the light and
-# switch platforms, plus a plug-tagged relay for the switch platform's
-# outlet class. The three cover objects (a
-# plain roleta without feedback, a percent roleta, a lamella blind) feed the
-# cover platform. The thermostat object feeds the climate platform; its value
-# is the running flag. Four integer sensor slots feed the value sensor path.
-# Two analog flags feed the number platform, and three alarm-shaped objects
-# feed the binary_sensor platform's alarm partition descriptions.
-# The named flag on module mac 1 (the M-SERV itself) is server-owned, so its
-# child device parents to the hub instead of a module device like every
-# other module-owned object's child.
+# The admitted catalogue covers the supported platform kinds. Object 121
+# belongs to mac 1, so its child device belongs to the hub. Rows for hidden
+# objects, system objects, and empty leaves belong at the admission door.
+# Verified sfIds follow ampio_mqtt's documented leaf classes and temperature
+# fixture. The identity table is incomplete, so unlisted values below
+# remain unverified.
 DEFAULT_OBJECTS = (
     make_object(
         36,
         "temp",
         1,
-        leaf_id="0_cb8f_temp_0_1",
-        opis_menu="Temperatura",
+        leaf_id="0_cb8f_76_0_1",
+        name="Temperatura",
         state="24.4",
     ),
+    # sfId 74 represents analog inputs within the documented M-SENS range
+    # 73-76 and matches the library's store fixtures. The identity table
+    # does not establish each measurement's sfId, so this representative
+    # assignment is unverified for individual measurements.
     make_object(
         37,
         "lin_wej",
         1,
-        leaf_id="0_cb8f_lin_0_2",
+        leaf_id="0_cb8f_74_0_2",
         funkcja=2,
-        opis_menu="Wilgotność",
+        name="Wilgotność",
         state="42.000000",
     ),
-    make_object(43, "lin_wej", 7, leaf_id="0_cb8f_lin_0_3", funkcja=3, state="900.5"),
-    make_object(44, "lin_wej", 2, leaf_id="0_cb8f_lin_0_4", funkcja=5, state="1013.2"),
-    make_object(45, "lin_wej", 6, leaf_id="0_cb8f_lin_0_5", funkcja=6, state="1019.7"),
-    make_object(46, "lin_wej", 3, leaf_id="0_cb8f_lin_0_6", funkcja=7, state="38.5"),
-    make_object(47, "lin_wej", 4, leaf_id="0_cb8f_lin_0_7", funkcja=8, state="742"),
-    make_object(48, "lin_wej", 5, leaf_id="0_cb8f_lin_0_8", funkcja=9, state="23"),
+    make_object(43, "lin_wej", 7, leaf_id="0_cb8f_74_0_3", funkcja=3, state="900.5"),
+    make_object(44, "lin_wej", 2, leaf_id="0_cb8f_74_0_4", funkcja=5, state="1013.2"),
+    make_object(45, "lin_wej", 6, leaf_id="0_cb8f_74_0_5", funkcja=6, state="1019.7"),
+    make_object(46, "lin_wej", 3, leaf_id="0_cb8f_74_0_6", funkcja=7, state="38.5"),
+    make_object(47, "lin_wej", 4, leaf_id="0_cb8f_74_0_7", funkcja=8, state="742"),
+    make_object(48, "lin_wej", 5, leaf_id="0_cb8f_74_0_8", funkcja=9, state="23"),
     make_object(
         61,
         "flaga",
         0,
-        leaf_id="0_cb8f_flaga_0_1",
-        opis_menu="Podlewanie",
+        leaf_id="0_cb8f_3_0_1",
+        name="Podlewanie",
         state="1",
     ),
     # The two bell-marked objects (params bit 15): a named relay and an
@@ -210,7 +203,7 @@ DEFAULT_OBJECTS = (
         149,
         "flaga",
         0,
-        leaf_id="0_cb8f_flaga_0_3",
+        leaf_id="0_cb8f_3_0_3",
         funkcja=12,
         state="0",
         params=1 << 15,
@@ -219,9 +212,9 @@ DEFAULT_OBJECTS = (
         150,
         "przekaznik",
         0,
-        leaf_id="0_cb8f_rel_0_6",
+        leaf_id="0_cb8f_257_2_6",
         funkcja=13,
-        opis_menu="Dzwonek",
+        name="Dzwonek",
         state="0",
         params=1 << 15,
         czas=300,
@@ -233,67 +226,67 @@ DEFAULT_OBJECTS = (
         151,
         "przekaznik",
         0,
-        leaf_id="0_cb8f_rel_0_6",
+        leaf_id="0_cb8f_257_2_6",
         funkcja=13,
-        opis_menu="Dzwonek",
+        name="Dzwonek",
         state="0",
         params=1 << 15,
         czas=300,
     ),
-    make_object(62, "detekcja", 0, leaf_id="0_cb8f_det_0_2", funkcja=2, state="0"),
     make_object(
         146,
         "wej",
         15,
-        leaf_id="0_cb8f_wej_0_9",
-        opis_menu="Przycisk kino",
+        leaf_id="0_cb8f_257_1_9",
+        name="Przycisk kino",
         state="0",
     ),
     make_object(
         71,
         "led",
         0,
-        leaf_id="0_cb8f_led_0_1",
+        leaf_id="0_cb8f_67_0_1",
         funkcja=3,
-        opis_menu="Taras LED",
+        name="Taras LED",
         state="128",
     ),
     make_object(
         72,
         "rgbw",
         0,
-        leaf_id="0_cb8f_rgbw_0_2",
+        leaf_id="0_cb8f_30_0_2",
         funkcja=4,
-        opis_menu="Salon RGBW",
+        name="Salon RGBW",
         state=str(60 | 120 << 8 | 180 << 16 | 240 << 24),
     ),
+    # sfId 81 is retained as an unverified LEDWW value absent from the table.
     make_object(
         76,
         "ledww",
         0,
         leaf_id="0_cb8f_81_0_1",
         funkcja=14,
-        opis_menu="Sypialnia CCT",
+        name="Sypialnia CCT",
         state=str(84 | 85 << 8),
     ),
     make_object(
         73,
         "przekaznik",
         0,
-        leaf_id="0_cb8f_rel_0_3",
+        leaf_id="0_cb8f_257_2_3",
         funkcja=5,
-        opis_menu="Kinkiet",
+        name="Kinkiet",
         state="0",
         matter_device_type=0x0100,
     ),
-    make_object(74, "przekaznik", 0, leaf_id="0_cb8f_rel_0_4", funkcja=6, state="1"),
+    make_object(74, "przekaznik", 0, leaf_id="0_cb8f_257_2_4", funkcja=6, state="1"),
     make_object(
         75,
         "przekaznik",
         0,
-        leaf_id="0_cb8f_rel_0_5",
+        leaf_id="0_cb8f_257_2_5",
         funkcja=10,
-        opis_menu="Gniazdo Taras",
+        name="Gniazdo Taras",
         state="0",
         matter_device_type=0x010A,
     ),
@@ -301,26 +294,26 @@ DEFAULT_OBJECTS = (
         81,
         "roleta",
         0,
-        leaf_id="0_cb8f_rol_0_1",
+        leaf_id="0_cb8f_5_0_1",
         funkcja=7,
-        opis_menu="Roleta Sypialnia",
+        name="Roleta Sypialnia",
     ),
     make_object(
         82,
         "roleta_procenty",
         0,
-        leaf_id="0_cb8f_rolp_0_2",
+        leaf_id="0_cb8f_5_0_2",
         funkcja=8,
-        opis_menu="Roleta Kuchnia",
+        name="Roleta Kuchnia",
         state="35",
     ),
     make_object(
         83,
         "roleta_lamelki",
         0,
-        leaf_id="0_cb8f_roll_0_3",
+        leaf_id="0_cb8f_5_0_3",
         funkcja=9,
-        opis_menu="Zaluzja Goscinny",
+        name="Zaluzja Goscinny",
         state="70",
         lammel=40,
     ),
@@ -328,9 +321,9 @@ DEFAULT_OBJECTS = (
         91,
         "reg",
         0,
-        leaf_id="0_cb8f_reg_0_1",
+        leaf_id="0_cb8f_13_0_1",
         funkcja=11,
-        opis_menu="Termostat Salon",
+        name="Termostat Salon",
         state="1",
         thermostat=ThermostatState(
             measure_temp=21.8,
@@ -339,29 +332,24 @@ DEFAULT_OBJECTS = (
             cooling=False,
         ),
     ),
-    make_object(132, "lin_wej", 7, leaf_id="0_cb8f_lin_0_3", funkcja=3, params=16),
-    make_object(99, "lin_wej", 2, leaf_id="", funkcja=4, params=16),
     make_object(
         121,
         "flaga",
         0,
-        leaf_id="0_1_flaga_0_9",
-        id_urzadzenia=1,
-        opis_menu="Dom pusty",
+        leaf_id="0_1_3_0_9",
+        name="Dom pusty",
         state="0",
     ),
-    # Four integer sensor slots, the shape an M-CON-485 gives a Modbus
-    # reading: a current with its unit in the string format tail and the
-    # value the M-SERV already divided, an energy total with the unit in
-    # the Unit field alone, a bare 16-bit counter with no unit, and a
-    # hidden slot that must yield nothing.
+    # Integer sensor slots, the shape an M-CON-485 gives a Modbus
+    # reading: current with a format-tail unit, energy with a Unit field,
+    # and a bare 16-bit counter.
     make_object(
         160,
         "bit32",
         1,
         leaf_id="0_cb8f_1005_0_0",
         funkcja=14,
-        opis_menu="Prąd L1",
+        name="Prąd L1",
         state="0.370000",
         string_format="%.3f A",
     ),
@@ -371,32 +359,34 @@ DEFAULT_OBJECTS = (
         2,
         leaf_id="0_cb8f_1005_0_1",
         funkcja=15,
-        opis_menu="Energia",
+        name="Energia",
         state="23512.09",
         url="kWh",
     ),
+    # sfId 1006 is retained as an unverified bit16 value absent from the table.
     make_object(
         162,
         "bit16",
         3,
         leaf_id="0_cb8f_1006_0_0",
         funkcja=16,
-        opis_menu="Licznik",
+        name="Licznik",
         state="42",
     ),
-    make_object(163, "bit32", 4, leaf_id="0_cb8f_1005_0_2", funkcja=17, params=16),
     # The two analog flags, the module's own u8 and signed 16-bit variables.
     # The u8 flag carries a Designer turn-on time the M-SERV ignores on this
     # type, which is what keeps the no-pulse guard honest. The 16-bit flag
     # holds a negative value, which its wider field allows and the u8 field
     # cannot.
+    # sfIds 17 and 18 are placeholders with unknown wire provenance for
+    # the two analog flag types.
     make_object(
         164,
         "flaga_liniowa",
         0,
-        leaf_id="0_cb8f_afu8_0_1",
+        leaf_id="0_cb8f_17_0_1",
         funkcja=18,
-        opis_menu="Poziom jasnosci",
+        name="Poziom jasnosci",
         state="120",
         czas=50,
     ),
@@ -404,22 +394,19 @@ DEFAULT_OBJECTS = (
         165,
         "flaga_liniowa16",
         0,
-        leaf_id="0_cb8f_afi16_0_2",
+        leaf_id="0_cb8f_18_0_2",
         funkcja=19,
-        opis_menu="Korekta temperatury",
+        name="Korekta temperatury",
         state="-44",
     ),
-    # The three alarm shapes. All three carry the same component type, and
-    # the leaf sub-function is what separates them: 3 armed, 4 alarmed, and
-    # an empty leaf the base kind, which is what Designer leaves behind when
-    # an object's Matter box is unchecked.
+    # Alarm halves use sub-function 3 for armed and 4 for alarmed.
     make_object(
         166,
         "satel_alarm",
         0,
         leaf_id="0_cb8f_296_3_1",
         funkcja=20,
-        opis_menu="Alarm strefa parter",
+        name="Alarm strefa parter",
         state="1",
     ),
     make_object(
@@ -428,19 +415,32 @@ DEFAULT_OBJECTS = (
         0,
         leaf_id="0_cb8f_296_4_1",
         funkcja=21,
-        opis_menu="Alarm naruszenie parter",
-        state="0",
-    ),
-    make_object(
-        168,
-        "satel_alarm",
-        0,
-        leaf_id="",
-        funkcja=22,
-        opis_menu="Alarm strefa garaz",
+        name="Alarm naruszenie parter",
         state="0",
     ),
 )
+
+# Raw Designer rows that cannot become AmpioObject instances.
+LEAFLESS_ALARM_ROW = {
+    "id": 168,
+    "typ_komponentu": "satel_alarm",
+    "interpretacja": 0,
+    "funkcja": 22,
+    "leafId": "",
+    "opis_menu": "Alarm strefa garaz",
+    "type": None,
+    "format": "",
+}
+HIDDEN_LEAFLESS_ROW = {
+    "id": 99,
+    "typ_komponentu": "lin_wej",
+    "interpretacja": 2,
+    "funkcja": 4,
+    "leafId": "",
+    "opis_menu": None,
+    "type": None,
+    "format": "",
+}
 
 # The default module catalogue an administrator account receives.
 DEFAULT_MODULES = (
@@ -501,60 +501,34 @@ def emit(client: MagicMock, event: Any) -> None:
         listener(event)
 
 
-# The two client reads the M-SERV serves to the administrator login alone. A
-# plain attribute on a mock reads as an empty catalogue, which is the state
-# the library stopped allowing, so the mock raises the way the library does.
-GATED_ON_ADMIN: Final = ("modules", "mserv")
-
-# The client calls the library reserves for the administrator login: the
-# module lookup, the locations table and the record sweep built on it, and
-# the four lock-write verbs behind the raw tree. Each raises
-# ``RuntimeError`` on a standard account, the same way the library does.
-GATED_METHODS_ON_ADMIN: Final = (
-    "module_for",
-    "fetch_locations",
-    "resolve_records",
-    "block_opening",
-    "block_closing",
-    "unblock_opening",
-    "unblock_closing",
-)
+# The administrator surface is absent from the base client class.
+ADMIN_MEMBERS: Final = frozenset(dir(AmpioAdminClient)) - frozenset(dir(AmpioClient))
 
 
 def set_access_tier(client: MagicMock, tier: AccessTier) -> None:
-    """Set the account tier on the mocked client, with the library's gate.
-
-    ``modules``, ``mserv``, ``module_for()``, ``fetch_locations()``,
-    ``resolve_records()``, and the four lock-write verbs raise
-    ``RuntimeError`` on a standard account, because the M-SERV serves the
-    module catalogue, the locations table, the record sweep, and the raw
-    tree writes to the reserved admin login alone. Every tier change in the
-    suite goes through here, so a read or a write the integration forgets
-    to gate fails a test instead of reading as an install with no modules.
-
-    The property mock lands on the mock's own class, which ``patch`` builds
-    fresh for each test, so nothing leaks between tests.
-    """
-    client.access_tier = tier
-    for name in GATED_ON_ADMIN:
-        if name in vars(type(client)):
-            delattr(type(client), name)
+    """Give the mock the public surface and identity of the selected client class."""
+    client_class = AmpioAdminClient if tier is AccessTier.ADMIN else AmpioClient
+    client.mock_add_spec(client_class)
+    client.__class__ = client_class
     if tier is AccessTier.ADMIN:
+        template = create_autospec(AmpioAdminClient, instance=True)
+        for name in ADMIN_MEMBERS:
+            setattr(client, name, getattr(template, name))
         client.modules = {module.id: module for module in DEFAULT_MODULES}
         client.mserv = client.modules[1]
-        for name in GATED_METHODS_ON_ADMIN:
-            getattr(client, name).side_effect = None
-        return
-    for name in GATED_ON_ADMIN:
-        setattr(
-            type(client),
-            name,
-            PropertyMock(side_effect=RuntimeError(f"{name} needs the admin login")),
-        )
-    for name in GATED_METHODS_ON_ADMIN:
-        getattr(client, name).side_effect = RuntimeError(
-            f"{name} needs the admin login"
-        )
+        client.capabilities = {}
+        client.panel_settings = {}
+        client.cover_parameters = {}
+        client.records = {}
+        client.module_records = {}
+        client.last_sweep = EMPTY_SWEEP
+        client.resolve_records.return_value = EMPTY_SWEEP
+        client.server_info = SERVER_INFO
+    else:
+        for name in ADMIN_MEMBERS:
+            if name in vars(client):
+                delattr(client, name)
+        client.server_info = replace(SERVER_INFO, user_id=2)
 
 
 @pytest.fixture
@@ -574,9 +548,11 @@ def mock_client_class() -> Generator[MagicMock]:
     with (
         patch("custom_components.ampio.AmpioClient", autospec=True) as client_class,
         patch("custom_components.ampio.config_flow.AmpioClient", new=client_class),
+        patch("custom_components.ampio.AmpioAdminClient", autospec=True) as admin_class,
     ):
         client_class.check_connection.return_value = SERVER_INFO
         client = client_class.return_value
+        admin_class.return_value = client
         client.connect.return_value = True
         client.available = True
         client.objects = {obj.id: obj for obj in DEFAULT_OBJECTS}
@@ -627,31 +603,33 @@ def mock_setup_entry() -> Generator[MagicMock]:
 def with_buzzer(client: MagicMock, module_id: int = 17) -> None:
     """Give a seeded module the buzzer capability, as a panel reports it.
 
-    Merges into the row's existing capabilities rather than replacing them,
+    Merges into the mac's existing capabilities rather than replacing them,
     because a real panel can carry a buzzer and a touch lock together.
     """
     module = client.modules[module_id]
-    client.modules[module_id] = replace(
-        module, capabilities={**module.capabilities, ModuleFunction.BUZZER: 4}
-    )
+    client.capabilities[module.mac] = {
+        **client.capabilities.get(module.mac, {}),
+        ModuleFunction.BUZZER: 4,
+    }
 
 
 def with_key_lock(client: MagicMock, module_id: int = 17) -> None:
     """Give a seeded module the touch-lock capability, as a panel reports it.
 
-    Merges into the row's existing capabilities rather than replacing them,
+    Merges into the mac's existing capabilities rather than replacing them,
     because a real panel can carry a buzzer and a touch lock together.
     """
     module = client.modules[module_id]
-    client.modules[module_id] = replace(
-        module, capabilities={**module.capabilities, ModuleFunction.KEY_LOCK: 1}
-    )
+    client.capabilities[module.mac] = {
+        **client.capabilities.get(module.mac, {}),
+        ModuleFunction.KEY_LOCK: 1,
+    }
 
 
 def with_panel_colors(client: MagicMock, module_id: int = 17) -> None:
     """Give a seeded module the backlight and status-light capabilities.
 
-    Merges into the row's existing capabilities rather than replacing them,
+    Merges into the mac's existing capabilities rather than replacing them,
     because a real M-DOT panel carries a buzzer, a touch lock, and a
     backlight all at once.
 
@@ -660,14 +638,11 @@ def with_panel_colors(client: MagicMock, module_id: int = 17) -> None:
     a test can prove which capability the code reads.
     """
     module = client.modules[module_id]
-    client.modules[module_id] = replace(
-        module,
-        capabilities={
-            **module.capabilities,
-            ModuleFunction.BACKLIGHT_RGBW: 6,
-            ModuleFunction.STATUSLIGHT_RGB: 3,
-        },
-    )
+    client.capabilities[module.mac] = {
+        **client.capabilities.get(module.mac, {}),
+        ModuleFunction.BACKLIGHT_RGBW: 6,
+        ModuleFunction.STATUSLIGHT_RGB: 3,
+    }
 
 
 # A stored default for a six-field panel. The backlight and the status
@@ -694,7 +669,7 @@ def with_panel_settings(client: MagicMock, module_id: int = 17) -> None:
         dim_after_s=30,
         dim_brightness=20,
     )
-    client.modules[module_id] = replace(module, panel_settings=settings)
+    client.panel_settings[module.mac] = settings
 
 
 # A stored travel configuration with every field a distinct value, so a test
@@ -712,10 +687,5 @@ COVER_PARAMETERS: Final = CoverParameters(
 
 
 def with_cover_parameters(client: MagicMock, object_id: int = 83) -> None:
-    """Give a seeded cover object a stored travel configuration, as an admin sweep reports it.
-
-    Merges into the object's existing fields rather than replacing them, the
-    way the module capability helpers merge into a module row.
-    """
-    obj = client.objects[object_id]
-    client.objects[object_id] = replace(obj, cover_parameters=COVER_PARAMETERS)
+    """Seed the administrator travel parameters for one object."""
+    client.cover_parameters[object_id] = COVER_PARAMETERS

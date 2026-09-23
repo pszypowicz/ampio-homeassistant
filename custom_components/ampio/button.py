@@ -6,10 +6,13 @@ import logging
 from typing import Any, Final, override
 
 from ampio_mqtt import (
+    AmpioAdminClient,
     AmpioConnectionError,
     AmpioObject,
     AmpioTimeoutError,
+    AmpioValueError,
     ModuleFunction,
+    format_mac,
 )
 import voluptuous as vol
 
@@ -70,30 +73,19 @@ def build_buttons(data: AmpioData, obj: AmpioObject) -> list[AmpioButton]:
 
 
 def build_identify_buttons(
-    data: AmpioData, module_id: int
+    data: AmpioData, admin: AmpioAdminClient, mac: int
 ) -> list[AmpioIdentifyButton]:
     """The button platform's entities for one module device."""
-    return [AmpioIdentifyButton(data, module_id)]
+    return [AmpioIdentifyButton(data, admin, mac)]
 
 
 def build_touch_unlock_buttons(
-    data: AmpioData, module_id: int
+    data: AmpioData, admin: AmpioAdminClient, mac: int
 ) -> list[AmpioTouchUnlockButton]:
-    """The button platform's touch-lock entities for one module device.
-
-    A standard account receives no module catalogue, so the capability is
-    unknowable there. This answers for every row on that tier. On that
-    tier the factory's answer reaches the withheld enumeration, and the
-    tier gate means nothing is built from it. A bare capability check
-    would leave an orphaned record in the repair card meant for a
-    Designer deletion.
-    """
-    if not data.is_admin:
-        return [AmpioTouchUnlockButton(data, module_id)]
-    module = data.module_row(module_id)
-    if module is None or ModuleFunction.KEY_LOCK not in module.capabilities:
+    """The touch-lock button for a module that supports the command."""
+    if ModuleFunction.KEY_LOCK not in admin.capabilities.get(mac, {}):
         return []
-    return [AmpioTouchUnlockButton(data, module_id)]
+    return [AmpioTouchUnlockButton(data, admin, mac)]
 
 
 async def _async_lock_touch(entity: ButtonEntity, call: ServiceCall) -> None:
@@ -120,11 +112,11 @@ async def async_setup_entry(
 ) -> None:
     """Register the button platform; the runtime data builds and keeps its entities."""
     entry.runtime_data.async_add_platform(build_buttons, async_add_entities)
-    entry.runtime_data.async_add_module_platform(
-        build_identify_buttons, async_add_entities, admin_only=True
+    entry.runtime_data.async_add_admin_module_platform(
+        build_identify_buttons, async_add_entities
     )
-    entry.runtime_data.async_add_module_platform(
-        build_touch_unlock_buttons, async_add_entities, admin_only=True
+    entry.runtime_data.async_add_admin_module_platform(
+        build_touch_unlock_buttons, async_add_entities
     )
     entity_platform.async_get_current_platform().async_register_entity_service(
         "lock_touch", LOCK_TOUCH_SCHEMA, _async_lock_touch
@@ -163,13 +155,10 @@ class AmpioIdentifyButton(AmpioModuleEntity, ButtonEntity):
     _attr_device_class = ButtonDeviceClass.IDENTIFY
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
-    def __init__(self, data: AmpioData, module_id: int) -> None:
-        """Attach to the module device, and start with no stop pending.
-
-        The identify frame is addressed by the Designer row id, which is the
-        fact that makes it the button's whole key.
-        """
-        super().__init__(data, module_id, key_suffix="identify")
+    def __init__(self, data: AmpioData, admin: AmpioAdminClient, mac: int) -> None:
+        """Attach to the module device, and start with no stop pending."""
+        super().__init__(data, mac, key_suffix="identify")
+        self._admin = admin
         self._cancel_stop: Callable[[], None] | None = None
 
     @override
@@ -180,16 +169,13 @@ class AmpioIdentifyButton(AmpioModuleEntity, ButtonEntity):
 
     @override
     async def async_press(self) -> None:
-        """Send the identify start, and schedule the stop.
-
-        A row the catalogue cannot address surfaces as an error with a
-        message rather than a bare ValueError.
-        """
+        """Send the identify start, and schedule the stop."""
+        module_id = self._require_module_id()
         try:
-            await self._data.client.identify(self._module_id)
-        except ValueError as err:
+            await self._admin.identify(module_id)
+        except (AmpioValueError, AmpioConnectionError, AmpioTimeoutError) as err:
             raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key="module_not_addressable"
+                translation_domain=DOMAIN, translation_key="identify_failed"
             ) from err
         self._cancel_pending_stop()
         self._cancel_stop = async_call_later(
@@ -209,12 +195,20 @@ class AmpioIdentifyButton(AmpioModuleEntity, ButtonEntity):
         """Send the identify stop; a stop that fails leaves the LED lit, and says so."""
         self._cancel_stop = None
         try:
-            await self._data.client.identify_stop(self._module_id)
-        except AmpioConnectionError, AmpioTimeoutError, ValueError:
+            module_id = self._require_module_id()
+            await self._admin.identify_stop(module_id)
+        except (
+            AmpioConnectionError,
+            AmpioTimeoutError,
+            AmpioValueError,
+            ServiceValidationError,
+        ):
             _LOGGER.warning(
-                "Could not send the identify stop to Ampio module %s; its LED "
-                "stays lit until Ampio Designer sends one or the module restarts",
-                self._module_id,
+                "Could not send the identify stop to the Ampio module on mac %s "
+                "(entity %s). Its LED stays lit until Ampio Designer sends one "
+                "or the module restarts",
+                format_mac(self._mac),
+                self.entity_id,
             )
 
 
@@ -237,16 +231,16 @@ class AmpioTouchUnlockButton(AmpioModuleEntity, ButtonEntity):
     _attr_translation_key = "unlock_touch"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
-    def __init__(self, data: AmpioData, module_id: int) -> None:
-        """Attach to the module device of Designer row ``module_id``."""
-        super().__init__(data, module_id, key_suffix="unlock_touch")
+    def __init__(self, data: AmpioData, admin: AmpioAdminClient, mac: int) -> None:
+        """Attach to the module device on override mac ``mac``."""
+        super().__init__(data, mac, key_suffix="unlock_touch")
+        self._admin = admin
 
     @override
     async def async_press(self) -> None:
         """Release the panel's touch lock now."""
-        await self._send(
-            self._data.client.unlock_panel(self._module_id), "touch_unlock_failed"
-        )
+        module_id = self._require_module_id()
+        await self._send(self._admin.unlock_panel(module_id), "touch_unlock_failed")
 
     async def async_lock_touch(self, seconds: float) -> None:
         """Make the panel ignore every touch for ``seconds``.
@@ -254,8 +248,9 @@ class AmpioTouchUnlockButton(AmpioModuleEntity, ButtonEntity):
         The lock always expires, so a long hold is an automation that
         repeats rather than a latch this entity keeps.
         """
+        module_id = self._require_module_id()
         await self._send(
-            self._data.client.lock_panel(self._module_id, seconds=seconds),
+            self._admin.lock_panel(module_id, seconds=seconds),
             "touch_lock_failed",
         )
 
@@ -268,11 +263,7 @@ class AmpioTouchUnlockButton(AmpioModuleEntity, ButtonEntity):
         """
         try:
             await command
-        except ValueError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key="module_not_addressable"
-            ) from err
-        except (AmpioConnectionError, AmpioTimeoutError) as err:
+        except (AmpioValueError, AmpioConnectionError, AmpioTimeoutError) as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN, translation_key=failure_key
             ) from err

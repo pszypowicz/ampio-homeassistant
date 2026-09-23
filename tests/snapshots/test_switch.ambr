@@ -1,5 +1,5 @@
 # serializer version: 1
-# name: test_all_entities[switch.ampio_obj_121-entry]
+# name: test_all_entities[switch.gniazdo_taras-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -13,158 +13,7 @@
     'disabled_by': None,
     'domain': 'switch',
     'entity_category': None,
-    'entity_id': 'switch.ampio_obj_121',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': None,
-    'options': dict({
-    }),
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': None,
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': 'ampio_obj_121',
-    'supported_features': 0,
-    'translation_key': 'flag',
-    'unique_id': 'obj_121',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[switch.ampio_obj_121-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Dom pusty',
-    }),
-    'context': <ANY>,
-    'entity_id': 'switch.ampio_obj_121',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'off',
-  })
-# ---
-# name: test_all_entities[switch.ampio_obj_61-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': None,
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'switch',
-    'entity_category': None,
-    'entity_id': 'switch.ampio_obj_61',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': None,
-    'options': dict({
-    }),
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': None,
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': 'ampio_obj_61',
-    'supported_features': 0,
-    'translation_key': 'flag',
-    'unique_id': 'obj_61',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[switch.ampio_obj_61-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Podlewanie',
-    }),
-    'context': <ANY>,
-    'entity_id': 'switch.ampio_obj_61',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'on',
-  })
-# ---
-# name: test_all_entities[switch.ampio_obj_74-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': None,
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'switch',
-    'entity_category': None,
-    'entity_id': 'switch.ampio_obj_74',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': None,
-    'options': dict({
-    }),
-    'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
-    'original_icon': None,
-    'original_name': None,
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': 'ampio_obj_74',
-    'supported_features': 0,
-    'translation_key': None,
-    'unique_id': 'obj_74',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[switch.ampio_obj_74-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'switch',
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Object 74',
-    }),
-    'context': <ANY>,
-    'entity_id': 'switch.ampio_obj_74',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'on',
-  })
-# ---
-# name: test_all_entities[switch.ampio_obj_75-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': None,
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'switch',
-    'entity_category': None,
-    'entity_id': 'switch.ampio_obj_75',
+    'entity_id': 'switch.gniazdo_taras',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -180,28 +29,28 @@
     'original_name': None,
     'platform': 'ampio',
     'previous_unique_id': None,
-    'suggested_object_id': 'ampio_obj_75',
+    'suggested_object_id': None,
     'supported_features': 0,
     'translation_key': None,
     'unique_id': 'obj_75',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[switch.ampio_obj_75-state]
+# name: test_all_entities[switch.gniazdo_taras-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'outlet',
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Gniazdo Taras',
     }),
     'context': <ANY>,
-    'entity_id': 'switch.ampio_obj_75',
+    'entity_id': 'switch.gniazdo_taras',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'off',
   })
 # ---
-# name: test_all_entities[switch.ampio_obj_81_lock_closing-entry]
+# name: test_all_entities[switch.object_74-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -214,8 +63,8 @@
     'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
-    'entity_category': <EntityCategory.CONFIG: 'config'>,
-    'entity_id': 'switch.ampio_obj_81_lock_closing',
+    'entity_category': None,
+    'entity_id': 'switch.object_74',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -226,32 +75,33 @@
     'object_id_base': None,
     'options': dict({
     }),
-    'original_device_class': None,
+    'original_device_class': <SwitchDeviceClass.SWITCH: 'switch'>,
     'original_icon': None,
-    'original_name': 'Closing lock',
+    'original_name': None,
     'platform': 'ampio',
     'previous_unique_id': None,
-    'suggested_object_id': 'ampio_obj_81_lock_closing',
+    'suggested_object_id': None,
     'supported_features': 0,
-    'translation_key': 'lock_closing',
-    'unique_id': 'obj_81_lock_closing',
+    'translation_key': None,
+    'unique_id': 'obj_74',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[switch.ampio_obj_81_lock_closing-state]
+# name: test_all_entities[switch.object_74-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Roleta Sypialnia Closing lock',
+      <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'switch',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Object 74',
     }),
     'context': <ANY>,
-    'entity_id': 'switch.ampio_obj_81_lock_closing',
+    'entity_id': 'switch.object_74',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
-    'state': 'off',
+    'state': 'on',
   })
 # ---
-# name: test_all_entities[switch.ampio_obj_81_lock_opening-entry]
+# name: test_all_entities[switch.podlewanie-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -264,8 +114,8 @@
     'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
-    'entity_category': <EntityCategory.CONFIG: 'config'>,
-    'entity_id': 'switch.ampio_obj_81_lock_opening',
+    'entity_category': None,
+    'entity_id': 'switch.podlewanie',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -278,30 +128,30 @@
     }),
     'original_device_class': None,
     'original_icon': None,
-    'original_name': 'Opening lock',
+    'original_name': None,
     'platform': 'ampio',
     'previous_unique_id': None,
-    'suggested_object_id': 'ampio_obj_81_lock_opening',
+    'suggested_object_id': None,
     'supported_features': 0,
-    'translation_key': 'lock_opening',
-    'unique_id': 'obj_81_lock_opening',
+    'translation_key': 'flag',
+    'unique_id': 'obj_61',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[switch.ampio_obj_81_lock_opening-state]
+# name: test_all_entities[switch.podlewanie-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Roleta Sypialnia Opening lock',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Podlewanie',
     }),
     'context': <ANY>,
-    'entity_id': 'switch.ampio_obj_81_lock_opening',
+    'entity_id': 'switch.podlewanie',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
-    'state': 'off',
+    'state': 'on',
   })
 # ---
-# name: test_all_entities[switch.ampio_obj_82_lock_closing-entry]
+# name: test_all_entities[switch.techniczne_dom_pusty-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -314,8 +164,8 @@
     'device_id': <ANY>,
     'disabled_by': None,
     'domain': 'switch',
-    'entity_category': <EntityCategory.CONFIG: 'config'>,
-    'entity_id': 'switch.ampio_obj_82_lock_closing',
+    'entity_category': None,
+    'entity_id': 'switch.techniczne_dom_pusty',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -328,173 +178,23 @@
     }),
     'original_device_class': None,
     'original_icon': None,
-    'original_name': 'Closing lock',
+    'original_name': None,
     'platform': 'ampio',
     'previous_unique_id': None,
-    'suggested_object_id': 'ampio_obj_82_lock_closing',
+    'suggested_object_id': None,
     'supported_features': 0,
-    'translation_key': 'lock_closing',
-    'unique_id': 'obj_82_lock_closing',
+    'translation_key': 'flag',
+    'unique_id': 'obj_121',
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[switch.ampio_obj_82_lock_closing-state]
+# name: test_all_entities[switch.techniczne_dom_pusty-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Roleta Kuchnia Closing lock',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Dom pusty',
     }),
     'context': <ANY>,
-    'entity_id': 'switch.ampio_obj_82_lock_closing',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'off',
-  })
-# ---
-# name: test_all_entities[switch.ampio_obj_82_lock_opening-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': None,
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'switch',
-    'entity_category': <EntityCategory.CONFIG: 'config'>,
-    'entity_id': 'switch.ampio_obj_82_lock_opening',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': None,
-    'options': dict({
-    }),
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': 'Opening lock',
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': 'ampio_obj_82_lock_opening',
-    'supported_features': 0,
-    'translation_key': 'lock_opening',
-    'unique_id': 'obj_82_lock_opening',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[switch.ampio_obj_82_lock_opening-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Roleta Kuchnia Opening lock',
-    }),
-    'context': <ANY>,
-    'entity_id': 'switch.ampio_obj_82_lock_opening',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'off',
-  })
-# ---
-# name: test_all_entities[switch.ampio_obj_83_lock_closing-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': None,
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'switch',
-    'entity_category': <EntityCategory.CONFIG: 'config'>,
-    'entity_id': 'switch.ampio_obj_83_lock_closing',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': None,
-    'options': dict({
-    }),
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': 'Closing lock',
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': 'ampio_obj_83_lock_closing',
-    'supported_features': 0,
-    'translation_key': 'lock_closing',
-    'unique_id': 'obj_83_lock_closing',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[switch.ampio_obj_83_lock_closing-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Zaluzja Goscinny Closing lock',
-    }),
-    'context': <ANY>,
-    'entity_id': 'switch.ampio_obj_83_lock_closing',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'off',
-  })
-# ---
-# name: test_all_entities[switch.ampio_obj_83_lock_opening-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': None,
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'switch',
-    'entity_category': <EntityCategory.CONFIG: 'config'>,
-    'entity_id': 'switch.ampio_obj_83_lock_opening',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': None,
-    'options': dict({
-    }),
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': 'Opening lock',
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': 'ampio_obj_83_lock_opening',
-    'supported_features': 0,
-    'translation_key': 'lock_opening',
-    'unique_id': 'obj_83_lock_opening',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[switch.ampio_obj_83_lock_opening-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Zaluzja Goscinny Opening lock',
-    }),
-    'context': <ANY>,
-    'entity_id': 'switch.ampio_obj_83_lock_opening',
+    'entity_id': 'switch.techniczne_dom_pusty',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,

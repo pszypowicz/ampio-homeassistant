@@ -4,11 +4,9 @@
 hand, expanding each ``[%key:...%]`` reference to its English text.
 hassfest does not compare the two files. These tests do.
 
-A separate contract runs the other direction: that a translation key a
-platform module asks for by domain is declared in ``strings.json`` in the
-first place. Neither of the two file-to-file tests above would catch a key
-removed from both files together, which is exactly the gap that leaves an
-entity showing its object id in the UI with nothing to say so.
+Source contracts also require declarations for literal entity, device,
+and exception keys. File comparisons cannot catch a key missing from both
+files, which leaves entities or errors without their intended text.
 """
 
 import ast
@@ -107,16 +105,13 @@ def test_the_generated_translation_resolves_every_reference() -> None:
     )
 
 
-def _requested_translation_keys(source: str) -> set[str]:
-    """The literal entity translation keys one platform module's source asks for.
+def _requested_translation_keys(source: str) -> dict[str, set[str]]:
+    """Collect literal entity and exception keys from declarations and calls.
 
-    Matches two shapes: a ``translation_key`` keyword passed to a call whose
-    name ends in ``EntityDescription``, and an assignment to
-    ``_attr_translation_key``, whether at class level or on ``self``. A key
-    built at run time from anything but a string literal is invisible to
-    this scan.
+    Dynamic keys are outside this scan. Exception calls pass both
+    ``translation_domain`` and a literal ``translation_key``.
     """
-    keys: set[str] = set()
+    keys: dict[str, set[str]] = {"entity": set(), "exceptions": set()}
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.Call):
             func = node.func
@@ -125,7 +120,11 @@ def _requested_translation_keys(source: str) -> set[str]:
                 if isinstance(func, ast.Attribute)
                 else getattr(func, "id", "")
             )
-            if not name.endswith("EntityDescription"):
+            if any(kw.arg == "translation_domain" for kw in node.keywords):
+                section = "exceptions"
+            elif name.endswith("EntityDescription"):
+                section = "entity"
+            else:
                 continue
             for kw in node.keywords:
                 if (
@@ -133,7 +132,7 @@ def _requested_translation_keys(source: str) -> set[str]:
                     and isinstance(kw.value, ast.Constant)
                     and isinstance(kw.value.value, str)
                 ):
-                    keys.add(kw.value.value)
+                    keys[section].add(kw.value.value)
         elif isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
             if not isinstance(node.value.value, str):
                 continue
@@ -145,7 +144,7 @@ def _requested_translation_keys(source: str) -> set[str]:
                 else:
                     continue
                 if target_name == "_attr_translation_key":
-                    keys.add(node.value.value)
+                    keys["entity"].add(node.value.value)
     return keys
 
 
@@ -172,13 +171,27 @@ def test_every_entity_translation_key_the_code_requests_is_declared() -> None:
         domain = platform.value
         source = (PLATFORM_DIR / f"{domain}.py").read_text(encoding="utf-8")
         undeclared = sorted(
-            _requested_translation_keys(source) - declared.get(domain, set())
+            _requested_translation_keys(source)["entity"] - declared.get(domain, set())
         )
         missing.extend(f"entity.{domain}.{key}" for key in undeclared)
 
     assert not missing, (
         f"strings.json declares no entity name for {missing}; add it under "
         f"'entity' so the entity does not fall back to showing its object id"
+    )
+
+
+def test_every_exception_translation_key_the_code_requests_is_declared() -> None:
+    """Every literal error key has a declared exception message."""
+    declared = set(json.loads(STRINGS.read_text(encoding="utf-8"))["exceptions"])
+    missing: set[str] = set()
+    for path in sorted(PLATFORM_DIR.glob("*.py")):
+        source = path.read_text(encoding="utf-8")
+        missing.update(_requested_translation_keys(source)["exceptions"] - declared)
+
+    assert not missing, (
+        f"strings.json declares no exception message for {sorted(missing)}. "
+        "Add each key under 'exceptions' so errors show their translated message."
     )
 
 
