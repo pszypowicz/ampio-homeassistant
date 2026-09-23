@@ -38,9 +38,9 @@ The M-SERV's own device carries MAC `0x1`, which is also the default a device ta
 
 ## Moving an object to another module
 
-Home Assistant cannot move a child device to another parent. When you move an object to another module in Designer, the object's device keeps its old parent. The integration removes the object's entities within seconds, logs a warning that names the object, and lists the device in the repair on the Settings page. Replacing a module does not do this, because the replacement takes the same MAC address and the object stays where it was.
+Home Assistant cannot move a child device to another parent. When you move an object to another module in Designer, the object's device keeps its old parent. The object's entities stay on that device and keep working. Within seconds the integration logs a warning that names the object and lists the device in the repair on the Settings page. Replacing a module does not do this, because the replacement takes the same MAC address and the object stays where it was.
 
-Submit the repair, or delete the object's device under Settings, then Devices and services. The object comes back under the new module, with its id, its area, and its name restored. If that object was the last one on its old module, the old module device stays behind empty, and the repair lists it too.
+Submit the repair, or delete the object's device under Settings, then Devices and services. The object's device comes back under the new module, with its id, its area, and its name restored, and its entities come back on it with their entity ids. If that object was the last one on its old module, the old module device stays behind empty, and the repair lists it too.
 
 ## Integer sensor slots and the Modbus divider
 

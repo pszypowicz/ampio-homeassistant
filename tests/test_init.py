@@ -29,7 +29,6 @@ from homeassistant.const import (
     CONF_USERNAME,
     EVENT_HOMEASSISTANT_STOP,
     STATE_ON,
-    STATE_UNAVAILABLE,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -987,21 +986,22 @@ async def test_moved_object_is_repaired_by_a_delete(
     mock_config_entry: MockConfigEntry,
     device_registry: dr.DeviceRegistry,
     area_registry: ar.AreaRegistry,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A child keeps its parent, so a moved object needs a delete to follow.
 
-    Home Assistant refuses to re-parent a child and skips the entity. The
-    removal hook permits the delete, and the deleted record restores the
-    device id, the area, and the name under the new module.
+    Home Assistant refuses to re-parent a child, so the entities register
+    under the parent the child already has and stay live. The removal hook
+    permits the delete, and the deleted record restores the device id, the
+    area, and the name under the new module.
     """
     await setup_integration(hass, mock_config_entry)
     child = device_registry.async_get_child_device_by_identifier(
         (DOMAIN, unique_id(74)), mock_config_entry.entry_id
     )
     assert child is not None
-    assert (
-        hass.states.get(entity_id_of(hass, "switch", unique_id(74))).state == STATE_ON
-    )
+    entity_id = entity_id_of(hass, "switch", unique_id(74))
+    assert hass.states.get(entity_id).state == STATE_ON
 
     # What the user put on the device is what the delete has to give back.
     piwnica = area_registry.async_get_or_create("Piwnica")
@@ -1014,20 +1014,29 @@ async def test_moved_object_is_repaired_by_a_delete(
         address=parse_module_address("0_be82_257_2_1"),
         leaf_key="leaf_0_be82_257_2_1",
     )
+    caplog.clear()
     await hass.config_entries.async_reload(mock_config_entry.entry_id)
     await hass.async_block_till_done()
 
-    # The entity is skipped, and its registry entry is left restored as
-    # unavailable until the user deletes the device the object outgrew.
-    assert (
-        hass.states.get(entity_id_of(hass, "switch", unique_id(74))).state
-        == STATE_UNAVAILABLE
-    )
+    # The entity is live at once, on the child that still hangs under the
+    # module the object left, and one warning names the object.
+    assert hass.states.get(entity_id).state == STATE_ON
+    record = er.async_get(hass).async_get(entity_id)
+    assert record is not None
+    assert record.device_id == child.id
+    warnings = [
+        log
+        for log in caplog.records
+        if log.levelno == logging.WARNING
+        and "Ampio object 74 hangs under a different module" in log.getMessage()
+    ]
+    assert len(warnings) == 1
     stuck = device_registry.async_get_child_device_by_identifier(
         (DOMAIN, unique_id(74)), mock_config_entry.entry_id
     )
     assert stuck is not None
     assert stuck.id == child.id
+    assert stuck.parent_device_id == child.parent_device_id
     assert await async_remove_config_entry_device(hass, mock_config_entry, stuck)
 
     device_registry.async_remove_device(stuck.id)
@@ -1046,9 +1055,7 @@ async def test_moved_object_is_repaired_by_a_delete(
     assert moved.parent_device_id == new_module.id
     assert moved.name_by_user == "Przekaznik piwnica"
     assert moved.area_id == piwnica.id
-    assert (
-        hass.states.get(entity_id_of(hass, "switch", unique_id(74))).state == STATE_ON
-    )
+    assert hass.states.get(entity_id).state == STATE_ON
 
 
 async def test_send_notification_is_registered_before_any_entry(

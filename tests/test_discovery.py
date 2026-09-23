@@ -316,32 +316,37 @@ async def test_pulse_time_adds_and_removes_the_diagnostic(
     assert hass.states.get(RELAY_PULSE_ID(hass)).state == STATE_UNAVAILABLE
 
 
-async def test_moved_object_is_removed_and_deletable(
+async def test_moved_object_keeps_its_entities_and_is_deletable(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
     device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A move in Designer removes the entities, warns once, and permits the delete."""
+    """A move in Designer keeps the entities under the old module, warns once, and permits the delete."""
     await setup_integration(hass, mock_config_entry)
     child = _child(device_registry, mock_config_entry, 74)
     assert child is not None
+    old_parent = child.parent_device_id
+    entity_id = RELAY_SWITCH_ID(hass)
 
-    await _update(
-        hass,
-        mock_client,
-        replace(
-            mock_client.objects[74],
-            address=parse_module_address("0_be82_257_2_1"),
-            leaf_key="leaf_0_be82_257_2_1",
-        ),
+    moved = replace(
+        mock_client.objects[74],
+        address=parse_module_address("0_be82_257_2_1"),
+        leaf_key="leaf_0_be82_257_2_1",
     )
+    await _update(hass, mock_client, moved)
+    # A second batch for the same object, while its child stays put, and
+    # it builds a new entity, which registers under the child as well.
+    await _update(hass, mock_client, replace(moved, czas=300))
 
-    assert hass.states.get(RELAY_SWITCH_ID(hass)).state == STATE_UNAVAILABLE
-    assert (
-        er.async_get(hass).async_get_entity_id("light", DOMAIN, unique_id(74)) is None
-    )
+    assert hass.states.get(entity_id).state == STATE_ON
+    assert hass.states.get(RELAY_PULSE_ID(hass)).state == "3.0"
+    for built in (entity_id, RELAY_PULSE_ID(hass)):
+        record = entity_registry.async_get(built)
+        assert record is not None
+        assert record.device_id == child.id
     warnings = [
         record
         for record in caplog.records
@@ -352,6 +357,7 @@ async def test_moved_object_is_removed_and_deletable(
     stuck = _child(device_registry, mock_config_entry, 74)
     assert stuck is not None
     assert stuck.id == child.id
+    assert stuck.parent_device_id == old_parent
     assert await async_remove_config_entry_device(hass, mock_config_entry, stuck)
 
 
@@ -485,6 +491,8 @@ async def test_deleting_a_moved_child_brings_it_back_under_the_new_module(
             leaf_key="leaf_0_be82_257_2_1",
         ),
     )
+    # The entity keeps working until the delete.
+    assert hass.states.get(entity_id).state == STATE_ON
     stuck = _child(device_registry, mock_config_entry, 74)
     assert stuck is not None
     assert await async_remove_config_entry_device(hass, mock_config_entry, stuck)
@@ -536,7 +544,7 @@ async def test_deleting_the_old_module_brings_a_stuck_child_back_too(
             leaf_key="leaf_0_be82_257_2_1",
         ),
     )
-    assert hass.states.get(entity_id).state == STATE_UNAVAILABLE
+    assert hass.states.get(entity_id).state == STATE_ON
     stuck = _child(device_registry, mock_config_entry, 74)
     assert stuck is not None
     assert stuck.id == child.id
@@ -758,8 +766,7 @@ async def test_a_module_that_gets_its_object_back_needs_no_repair(
     The mac keeps its place in the tree while its device record stands,
     so the object resolves to the device its child still hangs under. A
     tree that dropped the mac would resolve the object to the hub, and
-    the child the registry cannot re-parent would hold its entities back
-    until the user deleted the device.
+    the repair would offer a child that sits where it belongs.
     """
     await setup_integration(hass, mock_config_entry)
     new_input = _new_input(leaf_id="0_d009_257_1_1")

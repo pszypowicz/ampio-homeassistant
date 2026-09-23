@@ -247,6 +247,9 @@ class AmpioData:
         self._fingerprints: dict[int, Fingerprint] = {}
         # The object keys queued for the next batch, by object id.
         self._pending: dict[int, str] = {}
+        # The objects whose misparent warning is logged, so that a batch
+        # does not repeat it while the child stays where it is.
+        self._warned_misparented: set[int] = set()
         self._reconcile_lock = asyncio.Lock()
         self._debouncer = Debouncer(
             hass,
@@ -490,10 +493,10 @@ class AmpioData:
     ) -> dict[str, Entity]:
         """The entities a platform builds for an object, keyed by unique id.
 
-        Nothing for an object that left the catalogue, and nothing for an
-        object whose child device hangs under a parent it has outgrown.
-        Home Assistant cannot re-parent a child, so the delete of that
-        device is the move, and the repair offers it.
+        Nothing for an object that left the catalogue. An object whose
+        child device hangs under a parent it has outgrown keeps its
+        entities, which register under the parent the child already has,
+        and a warning names the object once while the child stays there.
         """
         if obj is None:
             return {}
@@ -502,16 +505,21 @@ class AmpioData:
             for entity in registration.factory(self, obj)
             if (uid := entity.unique_id) is not None
         }
-        if entities and self._misparented(obj):
+        if not entities:
+            return entities
+        if not self._misparented(obj):
+            self._warned_misparented.discard(obj.id)
+        elif obj.id not in self._warned_misparented:
+            self._warned_misparented.add(obj.id)
             _LOGGER.warning(
                 "The device of Ampio object %s hangs under a different module "
-                "than the object resolves to now, so its entities are held "
-                "back. Home Assistant cannot re-parent a device, so use the "
-                "repair on the Settings page, or delete the device, and the "
-                "entities come back under the module the object resolves to",
+                "than the object resolves to now. Its entities keep working "
+                "under that module. Home Assistant cannot re-parent a device, "
+                "so use the repair on the Settings page, or delete the device, "
+                "and the device comes back under the module the object "
+                "resolves to",
                 obj.id,
             )
-            return {}
         return entities
 
     def _expected_module_entities(
@@ -539,6 +547,31 @@ class AmpioData:
             for entity in factory(self, admin, mac)
             if (uid := entity.unique_id) is not None
         }
+
+    @callback
+    def registered_parent_for(self, obj: AmpioObject) -> str:
+        """The device an object's entities register under.
+
+        The parent the object's child device already hangs under, while
+        that child and its parent are registered, and ``parent_for``
+        otherwise. The registry refuses to re-parent a child, and an
+        entity registered under any other parent would not be added, so a
+        misparented object's entities stay under the child's old parent
+        until someone deletes that device.
+        """
+        device_registry = dr.async_get(self.hass)
+        child = device_registry.async_get_child_device_by_identifier(
+            (DOMAIN, obj.object_key), self.entry.entry_id
+        )
+        if (
+            child is not None
+            and device_registry.async_get(
+                child.parent_device_id, include_child_devices=False
+            )
+            is not None
+        ):
+            return child.parent_device_id
+        return self.parent_for(obj)
 
     @callback
     def _misparented(self, obj: AmpioObject) -> bool:
@@ -647,21 +680,22 @@ class AmpioData:
         """
         async with self._reconcile_lock:
             pending, self._pending = self._pending, {}
-            buildable: list[AmpioObject] = []
+            buildable = False
             for oid in pending:
                 obj = self.client.objects.get(oid)
                 if obj is None:
                     self._fingerprints.pop(oid, None)
+                    self._warned_misparented.discard(oid)
                     continue
                 self._fingerprints[oid] = fingerprint(obj)
-                # The module device goes into the tree before the parent
-                # comparison. A mac the tree does not hold resolves to the
-                # hub, so a child whose record still hangs under that
+                # The module device goes into the tree before the entities
+                # are built, because the build compares the child's parent
+                # with ``parent_for``. A mac the tree does not hold resolves
+                # to the hub, so a child whose record still hangs under that
                 # module, such as one whose row the door refused at the
                 # last setup, would read as outgrown.
                 self.ensure_module_device(obj)
-                if not self._misparented(obj):
-                    buildable.append(obj)
+                buildable = True
             # An entity reads the room map when it is built, so the map is
             # refreshed before the factories run.
             if buildable:
@@ -710,11 +744,11 @@ class AmpioData:
             #
             # The mac keeps its place in the tree here. Dropping it would
             # resolve an object returning to that mac to the hub while its
-            # child device still hangs under the module, and a child the
-            # registry cannot re-parent would hold that object's entities
-            # back until someone deleted the device. The two paths that
-            # delete the device record drop the mac, and a reload builds
-            # the tree from the catalogue again.
+            # child device still hangs under the module, so the object
+            # would read as outgrown and the repair would offer a device
+            # that sits where it belongs. The two paths that delete the
+            # device record drop the mac, and a reload builds the tree
+            # from the catalogue again.
             live = self.live_macs()
             factories_by_platform: dict[EntityPlatform, list[AdminModuleFactory]] = {}
             for module_registration in self._module_platforms:

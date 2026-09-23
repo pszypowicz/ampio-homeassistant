@@ -74,7 +74,7 @@ The M-SERV pushes the object tables to both account tiers when you save in Desig
 
 ## Moving an object to another module
 
-If you move an object to another module in Designer, the integration removes the object's entities. The repair on the Settings page then offers the delete of its device. After the delete, the object comes back under the new module with its area and its name. Replacing a module is not a move, because the replacement takes the same MAC address and the object stays where it was. See [designer-quirks.md](designer-quirks.md) for the reason.
+If you move an object to another module in Designer, the object's device stays under the old module and its entities keep working. The repair on the Settings page offers the delete of that device. After the delete, the device comes back under the new module with its area and its name, and the entities come back on it with their entity ids. Replacing a module is not a move, because the replacement takes the same MAC address and the object stays where it was. See [designer-quirks.md](designer-quirks.md) for the reason.
 
 ## The Matter checkbox
 

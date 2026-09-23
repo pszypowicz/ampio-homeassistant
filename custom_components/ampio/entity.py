@@ -95,9 +95,11 @@ class AmpioEntity(AmpioBaseEntity):
         self._key = f"{obj.object_key}{key_suffix}"
         self._attr_unique_id = self._key
         # An object is a channel of its module, and its child device hangs
-        # under that module. The registry cannot re-parent a child, so a
-        # move in Designer needs a delete, which the removal hook permits.
-        parent = data.parent_for(obj)
+        # under that module. The registry cannot re-parent a child, so an
+        # object moved in Designer registers under the parent its child
+        # already has, until a delete, which the removal hook permits,
+        # lets the child come back under the new one.
+        parent = data.registered_parent_for(obj)
         device_info = ChildDeviceInfo(
             identifiers={(DOMAIN, obj.object_key)}, parent_device_id=parent
         )
