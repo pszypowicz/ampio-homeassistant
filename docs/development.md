@@ -2,6 +2,8 @@
 
 Every quality gate lives in `.pre-commit-config.yaml`. The same hooks run on each local commit and in the `pre-commit` job of the CI workflow. A commit that passes locally passes the gate on the pull request.
 
+The rules a change must follow live in [`AGENTS.md`](../AGENTS.md) in the repository root. Read that file before you write code. This page covers the tooling only.
+
 ## Build the gate venv
 
 The type check and the test suite run from a virtual environment at `.venv`. Two files pin what goes into it. `requirements_test.txt` holds the Home Assistant release, the test plugin that pins it, and mypy. `custom_components/ampio/manifest.json` holds the `ampio-mqtt` release that HACS installs.
@@ -40,6 +42,10 @@ docker run --rm -v "$PWD":/github/workspace ghcr.io/home-assistant/hassfest
 ## The secrets hook
 
 `betterleaks` scans the staged changes for hardcoded secrets. `.gitleaks.toml` exempts the two translation files, the test suite, and the test snapshots. Home Assistant's translation schema fixes the `password` field key and its English label, and the tests carry throwaway account literals. Neither is a credential. Every other path is scanned in full.
+
+## The local paths hook
+
+`no-local-paths` rejects a path that belongs to one developer machine, such as a home directory, in any tracked Markdown or Python file. Such a path helps nobody else and it exposes the layout of a private machine. Name a repository file or a tool instead.
 
 ## The translation guard
 

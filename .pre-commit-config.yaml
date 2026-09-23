@@ -45,6 +45,11 @@ repos:
 
   - repo: local
     hooks:
+      - id: no-local-paths
+        name: no local paths
+        entry: (/Users/|/home/[a-z]|~/Developer)
+        language: pygrep
+        types_or: [markdown, python]
       - id: mypy
         name: mypy --strict
         entry: uv run --no-project python -m mypy --strict --ignore-missing-imports custom_components/ampio
