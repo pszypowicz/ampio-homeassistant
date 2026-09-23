@@ -16,6 +16,7 @@ from ampio_mqtt import (
     ObjectAdded,
     ObjectRemoved,
     ObjectUpdated,
+    RecordSweep,
     format_mac,
     parse_module_address,
 )
@@ -864,16 +865,31 @@ SECOND_NEW_MAC = 53258
 def _report_buzzer(client: MagicMock, *macs: int) -> None:
     """Make the next sweep report a buzzer on each mac, as a new panel would."""
 
-    def _resolve() -> Any:
+    def _resolve() -> RecordSweep:
         for mac in macs:
             client.capabilities[mac] = {ModuleFunction.BUZZER: 4}
-        return EMPTY_SWEEP
+        return RecordSweep(
+            records={}, answered_macs=frozenset(macs), silent_macs=frozenset()
+        )
 
     client.resolve_records.side_effect = _resolve
 
 
+def _sweep_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "custom_components.ampio.data"
+        and record.levelno == logging.WARNING
+        and "sweep" in record.getMessage()
+    ]
+
+
 async def test_a_new_module_gets_its_gated_controls_in_the_same_batch(
-    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A module added while the entry runs gets its buzzer from a fresh sweep."""
     await setup_integration(hass, mock_config_entry)
@@ -884,6 +900,54 @@ async def test_a_new_module_gets_its_gated_controls_in_the_same_batch(
     assert mock_client.resolve_records.await_count == 2
     buzzer_id = entity_id_of(hass, "siren", module_unique_id(NEW_MAC, "_buzzer"))
     assert hass.states.get(buzzer_id) is not None
+    assert _sweep_warnings(caplog) == []
+
+
+async def test_the_sweep_runs_after_the_object_entities_are_built(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The new object's entity has a state when the batch's sweep starts."""
+    await setup_integration(hass, mock_config_entry)
+    seen: list[bool] = []
+
+    def _resolve() -> RecordSweep:
+        entity_id = er.async_get(hass).async_get_entity_id(
+            "binary_sensor", DOMAIN, unique_id(NEW_INPUT_ID)
+        )
+        seen.append(entity_id is not None and hass.states.get(entity_id) is not None)
+        return EMPTY_SWEEP
+
+    mock_client.resolve_records.side_effect = _resolve
+
+    await _add(hass, mock_client, _new_input(leaf_id="0_d009_257_1_1"))
+
+    assert seen == [True]
+
+
+async def test_a_new_module_silent_in_the_sweep_is_named_in_a_warning(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A new module missing from a sweep that completes is warned about.
+
+    The new mac is not catalogued, so the sweep lists it in neither
+    ``answered_macs`` nor ``silent_macs``, and that still counts as silent.
+    """
+    await setup_integration(hass, mock_config_entry)
+    mock_client.resolve_records.side_effect = None
+    mock_client.resolve_records.return_value = EMPTY_SWEEP
+
+    await _add(hass, mock_client, _new_input(leaf_id="0_d009_257_1_1"))
+
+    assert mock_client.resolve_records.await_count == 2
+    button_id = entity_id_of(hass, "button", module_unique_id(NEW_MAC, "_identify"))
+    assert hass.states.get(button_id) is not None
+    warnings = _sweep_warnings(caplog)
+    assert len(warnings) == 1
+    assert format_mac(NEW_MAC) in warnings[0]
+    assert "reload" in warnings[0]
 
 
 async def test_two_new_modules_in_one_batch_sweep_once(
@@ -942,11 +1006,7 @@ async def test_a_failed_sweep_leaves_the_rest_of_the_batch_built(
     assert hass.states.get(NEW_INPUT_ENTITY_ID(hass)).state == STATE_OFF
     button_id = entity_id_of(hass, "button", module_unique_id(NEW_MAC, "_identify"))
     assert hass.states.get(button_id) is not None
-    warnings = [
-        record.getMessage()
-        for record in caplog.records
-        if record.levelno == logging.WARNING and "sweep" in record.getMessage()
-    ]
+    warnings = _sweep_warnings(caplog)
     assert len(warnings) == 1
     assert format_mac(NEW_MAC) in warnings[0]
     assert "reload" in warnings[0]

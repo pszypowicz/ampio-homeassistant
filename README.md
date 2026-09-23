@@ -143,7 +143,7 @@ If something else looks wrong, see [docs/faq.md](docs/faq.md). Each answer there
 ## Known limitations
 
 - Scenes are read once at setup. A scene added in the app needs a reload.
-- A module you add in Ampio Designer while the integration runs gets its capability map from another description sweep. If that sweep does not complete, the module gets its sensors and its Identify button, but not its buzzer, its Unlock touch button, or its Backlight and Status light, until you reload the integration. The log names the module when that happens.
+- A module you add in Ampio Designer while the integration runs gets its capability map from another description sweep. When the module answers that sweep, its buzzer, its Unlock touch button, and its Backlight and Status light appear within seconds. When it does not answer, or the sweep does not complete, the module gets its sensors and its Identify button only, and a warning in the log names the module and tells you to reload the integration.
 - Two objects that carry the same name in Ampio Designer and share a room, or share having none, cannot share an entity id, so one of the two takes Home Assistant's `_2` suffix. Give such a pair distinct names in Designer if you want to tell them apart by their ids.
 
 ## Relationship to home-assistant/core

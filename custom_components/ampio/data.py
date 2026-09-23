@@ -723,9 +723,11 @@ class AmpioData:
             # A module device this batch created has no entry in the
             # capability map, because the last sweep ran before the module
             # was in the tree, and the gated module factories read that
-            # map. One sweep covers every new mac in the batch, and it
-            # runs after the object entities are built, so a slow reply
-            # holds back only the module controls.
+            # map. One sweep covers every new mac in the batch. It runs
+            # after the object entities are built, so a slow reply cannot
+            # delay those, but it holds the lock for up to both reply
+            # timeouts, so the module controls, the report, and the next
+            # batch wait for it.
             if new_macs and (admin := self.admin) is not None:
                 await self._async_sweep_for(admin, new_macs)
             # The module entities follow the objects' rule, expected
@@ -782,17 +784,27 @@ class AmpioData:
     ) -> None:
         """Run the description sweep again for the module devices a batch added.
 
-        A failure costs the capability-gated controls of those modules and
-        nothing else. The batch goes on, so their Identify buttons and the
-        object entities still stand, and a reload sweeps again.
+        A new module the sweep leaves unanswered, whether the sweep failed
+        or the module stayed silent, has no capability entry. That costs
+        its capability-gated controls and the roller lock action on its
+        covers, and a warning names it. The batch goes on, so its
+        Identify button and the object entities still stand, and a reload
+        sweeps again.
+
+        ``silent_macs`` holds catalogued macs alone, and a new mac need
+        not be catalogued, so an answer is read from ``answered_macs``.
         """
         try:
-            await admin.resolve_records()
+            sweep = await admin.resolve_records()
         except AmpioConnectionError, AmpioTimeoutError:
+            unanswered = new_macs
+        else:
+            unanswered = [mac for mac in new_macs if mac not in sweep.answered_macs]
+        if unanswered:
             _LOGGER.warning(
-                "The Designer description sweep for new Ampio modules %s did not "
-                "complete; reload the integration to build the rest of their controls",
-                ", ".join(format_mac(mac) for mac in new_macs),
+                "New Ampio modules %s did not answer the Designer description "
+                "sweep; reload the integration to build the rest of their controls",
+                ", ".join(format_mac(mac) for mac in unanswered),
             )
 
     async def async_refresh_rooms(self) -> None:

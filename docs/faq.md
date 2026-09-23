@@ -117,7 +117,7 @@ An administrator can still hold or release this cover's roller lock through the 
 
 If the message says that the module does not support the roller lock, that module cannot perform this action. An older module generation can accept ordinary cover commands without supporting lock commands. There is no integration setting that enables this hardware function.
 
-If the module did not answer during setup, make sure that the module is online. Reload the Ampio integration to request its descriptions again. The module must answer before the action can send a lock command.
+If the module has not answered a description request since the integration started, make sure that the module is online. Reload the Ampio integration to request its descriptions again. The module must answer before the action can send a lock command.
 
 If no unique module row matches the cover, open Ampio Designer. Restore the missing module row or give each device its own MAC address. Save the changes.
 
