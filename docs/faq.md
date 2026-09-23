@@ -14,17 +14,15 @@ Do not start a procedure on this page without a backup. Some of them delete reco
 
 **Check:** First tell a lost connection apart from entities the integration no longer builds, because the two look alike on a dashboard. When the connection to the M-SERV drops, every Ampio entity apart from the scenes reads `unavailable` at the same moment, and the log carries the warning "Connection to the Ampio server lost; reconnecting". Those entities come back on their own when the connection returns, so check the M-SERV and your network and wait before you change anything. An entity the integration no longer builds reads `unavailable` as well, but it stays that way while the connection is up, and under Settings, then Tools, then States, its attributes include `restored: true`.
 
-**Fix:** Look at the Settings page for an Ampio repair before you do anything else. If your module devices lost their names and areas at the same time, follow [Most Ampio entities are unavailable and my module devices lost their names](#most-ampio-entities-are-unavailable-and-my-module-devices-lost-their-names) and submit the repair it describes. If a repair lists the entities for another reason, [An entity is listed that Ampio Designer no longer has](#an-entity-is-listed-that-ampio-designer-no-longer-has) explains each one.
+**Fix:** Look at the Settings page for an Ampio repair before you do anything else. If your module devices lost their names and areas at the same time, the unavailable entities are most likely the module entities of your old module devices. [My module devices lost their names, areas and labels](#my-module-devices-lost-their-names-areas-and-labels) explains the repair that deletes them and what to set again afterwards. If a repair lists the entities for another reason, [An entity is listed that Ampio Designer no longer has](#an-entity-is-listed-that-ampio-designer-no-longer-has) explains each one.
 
 If no repair accounts for the entities, remove the Ampio integration entry, then add it again. Home Assistant remembers a removed entity for 30 days, so the re-add restores your entity ids, your renames, and your areas. If the entity count is still wrong afterwards, download the diagnostics as described in [debugging.md](debugging.md) and report it in the issues.
 
-## Most Ampio entities are unavailable and my module devices lost their names
+## My module devices lost their names, areas and labels
 
-**Check:** Open Settings, then Devices and services, then Ampio. Each module appears as a device that carries the name the Ampio server gives it, with no area and none of the labels you put on it, and your old module devices are listed beside them. Most Ampio entities read `unavailable` while the connection is up. The Settings page shows a repair titled "Ampio records to clean up" on an administrator account, or "Ampio records to check" on a standard account, and your old module devices are among the records it lists.
+**Check:** Open Settings, then Devices and services, then Ampio. Each module appears as a device that carries the name the Ampio server gives it, with no area and none of the labels you put on it, and your old module devices are listed beside them. The Settings page shows a repair titled "Ampio records to clean up" on an administrator account, or "Ampio records to check" on a standard account, and your old module devices are among the records it lists. The log carries warnings that start "The device of Ampio object" and name an object whose device hangs under a different module.
 
-Your old module devices are registered under a key the integration no longer uses, so it built a new device for each module. Home Assistant treats a device under a new key as a new device, so the name you typed, the area and the labels start empty on it. The device of each object on a module still hangs under one of the old module devices, and Home Assistant cannot move a device to another parent, so the integration holds back that object's entities until the old device goes. That covers every object on a module, which on most installs is most of the entities this integration provides. The M-SERV's own objects and the scenes keep working, because they hang under the hub.
-
-Until you submit the repair, the log fills with warnings that start "The device of Ampio object" and name an object whose device hangs under a different module. They are expected, and they stop once the repair is submitted.
+Your old module devices are registered under a key the integration no longer uses, so it built a new device for each module. Home Assistant treats a device under a new key as a new device, so the name you typed, the area and the labels start empty on it. The device of each object on a module still hangs under one of the old module devices, and Home Assistant cannot move a device to another parent, so it stays there until the old device goes. The object's entities keep working in the meantime, and each time the integration starts it logs one warning for every object whose device hangs there. The warnings are expected, and they stop once the repair is submitted.
 
 **Fix:** Write down the module devices and module entity ids your automations use, then submit that repair once. It deletes the old module devices with the object devices under them, and the reload behind it builds every object again under its module. Every object entity the integration still provides comes back with its entity id, its name and its area. The Opening lock and Closing lock of a cover are binary sensors with ids of their own, so the old Opening lock and Closing lock switches do not come back. The repair deletes them together with the old device of their cover.
 
@@ -44,7 +42,7 @@ If you skip the panel lights in a template through a label, as described under [
 
 **Check:** Such an entity reads `unavailable` while the connection is up, and under Settings, then Tools, then States, its attributes include `restored: true`. After each start or reload the integration raises up to three repairs on the Settings page, under Repairs. One lists the devices and entities it did not build and cannot explain. One lists the entities it withheld because your Ampio account is not the administrator one. The third names Ampio Designer rows it could not use at all, and it asks you to fix them in Designer rather than offering to delete anything. Read that one first, because an entity it accounts for is not stale. [designer-quirks.md](designer-quirks.md) covers both faults it reports.
 
-**Fix:** Select Submit on the repair that lists the records to clean up, and it deletes them all at once. The integration then reloads. An object that you moved to another module in Ampio Designer comes back under its new module.
+**Fix:** Select Submit on the repair that lists the records to clean up, and it deletes them all at once. The integration then reloads. If you moved an object to another module in Ampio Designer, its device moves under the new module, and its entities keep their entity ids.
 
 The repair never deletes on its own. On an account that is not the administrator one, an object that lost its app permission looks the same as a deleted object. Read the list before you submit.
 
@@ -109,7 +107,7 @@ A third cause takes every control at once, arrows, slider, and both stop buttons
 
 An administrator can still hold or release this cover's roller lock through the `ampio.set_roller_lock` action while it is read-only, because the lock write rides the raw tree rather than the path the read-only marker gates. Doing so changes nothing about the cover itself. Only the lock binary sensors' own state moves, since the read-only refusal already applies above where the lock bits are read. A scene that captured this cover before it went read-only stops restoring it, silently, with no warning and no error.
 
-**Fix:** For a lock, none is required. The arrow returns once the lock clears, whether that is a Designer rule's trigger or a call to `ampio.set_roller_lock` releasing it. For read-only, clear the checkbox in Ampio Designer if you want the cover to take commands again. An automation that targets the cover through an area, a device, or a label skips it silently while either cause holds. An automation that names the cover by its entity id raises and halts the rest of the sequence unless the action sets `continue_on_error: true`.
+**Fix:** For a lock, none is required. The arrow returns once the lock clears, whether that is a Designer rule's trigger or a call to `ampio.set_roller_lock` releasing it. For read-only, clear the checkbox in Ampio Designer if you want the cover to take commands again. An automation that targets the cover through an area, a device, or a label skips it silently for an action whose control is gone, such as opening while opening is locked, and for every action while the cover is read-only. An automation that names the cover by its entity id raises for that action instead. A set position or set tilt position action stays supported while only one direction is locked, so it reaches the cover however the automation targets it. It raises when the move runs in the locked direction and the cover reports its current position, or its current tilt position for a tilt. Without that reading the integration cannot tell the direction, so it sends the command. Either error halts the rest of the sequence unless the action sets `continue_on_error: true`.
 
 ## A cover's roller lock is unknown, or the set roller lock action fails
 
@@ -197,7 +195,7 @@ A repair on the Settings page lists whichever of these entities your account wit
 
 You see this on a standard Ampio account most of the time. The names you gave your modules in Ampio Designer are served to the administrator login alone, so a module falls back to its address on the Ampio bus, written in hex the way Designer's MAC field shows it. It is the same device and the same module either way. On an administrator account a module reads this way when you deleted its device row in Designer and left its objects behind, because no row is left to name it. With the device row in place, an administrator account shows the Designer name.
 
-If the names you typed yourself are gone as well, along with your areas and your labels, see [Most Ampio entities are unavailable and my module devices lost their names](#most-ampio-entities-are-unavailable-and-my-module-devices-lost-their-names) above.
+If the names you typed yourself are gone as well, along with your areas and your labels, see [My module devices lost their names, areas and labels](#my-module-devices-lost-their-names-areas-and-labels) above.
 
 ## How do I reset every Ampio entity id?
 
@@ -209,48 +207,56 @@ For a single entity, the control for regenerating an entity id on its settings p
 
 **Every automation, script, scene, and dashboard card that names an Ampio entity id stops working.** Write those ids down first, and plan to repoint them.
 
-You need shell access to the Home Assistant host, through the SSH add-on or the Terminal add-on.
+You need an SSH connection to the Home Assistant host from another computer, through the official Terminal & SSH add-on or the community SSH add-on. Open it before you stop Home Assistant. The terminal panel in the Home Assistant sidebar runs through Home Assistant itself, so `ha core stop` closes it and you lose the shell partway through the procedure.
+
+The official add-on logs you in as root and has no `sudo`, so run the commands below as they stand. The community add-on logs you in as a user, so put `sudo` in front of each `cp` and `jq` command.
 
 1. Take a backup, as described above.
 2. Write down the Ampio entity ids your automations use.
-3. Stop Home Assistant:
+3. Connect over SSH from another computer.
+4. Stop Home Assistant:
 
    ```sh
    ha core stop
    ```
 
-4. Copy the entity registry, then remove every Ampio record from it:
+5. Copy the entity registry, then remove every Ampio record from it:
 
    ```sh
-   sudo cp /config/.storage/core.entity_registry /config/.storage/core.entity_registry.bak
-   sudo jq '(.data.entities, .data.deleted_entities) |= map(select(.platform != "ampio"))' \
+   cp /config/.storage/core.entity_registry /config/.storage/core.entity_registry.bak
+   jq '(.data.entities, .data.deleted_entities) |= map(select(.platform != "ampio"))' \
      /config/.storage/core.entity_registry > /tmp/registry.json
-   sudo cp /tmp/registry.json /config/.storage/core.entity_registry
+   cp /tmp/registry.json /config/.storage/core.entity_registry
    ```
 
-5. Start Home Assistant:
+6. Start Home Assistant:
 
    ```sh
    ha core start
    ```
 
-6. Open Settings, then Devices and services, then Ampio. Confirm that the entity count matches what you had.
-7. Repoint your automations at the new ids.
-8. Put your entity labels back, the panel labels among them, and give back any entity name and any entity area you had set yourself.
+7. Open Settings, then Devices and services, then Ampio. Confirm that the entity count matches what you had.
+8. Repoint your automations at the new ids.
+9. Put your entity labels back, the panel labels among them, and give back any entity name and any entity area you had set yourself.
 
 The `deleted_entities` list matters as much as the `entities` list. Leave the deleted records in place, and Home Assistant restores every old id on the next start.
 
 ### If something goes wrong
 
-Stop Home Assistant, copy the backup file back, then start Home Assistant:
+Over the same SSH connection, stop Home Assistant, copy the backup file back, then start Home Assistant. On the community add-on, put `sudo` in front of `cp` again:
 
 ```sh
 ha core stop
-sudo cp /config/.storage/core.entity_registry.bak /config/.storage/core.entity_registry
+cp /config/.storage/core.entity_registry.bak /config/.storage/core.entity_registry
 ha core start
 ```
 
-If the instance does not start at all, restore the full backup from Settings, System, Backups.
+If the instance does not start at all, the Backups page is out of reach, because it needs a running Home Assistant. Restore the full backup over the SSH connection instead. List the backups, find the one you took in step 1, and restore it by its slug:
+
+```sh
+ha backups list
+ha backups restore <slug>
+```
 
 ## What this does not touch
 

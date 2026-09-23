@@ -30,7 +30,7 @@ The module keeps the LED lit until it receives a stop. The integration sends the
 
 ## The module sensors
 
-On the administrator login, each module device also carries two diagnostic sensors, a supply voltage and a temperature, both readings the module reports about itself. A standard account is given neither, for the same reason as the Identify button. A module that never sends that reading leaves its sensor unknown rather than unavailable, because the reading is not replayed at connect and silence says nothing about the module's health.
+On the administrator login, each module device also carries two diagnostic sensors, a supply voltage and a temperature, both readings the module reports about itself. A standard account is given neither, for the same reason as the Identify button. A module that never sends that reading leaves its sensor unknown rather than unavailable, because silence says nothing about the module's health. The broker can also hand over the last reading it stored when the integration connects, so a value on the sensor shows what the module last reported and does not prove that the module is online now.
 
 ## The buzzer
 
@@ -68,13 +68,13 @@ See [faq.md](faq.md) for what an update does to an entity id, and for the reset 
 
 ## Changes in Ampio Designer
 
-The integration follows the Ampio catalogue while it runs, on both account tiers. An object you add in Designer gets its entity within seconds, under its module, in its app room. On a standard account the object must also be granted to the Home Assistant user in the app. An object you delete or hide loses its entity at once, and the repair on the Settings page lists it. The delete stays yours, because on a standard account a lost app permission looks the same as a delete. A relay you re-tag as a light, or a pulse time you set, is followed the same way.
+The integration follows the Ampio catalogue while it runs, on both account tiers. An object you add in Designer gets its entity within seconds of the account's catalogue listing it, under its module, in its app room. On the administrator login the catalogue lists an object once you assign it to an app room. On a standard account it lists an object once you grant it to the Home Assistant user in the app. An object you delete or hide loses its entity at once, and the repair on the Settings page lists it. The delete stays yours, because on a standard account a lost app permission looks the same as a delete. A relay you re-tag as a light, or a pulse time you set, is followed the same way.
 
 The M-SERV pushes the object tables to both account tiers when you save in Designer, so objects follow a save the same way on either login. It never pushes the module list, which the administrator login alone receives. The administrator login re-reads the module list when the digest of the app tables changes on a save, so the module list follows a Designer save a few seconds later.
 
 ## Moving an object to another module
 
-If you move an object to another module in Designer, the integration removes the object's entities. The repair on the Settings page then offers the delete of its device. After the delete, the object comes back under the new module with its area and its name. Replacing a module is not a move, because the replacement takes the same MAC address and the object stays where it was. See [designer-quirks.md](designer-quirks.md) for the reason.
+If you move an object to another module in Designer, the object's device stays under the old module and its entities keep working. The repair on the Settings page offers the delete of that device. After the delete, the device comes back under the new module with its area and its name, and the entities come back on it with their entity ids. Replacing a module is not a move, because the replacement takes the same MAC address and the object stays where it was. See [designer-quirks.md](designer-quirks.md) for the reason.
 
 ## The Matter checkbox
 

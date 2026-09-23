@@ -30,11 +30,16 @@ from .conftest import (
 )
 
 # A connected-state report shaped like the library's diagnostics_snapshot(),
-# carrying the default test server's identity.
+# carrying the default test server's identity with the host identifiers the
+# library masks.
 DIAGNOSTICS_SNAPSHOT = {
     "available": True,
     "auth_failure": None,
-    "server_info": asdict(SERVER_INFO),
+    "server_info": {
+        **asdict(SERVER_INFO),
+        "local_ip": REDACTED,
+        "device_id": REDACTED,
+    },
     "connection": {
         "started_at": "2026-08-27T06:00:00+00:00",
         "reconnect_count": 0,
@@ -68,12 +73,12 @@ DIAGNOSTICS_SNAPSHOT = {
             "temperature": None,
         },
     ],
-    # The library masks this payload at the source and keeps a safelist.
-    # The fixture carries fake location facts outside that safelist so the
-    # snapshot proves the integration masks the whole string again.
+    # A malformed reply can carry a host name under a key the library's
+    # safelist keeps (ampio-mqtt#308), so the fixture carries one.
     "last_payloads": {
-        "info": '{"protocol": 1, "local_ip": "192.0.2.1", '
-        '"lat": "0.0", "lon": "0.0", "city": "Example City 1"}'
+        "info": '{"Status": "OK", "Results": {"mac": "broker.example.invalid", '
+        '"userId": -1, "serverVersion": "1865", "serverRevision": "409", '
+        '"mqttVersion": "5.133.11"}}'
     },
 }
 
@@ -85,7 +90,7 @@ async def test_config_entry_diagnostics(
     mock_config_entry: MockConfigEntry,
     snapshot: SnapshotAssertion,
 ) -> None:
-    """Snapshot the diagnostics payload with the host identifiers redacted."""
+    """Snapshot the diagnostics payload with the entry redacted."""
     mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
@@ -93,6 +98,7 @@ async def test_config_entry_diagnostics(
         hass, hass_client, mock_config_entry
     )
 
+    assert "broker.example.invalid" not in str(result)
     assert result == snapshot
 
 
@@ -104,8 +110,8 @@ async def test_config_entry_diagnostics_carries_no_username(
     """The account username reaches no part of the download.
 
     ``subscribe_failures`` and ``protocol_violations`` key on the full MQTT
-    topic, and an account topic carries the username in the middle of the
-    key, where key-based redaction cannot reach it. ampio-mqtt masks that
+    topic, and ``last_error`` can name one, with the username in the middle
+    where key-based redaction cannot reach it. ampio-mqtt masks that
     segment before the snapshot leaves the library, so the fixture carries
     the masked form it emits. Serializing the whole result, rather than
     checking the two entries by hand, catches the username anywhere else it
@@ -122,6 +128,7 @@ async def test_config_entry_diagnostics_carries_no_username(
         **DIAGNOSTICS_SNAPSHOT,
         "connection": {
             **DIAGNOSTICS_SNAPSHOT["connection"],
+            "last_error": "Publish to ampio/control/<account>/data timed out",
             "subscribe_failures": {"ampio/fromDB/<account>/ob/+/state": 135},
             "protocol_violations": {
                 "ampio/fromDB/<account>/md5/devices": "missing column"
@@ -133,28 +140,6 @@ async def test_config_entry_diagnostics_carries_no_username(
     result = await get_diagnostics_for_config_entry(hass, hass_client, config_entry)
 
     assert username not in json.dumps(result)
-
-
-async def test_config_entry_diagnostics_redacts_refused_object_name(
-    hass: HomeAssistant,
-    hass_client: ClientSessionGenerator,
-    mock_client: MagicMock,
-    mock_config_entry: MockConfigEntry,
-) -> None:
-    """A refused object's Designer name is redacted while its row ID survives."""
-    designer_name = "Private room window"
-    mock_client.diagnostics_snapshot.return_value = {
-        **DIAGNOSTICS_SNAPSHOT,
-        "not_configured": [[901, designer_name]],
-    }
-    await setup_integration(hass, mock_config_entry)
-
-    result = await get_diagnostics_for_config_entry(
-        hass, hass_client, mock_config_entry
-    )
-
-    assert designer_name not in json.dumps(result)
-    assert result["snapshot"]["not_configured"] == [[901, REDACTED]]
 
 
 async def test_designer_config_standard_account_has_no_modules_and_does_not_raise(

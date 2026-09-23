@@ -11,21 +11,19 @@ from ampio_mqtt import (
     format_mac,
 )
 
-from homeassistant.components.diagnostics import REDACTED, async_redact_data
+from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 
 from .data import AmpioConfigEntry, AmpioData
 
 TO_REDACT_ENTRY = {CONF_HOST, CONF_PASSWORD, CONF_USERNAME}
-# The snapshot carries no credentials by the library's contract, but the
-# server self-report inside it names the M-SERV's LAN address and serial,
-# masked for the same reason the entry's host is. The raw ``info`` payload
-# under ``last_payloads`` is one JSON string, and key-based redaction
-# cannot reach inside a string, so a field the library's safelist does not
-# cover would ride through whole. The parsed ``server_info`` carries the
-# debugging value, so the string is masked here.
-TO_REDACT_SNAPSHOT = {"local_ip", "device_id", "info"}
+# ampio-mqtt keeps a safelisted summary of the retained ``info`` reply, but
+# it keeps a value under a safe key without validating it, so a malformed
+# reply can carry a host name through (ampio-mqtt#308). That summary is one
+# JSON string, which key-based redaction cannot reach inside, so the whole
+# string is masked. The parsed ``server_info`` carries the debugging value.
+TO_REDACT_SNAPSHOT = {"info"}
 
 
 def _capability_name(function_id: int) -> str:
@@ -129,22 +127,14 @@ async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: AmpioConfigEntry
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
-    snapshot = entry.runtime_data.client.diagnostics_snapshot()
-    # The admission door reports each row it refused as ``(id, name)``, and
-    # that name is the installer's own Designer name. docs/debugging.md
-    # tells a user the download carries no object, room, or module name, so
-    # the id survives and the name is masked. Home Assistant's key-based
-    # redaction cannot reach a value inside a list, so the pair is rewritten
-    # before the snapshot is handed to it.
-    snapshot["not_configured"] = [
-        [object_id, REDACTED] for object_id, _name in snapshot["not_configured"]
-    ]
-    # Two connection entries key on an MQTT topic, and an account topic
-    # carries the username in the middle of the key, where a key-based
-    # redactor cannot reach it. ampio-mqtt masks that segment itself, so
-    # nothing here rewrites a key.
+    # ampio-mqtt redacts its own snapshot. It masks the account in every
+    # topic, the broker host, and the host identifiers of ``server_info``,
+    # and lists the refused rows by id. Those are the places a key-based
+    # redactor cannot reach. The ``info`` summary is masked here as well.
     return {
         "entry_data": async_redact_data(entry.data, TO_REDACT_ENTRY),
-        "snapshot": async_redact_data(snapshot, TO_REDACT_SNAPSHOT),
+        "snapshot": async_redact_data(
+            entry.runtime_data.client.diagnostics_snapshot(), TO_REDACT_SNAPSHOT
+        ),
         "designer_config": _designer_config(entry.runtime_data),
     }

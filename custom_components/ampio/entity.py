@@ -94,12 +94,12 @@ class AmpioEntity(AmpioBaseEntity):
         # keeps its own entity.
         self._key = f"{obj.object_key}{key_suffix}"
         self._attr_unique_id = self._key
-        # An object is a channel of its module, and its child device hangs
-        # under that module. The registry cannot re-parent a child, so a
-        # move in Designer needs a delete, which the removal hook permits.
-        parent = data.parent_for(obj)
+        self._snapshot = obj
+        # ``device_info`` resolves the parent again when Home Assistant
+        # reads it at the add.
         device_info = ChildDeviceInfo(
-            identifiers={(DOMAIN, obj.object_key)}, parent_device_id=parent
+            identifiers={(DOMAIN, obj.object_key)},
+            parent_device_id=data.registered_parent_for(obj),
         )
         # ``name`` is the Designer ``opis_menu`` column, which is the name
         # the user gave the object in the Ampio app. The device carries it,
@@ -116,7 +116,28 @@ class AmpioEntity(AmpioBaseEntity):
         # The registry never moves a device on a later suggestion.
         if (room := data.rooms.get(obj.id)) is not None:
             device_info["suggested_area"] = room
-        self._attr_device_info = device_info
+        self._child_device_info = device_info
+
+    @property
+    @override
+    def device_info(self) -> ChildDeviceInfo:
+        """The object's child device, under the parent it registers under now.
+
+        An object is a channel of its module, and its child device hangs
+        under that module. The registry cannot re-parent a child, so an
+        object moved in Designer registers under the parent its child
+        already has. The stale repair or the removal hook deletes that
+        child, and the next add brings it back under the new module.
+
+        Resolved when read, because a batch builds its entities before an
+        awaited add, and a child deleted in between must not come back
+        under the parent it was deleted from.
+        """
+        device_info = self._child_device_info.copy()
+        device_info["parent_device_id"] = self._data.registered_parent_for(
+            self._snapshot
+        )
+        return device_info
 
     @override
     async def async_added_to_hass(self) -> None:

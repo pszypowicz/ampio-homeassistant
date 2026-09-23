@@ -327,8 +327,10 @@ class AmpioModuleSensor(AmpioModuleEntity, SensorEntity):
 
     The M-SERV serves the diagnostics broadcast to the administrator login
     alone, so a standard account is given neither of these. A module that
-    never broadcasts reads unknown for good, which is the only honest
-    answer: the frame is not replayed at connect, so silence says nothing.
+    never broadcasts reads unknown, because silence says nothing about its
+    health. A reading the broker replays at connect shows what the module
+    last reported and leaves its ``last_seen`` alone, so a value does not
+    prove the module is online.
     """
 
     entity_description: AmpioModuleSensorEntityDescription

@@ -564,6 +564,57 @@ async def test_a_moved_child_is_offered_whatever_sits_on_it(
     )
 
 
+async def test_the_fix_flow_moves_a_moved_child_to_its_new_module(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """A moved object's entity stays live until the submit, then follows it.
+
+    The entity keeps its id across both steps, because the reload behind
+    the submit restores it from the deleted record.
+    """
+    assert await async_setup_component(hass, "repairs", {})
+    await setup_integration(hass, mock_config_entry)
+    entry_id = mock_config_entry.entry_id
+    child = device_registry.async_get_child_device_by_identifier(
+        (DOMAIN, unique_id(36)), entry_id
+    )
+    assert child is not None
+    entity_id = entity_id_of(hass, "sensor", unique_id(36))
+
+    # The object is moved to another module in Ampio Designer.
+    mock_client.objects[36] = make_object(
+        36, "temp", 1, leaf_id="0_d009_76_0_1", name="Temperatura", state="24.4"
+    )
+    await _reload(hass, mock_config_entry)
+
+    assert hass.states.get(entity_id).state == "24.4"
+    record = entity_registry.async_get(entity_id)
+    assert record is not None
+    assert record.device_id == child.id
+
+    await _submit_fix(hass, hass_client, ISSUE_ID)
+
+    moved = device_registry.async_get_child_device_by_identifier(
+        (DOMAIN, unique_id(36)), entry_id
+    )
+    new_module = device_registry.async_get_device_by_identifier(
+        (DOMAIN, "module_mac:0xD009"), entry_id
+    )
+    assert moved is not None
+    assert new_module is not None
+    assert moved.parent_device_id == new_module.id
+    assert entity_id_of(hass, "sensor", unique_id(36)) == entity_id
+    assert hass.states.get(entity_id).state == "24.4"
+    record = entity_registry.async_get(entity_id)
+    assert record is not None
+    assert record.device_id == moved.id
+
+
 async def test_a_silent_capability_sweep_keeps_the_buzzer_record(
     hass: HomeAssistant,
     mock_client: MagicMock,
