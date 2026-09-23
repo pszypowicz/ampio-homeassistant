@@ -787,6 +787,81 @@ async def test_a_module_that_gets_its_object_back_needs_no_repair(
     assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is None
 
 
+@pytest.mark.parametrize(
+    "away_leaf", [None, "0_cb8f_257_1_12"], ids=["removed", "moved"]
+)
+async def test_a_module_that_gets_its_object_back_after_a_reload_needs_no_repair(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    issue_registry: ir.IssueRegistry,
+    caplog: pytest.LogCaptureFixture,
+    away_leaf: str | None,
+) -> None:
+    """The last object off a module, a reload, and the object back brings it all back.
+
+    The reload builds the tree without the module while the registry keeps
+    its device record. The returning object resolves to that record, its
+    child stays under it, no misparent warning is logged, and the stale
+    report offers neither device (#133).
+    """
+    await setup_integration(hass, mock_config_entry)
+    new_input = _new_input(leaf_id="0_d009_257_1_1")
+    await _add(hass, mock_client, new_input)
+    entity_id = NEW_INPUT_ENTITY_ID(hass)
+    module = device_registry.async_get_device_by_identifier(
+        module_identifier(53257), mock_config_entry.entry_id
+    )
+    assert module is not None
+    child = _child(device_registry, mock_config_entry, NEW_INPUT_ID)
+    assert child is not None
+    assert child.parent_device_id == module.id
+
+    if away_leaf is None:
+        await _remove(hass, mock_client, NEW_INPUT_ID)
+    else:
+        await _update(
+            hass,
+            mock_client,
+            replace(
+                new_input,
+                address=parse_module_address(away_leaf),
+                leaf_key=f"leaf_{away_leaf}",
+            ),
+        )
+    await hass.config_entries.async_reload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    data: AmpioData = mock_config_entry.runtime_data
+    assert 53257 not in data.module_device_ids
+    assert (
+        device_registry.async_get_device_by_identifier(
+            module_identifier(53257), mock_config_entry.entry_id
+        )
+        is not None
+    )
+
+    caplog.clear()
+    if away_leaf is None:
+        await _add(hass, mock_client, new_input)
+    else:
+        await _update(hass, mock_client, new_input)
+
+    state = hass.states.get(entity_id)
+    assert state.state == STATE_OFF
+    assert state.attributes.get(ATTR_RESTORED) is None
+    assert "hangs under a different module" not in caplog.text
+    data = mock_config_entry.runtime_data
+    assert data.parent_for(new_input) == module.id
+    returned = _child(device_registry, mock_config_entry, NEW_INPUT_ID)
+    assert returned is not None
+    assert returned.id == child.id
+    assert returned.parent_device_id == module.id
+    stale = find_stale_records(hass, mock_config_entry)
+    assert {device.id for device in stale.devices}.isdisjoint({module.id, child.id})
+    assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is None
+
+
 async def test_module_row_reads_none_on_a_standard_account(
     hass: HomeAssistant,
     mock_client: MagicMock,
