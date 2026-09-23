@@ -1,14 +1,21 @@
 """Tests for the stale-record repair of the Ampio integration."""
 
+from datetime import timedelta
 from http import HTTPStatus
 from unittest.mock import MagicMock
 
-from ampio_mqtt import AccessTier
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from ampio_mqtt import AccessTier, AmpioConnectionError
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 
 from custom_components.ampio.const import DOMAIN
-from custom_components.ampio.stale import async_remove_stale_records
+from custom_components.ampio.stale import (
+    async_remove_stale_records,
+    async_report_stale_records,
+)
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
@@ -17,6 +24,7 @@ from homeassistant.helpers import (
     issue_registry as ir,
 )
 from homeassistant.setup import async_setup_component
+from homeassistant.util import dt as dt_util
 
 from . import setup_integration
 from .conftest import (
@@ -150,6 +158,70 @@ async def test_disabled_entity_is_not_stale(
     await _reload(hass, mock_config_entry)
 
     assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is None
+
+
+async def test_a_deferred_platform_keeps_its_live_records_out(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """A live record of a platform that deferred is neither named nor deleted."""
+    await setup_integration(hass, mock_config_entry)
+    assert entity_registry.async_get(SCENE_ENTITY_ID) is not None
+
+    mock_client.fetch_scenes.side_effect = AmpioConnectionError("server unreachable")
+    await _reload(hass, mock_config_entry)
+
+    assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is None
+    # The submit path reads the records again, so it is guarded too.
+    async_remove_stale_records(hass, mock_config_entry, ISSUE_ID)
+    assert entity_registry.async_get(SCENE_ENTITY_ID) is not None
+
+
+async def test_a_deferred_platform_does_not_silence_the_others(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """The skip covers one domain, so a leftover in another is still named."""
+    await setup_integration(hass, mock_config_entry)
+    del mock_client.objects[74]
+    mock_client.fetch_scenes.side_effect = AmpioConnectionError("server unreachable")
+    await _reload(hass, mock_config_entry)
+
+    issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID)
+    assert issue is not None
+    assert issue.translation_placeholders == {"names": "- Object 74"}
+    assert entity_registry.async_get(SCENE_ENTITY_ID) is not None
+
+
+async def test_a_deferred_platform_reports_once_it_lands(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """A skipped domain is deferred rather than dropped for good."""
+    await setup_integration(hass, mock_config_entry)
+    mock_client.fetch_scenes.side_effect = AmpioConnectionError("server unreachable")
+    await _reload(hass, mock_config_entry)
+    assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is None
+
+    # The catalogue answers on the platform's first background retry, and
+    # the scene the entry was set up with is gone from it.
+    mock_client.fetch_scenes.side_effect = None
+    mock_client.fetch_scenes.return_value = [DEFAULT_SCENES[1]]
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
+    await hass.async_block_till_done()
+    async_report_stale_records(hass, mock_config_entry)
+
+    issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID)
+    assert issue is not None
+    assert issue.translation_placeholders == {"names": f"- {SCENE_ENTITY_ID}"}
 
 
 async def test_removing_the_entry_clears_both_issues(

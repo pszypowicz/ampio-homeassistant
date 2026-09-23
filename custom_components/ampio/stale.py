@@ -6,7 +6,7 @@ install still needs them. That repair names the Designer fix instead, and
 the records it covers stay out of the deletion lists while it stands.
 """
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 import logging
 
@@ -121,6 +121,54 @@ def _refused_records(entry: AmpioConfigEntry) -> _RefusedRecords:
     )
 
 
+def _live_platforms(hass: HomeAssistant) -> dict[str, entity_platform.EntityPlatform]:
+    """The platform object that is serving each of the integration's domains.
+
+    Home Assistant builds an ``EntityPlatform`` and publishes it under the
+    integration name before it runs that platform's setup, and it leaves
+    the object published when a config entry unloads. So the list
+    ``async_get_platforms`` returns gains one object per domain on every
+    reload, in the order they were built, and the one serving now is the
+    last of its domain. A superseded object holds no entity, because the
+    unload removed every one of them, so keeping the last per domain is
+    what asks the platform the entities of this setup are on.
+    """
+    return {
+        platform.domain: platform
+        for platform in entity_platform.async_get_platforms(hass, DOMAIN)
+    }
+
+
+def _unready_domains(
+    platforms: Mapping[str, entity_platform.EntityPlatform],
+) -> set[str]:
+    """The domains whose platform has not finished setting up.
+
+    ``EntityPlatform._setup_complete`` is False from the object's
+    construction and True once that platform's ``async_setup_entry`` has
+    returned and every entity it handed over has been added. It is
+    private, and Home Assistant publishes nothing else that carries the
+    fact. The platform object is registered before its setup runs;
+    ``async_forward_entry_setups`` returns the same way whether a platform
+    set up, deferred on ``PlatformNotReady``, timed out, or raised; and the
+    ``<integration>.<domain>`` string ``hass.config.components`` gains on a
+    successful setup is never taken out again, so it reports a first
+    success forever and cannot speak for a later reload.
+
+    Reading it matters because a platform that did not finish holds no
+    entity at all. Every registry record of its domain would read as
+    claimed by nobody, and the repair would offer live entities for
+    deletion while their platform is waiting to be retried. A deferred
+    platform is retried in the background on a growing delay, and its
+    domain stays out of the report until one of those retries lands.
+    """
+    return {
+        domain
+        for domain, platform in platforms.items()
+        if not platform._setup_complete  # noqa: SLF001
+    }
+
+
 @callback
 def find_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> StaleRecords:
     """Collect the entry's records that no platform claimed on this setup.
@@ -144,11 +192,23 @@ def find_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> StaleRec
     that change lands. The exclusion names those ids alone, so a row
     Designer really did delete is still reported while the installer
     repair stands.
+
+    A domain whose platform has not finished setting up is left out
+    whole, because a platform that is still on its way holds no entity
+    and every record it owns would read as claimed by nobody. The skip is
+    per domain rather than over the whole report, so one platform that
+    defers costs the report nothing about the others. It suppresses no
+    real leftover either: a platform with nothing to build finishes its
+    setup, so an install whose scene catalogue is empty still has its
+    leftover scene records reported, and a domain the integration no
+    longer ships gets no platform object and is not skipped at all. A
+    domain that is skipped is reported on the next pass after its
+    platform lands.
     """
+    platforms = _live_platforms(hass)
+    unready = _unready_domains(platforms)
     claimed = {
-        entity_id
-        for platform in entity_platform.async_get_platforms(hass, DOMAIN)
-        for entity_id in platform.entities
+        entity_id for platform in platforms.values() for entity_id in platform.entities
     }
     entity_registry = er.async_get(hass)
     device_registry = dr.async_get(hass)
@@ -158,6 +218,7 @@ def find_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> StaleRec
         for entity in er.async_entries_for_config_entry(entity_registry, entry.entry_id)
         if entity.disabled_by is None
         and entity.entity_id not in claimed
+        and entity.domain not in unready
         and not refused.holds_entity(entity.unique_id)
     }
 
