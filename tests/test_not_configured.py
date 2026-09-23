@@ -38,6 +38,7 @@ from homeassistant.util import dt as dt_util
 
 from . import setup_integration
 from .conftest import (
+    EMPTY_SWEEP,
     HIDDEN_LEAFLESS_ROW,
     LEAFLESS_ALARM_ROW,
     emit,
@@ -595,15 +596,23 @@ async def test_collision_keeps_the_colliding_macs_module_entities_out_of_the_sta
 
     assert entity_id in _claimed()
 
-    if not answered:
-        # The mocked sweep answers no mac, so the map the eviction dropped
-        # stays empty.
-        mock_client.capabilities[52111] = {}
+    # The door evicts the colliding row, and its capability map with it.
+    del mock_client.modules[17]
+    answered_map = mock_client.capabilities.pop(52111)
+
+    async def _sweep(*_args: object, **_kwargs: object) -> object:
+        """Refill the map only for a module that answers the sweep."""
+        if answered:
+            mock_client.capabilities[52111] = answered_map
+        return EMPTY_SWEEP
+
+    mock_client.resolve_records.side_effect = _sweep
     mock_client.connect.side_effect = AmpioNotConfigured(
         collisions=((52111, (17, 18)),)
     )
     await _reload(hass, mock_config_entry)
 
+    assert mock_config_entry.runtime_data.module_row_for(52111) is None
     assert (entity_id in _claimed()) is answered
     stale = find_stale_records(hass, mock_config_entry)
     offered = {entity.unique_id for entity in stale.entities} | {

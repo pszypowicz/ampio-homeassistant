@@ -752,7 +752,7 @@ async def test_set_roller_lock_translates_a_transport_failure(
     mock_config_entry: MockConfigEntry,
     error: Exception,
 ) -> None:
-    """A lock that does not reach the server reports the translated failure."""
+    """A transport error on the lock reports the translated roller lock failure."""
     mock_client.block_opening.side_effect = error
     await setup_integration(hass, mock_config_entry)
 
