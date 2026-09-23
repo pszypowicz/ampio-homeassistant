@@ -1,5 +1,6 @@
 """Tests for catalogue admission and the installer repair."""
 
+from datetime import timedelta
 from unittest.mock import MagicMock
 
 from ampio_mqtt import (
@@ -11,7 +12,10 @@ from ampio_mqtt import (
 )
 from ampio_mqtt.testing import AmpioStore, apply_reply, build_store
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
 from custom_components.ampio.const import (
     DOMAIN,
@@ -20,6 +24,7 @@ from custom_components.ampio.const import (
 )
 from custom_components.ampio.stale import find_stale_records
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.const import ATTR_RESTORED
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
     device_registry as dr,
@@ -27,6 +32,7 @@ from homeassistant.helpers import (
     entity_registry as er,
     issue_registry as ir,
 )
+from homeassistant.util import dt as dt_util
 
 from . import setup_integration
 from .conftest import (
@@ -65,6 +71,16 @@ def _refuse(client: MagicMock, object_id: int) -> None:
 async def _reload(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
+
+
+async def _settle(hass: HomeAssistant) -> None:
+    """Let the reconcile cooldown elapse and the batch finish.
+
+    The batch runs as an entry background task, which the default
+    ``async_block_till_done`` does not wait for.
+    """
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=2))
+    await hass.async_block_till_done(wait_background_tasks=True)
 
 
 @pytest.fixture
@@ -369,6 +385,42 @@ async def test_a_refusal_during_setup_reaches_the_repair(
     }
 
 
+async def test_a_refusal_takes_the_module_controls_down(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    """A refusal reaches the module entities, which no object event would.
+
+    The refused row leaves the catalogue, so no object names its mac and
+    the report offers the records of the entities on its module device.
+    The module row stays admitted, so those entities would otherwise keep
+    working while the report offered them for deletion.
+    """
+    mock_client.objects[PUMP_OBJECT.id] = PUMP_OBJECT
+    await setup_integration(hass, mock_config_entry)
+    button_id = entity_id_of(hass, "button", module_unique_id(PUMP_MAC, "_identify"))
+    assert hass.states.get(button_id) is not None
+
+    # The door refuses the row while the entry runs. It never became an
+    # object, so the library reports it as a door change and nothing else.
+    del mock_client.objects[PUMP_OBJECT.id]
+    emit(mock_client, NotConfigured(objects=((PUMP_OBJECT.id, PUMP_OBJECT.name),)))
+    await _settle(hass)
+
+    assert hass.states.get(button_id).attributes.get(ATTR_RESTORED) is True
+    held = device_registry.async_get_device_by_identifier(
+        PUMP_IDENTIFIER, mock_config_entry.entry_id
+    )
+    assert held is not None
+    stale = find_stale_records(hass, mock_config_entry)
+    # The device is held for the refused row's child, so its own records
+    # are offered on their own, and nothing built stands behind them now.
+    assert held.id not in {device.id for device in stale.devices}
+    assert button_id in {record.entity_id for record in stale.entities}
+
+
 async def test_deleting_a_refused_row_surfaces_its_records(
     hass: HomeAssistant,
     mock_client: MagicMock,
@@ -395,9 +447,10 @@ async def test_deleting_a_refused_row_surfaces_its_records(
     assert child.id not in {device.id for device in held.devices}
 
     # The installer deleted the row in Ampio Designer, so the door has
-    # nothing left to refuse.
+    # nothing left to refuse. No object event carries that, because the
+    # row left the catalogue when it was refused.
     emit(mock_client, NotConfigured())
-    await hass.async_block_till_done()
+    await _settle(hass)
 
     assert issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE) is None
     stale = find_stale_records(hass, mock_config_entry)

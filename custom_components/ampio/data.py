@@ -92,8 +92,8 @@ def _built_entities(platform: EntityPlatform, object_key: str) -> dict[str, Enti
     }
 
 
-def _built_module_entities(platform: EntityPlatform, mac: int) -> list[Entity]:
-    """The entities a platform holds for one module device, by override mac.
+def _built_module_entities(platform: EntityPlatform, mac: int) -> dict[str, Entity]:
+    """The entities a platform holds for one module device, keyed by unique id.
 
     A module entity's unique id is the prefix, the mac, and what the entity
     does on the module, so the mac with its separator is what tells one
@@ -101,11 +101,11 @@ def _built_module_entities(platform: EntityPlatform, mac: int) -> list[Entity]:
     for what is built, as it is for the objects.
     """
     prefix = f"{MODULE_KEY_PREFIX}{format_mac(mac)}_"
-    return [
-        entity
+    return {
+        uid: entity
         for entity in platform.entities.values()
-        if entity.unique_id is not None and entity.unique_id.startswith(prefix)
-    ]
+        if (uid := entity.unique_id) is not None and uid.startswith(prefix)
+    }
 
 
 def module_identifier(mac: int) -> tuple[str, str]:
@@ -236,9 +236,9 @@ class AmpioData:
         # and a failed fetch defers the scene platform, which leaves the
         # catalogue unknown rather than empty. The stale-record report
         # speaks for a scene record only while this holds a catalogue.
-        # The inactive rows are in: the platform builds no entity for one,
-        # and the app switches a scene back on without the server ever
-        # having stopped serving the row.
+        # The inactive rows are in, because the platform builds no entity
+        # for one and the app switches a scene back on without the server
+        # ever having stopped serving the row.
         self.scene_ids: frozenset[int] | None = None
         self._platforms: list[_PlatformRegistration] = []
         self._module_platforms: list[_ModulePlatformRegistration] = []
@@ -393,10 +393,15 @@ class AmpioData:
     def forget_module_device(self, device_id: str) -> None:
         """Drop a module device from the tree, so that the next object builds it again.
 
-        The removal hook calls it when it permits the delete of a module
-        device. The registry keeps the deleted record, so the next object
-        on the mac gets the device back through ``ensure_module_device``,
-        with its id, its user name, and its area.
+        Both callers have just deleted the device record: the removal hook
+        when it permits a delete from the device page, and the repair when
+        its submit takes one. The registry keeps the deleted record, so the
+        next object on the mac gets the device back through
+        ``ensure_module_device``, with its id, its user name, and its area.
+
+        Nothing else drops a mac. A tree that forgot one whose record still
+        stands would resolve an object on that mac to the hub, while its
+        child device kept hanging under the module.
         """
         self.module_device_ids = {
             mac: known
@@ -508,6 +513,31 @@ class AmpioData:
             return {}
         return entities
 
+    def _expected_module_entities(
+        self, factories: list[AdminModuleFactory], mac: int, live: set[int]
+    ) -> dict[str, Entity]:
+        """The entities one platform's module factories build for an override mac.
+
+        Every factory on the platform at once, because what is built is
+        read off the platform and two factories can share one. The
+        identify button and the touch-unlock button are both on the button
+        platform, and the backlight and the status light are both on the
+        light platform.
+
+        Nothing for a mac no object this account receives names, because a
+        module device answers to the objects on both tiers and a mac with
+        none of them has left the tree. Nothing either on an account that
+        is served no module surface, where no module factory runs at all.
+        """
+        if (admin := self.admin) is None or mac not in live:
+            return {}
+        return {
+            uid: entity
+            for factory in factories
+            for entity in factory(self, admin, mac)
+            if (uid := entity.unique_id) is not None
+        }
+
     @callback
     def _misparented(self, obj: AmpioObject) -> bool:
         """Whether the object's child device hangs under a parent it has outgrown."""
@@ -547,10 +577,9 @@ class AmpioData:
         """Report the leftover records, once setup has handed the report over.
 
         A catalogue this account is served reaches the report through
-        here, so that a read which changes what the report can account
-        for refreshes the card on its own. The scene platform calls it
-        when a fetch lands, and the admission door when what it refuses
-        changes.
+        here, so that a read which changes what the report can account for
+        refreshes the card on its own. The scene platform calls it when a
+        fetch lands, and every batch calls it at its end.
         """
         if self._report is not None:
             self._report()
@@ -577,6 +606,22 @@ class AmpioData:
         self._debouncer.async_schedule_call()
 
     @callback
+    def async_request_pass(self) -> None:
+        """Queue a batch that no object change carried.
+
+        A row the library's admission door refuses never became an object,
+        so nothing emits an object event when it leaves the catalogue,
+        while what the catalogue names has changed. The batch is what
+        brings the module entities in line with it, and the report at the
+        end of that batch is what the card follows.
+
+        Nothing is queued before setup hands the report over, because the
+        setup pass builds the tree from the catalogue it has just read.
+        """
+        if self._report is not None:
+            self._debouncer.async_schedule_call()
+
+    @callback
     def _async_schedule_reconcile(self) -> None:
         """Run the batch as an entry task, so that an unload cancels it."""
         self.entry.async_create_background_task(
@@ -584,15 +629,18 @@ class AmpioData:
         )
 
     async def _async_reconcile(self) -> None:
-        """Bring every pending object's entities in line with the catalogue.
+        """Bring the entities in line with the catalogue, and report.
 
-        One rule, expected versus built, covers a new object, a deletion, a
-        hide, an un-hide, a re-tag, a pulse time, and a move.
+        One rule, expected versus built, covers a new object, a deletion,
+        a hide, an un-hide, a re-tag, a pulse time, and a move, and the
+        module entities answer to it per override mac.
+
+        A batch with nothing pending still has work. The admission door
+        takes a row out of the catalogue without an object event, so the
+        module pass and the report run whether or not an object is queued.
         """
         async with self._reconcile_lock:
             pending, self._pending = self._pending, {}
-            if not pending:
-                return
             buildable: list[AmpioObject] = []
             for oid in pending:
                 obj = self.client.objects.get(oid)
@@ -604,14 +652,10 @@ class AmpioData:
                     buildable.append(obj)
             # An entity reads the room map and the module device when it is
             # built, so both precede the factories.
-            new_macs: list[int] = []
             if buildable:
                 await self.async_refresh_rooms()
-                new_macs.extend(
-                    mac
-                    for obj in buildable
-                    if (mac := self.ensure_module_device(obj)) is not None
-                )
+                for obj in buildable:
+                    self.ensure_module_device(obj)
             for registration in self._platforms:
                 to_add: list[Entity] = []
                 to_remove: list[Entity] = []
@@ -638,39 +682,52 @@ class AmpioData:
                     # Awaited, so that the platform's table holds the entities
                     # before the batch ends.
                     await registration.platform.async_add_entities(to_add)
-            # A module device the batch created owes the module platforms
-            # their entities, awaited for the same reason as the objects.
-            # Every module factory is administrator-only, so a standard
-            # session has no client to run one with.
-            if (admin := self.admin) is not None:
-                for module_registration in self._module_platforms:
-                    module_entities = [
-                        entity
-                        for mac in new_macs
-                        for entity in module_registration.factory(self, admin, mac)
-                    ]
-                    if module_entities:
-                        await module_registration.platform.async_add_entities(
-                            module_entities
-                        )
-            # A mac no object names has left the device tree, and a setup
-            # running now would build neither its device nor an entity on
-            # it. The batch takes those entities down to land on the same
-            # tree, so that the module device the report goes on to offer
-            # carries no control that still works, and drops the mac so
-            # that an object returning to it builds the device again.
+            # The module entities follow the objects' rule, expected
+            # versus built, over every mac the tree holds, with one
+            # narrowing. A mac the catalogue no longer names has its
+            # entities taken down, because the object catalogue is what
+            # decides the tree and it has answered. A mac the catalogue
+            # still names only gains what it is missing: a factory that
+            # builds nothing there is reading the capability map, which a
+            # module that stayed silent through the sweep leaves unknown,
+            # and an unknown is no reason to take a working control away.
+            #
+            # So one pass covers a mac this batch put in the tree, a mac
+            # whose last object left, and a mac whose object came back,
+            # and the controls of a dropped mac come down before the
+            # report offers the device they sit on.
+            #
+            # The mac keeps its place in the tree here. Dropping it would
+            # resolve an object returning to that mac to the hub while its
+            # child device still hangs under the module, and a child the
+            # registry cannot re-parent would hold that object's entities
+            # back until someone deleted the device. The two paths that
+            # delete the device record drop the mac, and a reload builds
+            # the tree from the catalogue again.
             live = self.live_macs()
-            for mac, device_id in [
-                (mac, device_id)
-                for mac, device_id in self.module_device_ids.items()
-                if mac not in live
-            ]:
-                for module_registration in self._module_platforms:
-                    for entity in _built_module_entities(
-                        module_registration.platform, mac
-                    ):
-                        await entity.async_remove()
-                self.forget_module_device(device_id)
+            factories_by_platform: dict[EntityPlatform, list[AdminModuleFactory]] = {}
+            for module_registration in self._module_platforms:
+                factories_by_platform.setdefault(
+                    module_registration.platform, []
+                ).append(module_registration.factory)
+            for module_platform, factories in factories_by_platform.items():
+                module_add: list[Entity] = []
+                module_remove: list[Entity] = []
+                for mac in list(self.module_device_ids):
+                    on_mac = _built_module_entities(module_platform, mac)
+                    wanted = self._expected_module_entities(factories, mac, live)
+                    module_add.extend(
+                        entity for uid, entity in wanted.items() if uid not in on_mac
+                    )
+                    if mac not in live:
+                        module_remove.extend(on_mac.values())
+                for entity in module_remove:
+                    # The registry record stays behind, so the report can
+                    # offer it, with the device it sits on or on its own.
+                    await entity.async_remove()
+                if module_add:
+                    # Awaited for the same reason as the objects above.
+                    await module_platform.async_add_entities(module_add)
             self.async_report_records()
 
     async def async_refresh_rooms(self) -> None:

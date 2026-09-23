@@ -163,8 +163,8 @@ class _LiveCatalogue:
     # The trailing separator is what keeps mac 0xCB8 from claiming
     # ``module_mac_0xCB8F_buzzer``.
     module_prefixes: tuple[str, ...]
-    # ``scene_<id>`` for every active scene the last fetch returned, or
-    # None while no fetch has landed on this setup.
+    # ``scene_<id>`` for every scene the last fetch returned, active or
+    # not, or None while no fetch has landed on this setup.
     scenes: frozenset[str] | None
 
     def explains(self, unique_id: str) -> bool:
@@ -459,13 +459,15 @@ def async_report_not_configured(
     it appears. The clear path logs nothing.
     """
     entry.runtime_data.not_configured = refused
-    # The stale report reads this record to decide which records a refused
-    # row keeps out of its lists, so a change to either side re-reads
-    # both. A row deleted in Ampio Designer while it stood refused leaves
-    # the catalogue without a second removal event, and this is what
-    # surfaces its records. It waits for the platforms like every other
-    # report.
-    entry.runtime_data.async_report_records()
+    # A refused row never became an object, so nothing emits an object
+    # event when it leaves the catalogue, and the batch queued here runs
+    # instead. It brings the module entities in line with the macs the
+    # catalogue still names, then reports, which is what re-reads this
+    # record. The report keeps a refused row's records out of its lists,
+    # so a change to either side has to re-read both, and a row deleted in
+    # Ampio Designer while it stood refused needs it most, having left the
+    # catalogue already.
+    entry.runtime_data.async_request_pass()
     if refused is None:
         ir.async_delete_issue(hass, DOMAIN, NOT_CONFIGURED_ISSUE)
         return

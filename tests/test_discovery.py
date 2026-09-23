@@ -575,6 +575,10 @@ async def test_module_factory_builds_now_and_for_a_new_mac(
     data: AmpioData = mock_config_entry.runtime_data
     platform = MagicMock(spec=EntityPlatform)
     platform.async_add_entities = AsyncMock()
+    # The batch reads a module platform's own table to see what is built
+    # on each mac, as it does for the object platforms. This stub keeps
+    # nothing, so every entity a factory offers reads as missing.
+    platform.entities = {}
     built: list[int] = []
     second_built: list[int] = []
 
@@ -607,11 +611,14 @@ async def test_module_factory_builds_now_and_for_a_new_mac(
 
     await _add(hass, mock_client, _new_input(leaf_id="0_d009_257_1_1"))
 
-    assert built == [52111, 53257]
-    assert second_built == [52111, 53257]
-    assert platform.async_add_entities.await_count == 2
-    for call in platform.async_add_entities.call_args_list:
-        assert len(call.args[0]) == 1
+    # The batch asks every mac the tree holds what it expects, and hands
+    # the platform what that mac has not got built. Both factories share
+    # this platform, so one call carries what the two of them expect for
+    # the two macs.
+    assert built == [52111, 52111, 53257]
+    assert second_built == [52111, 52111, 53257]
+    assert platform.async_add_entities.await_count == 1
+    assert len(platform.async_add_entities.call_args.args[0]) == 4
 
 
 async def test_module_factory_is_never_called_on_a_restricted_account(
@@ -623,6 +630,7 @@ async def test_module_factory_is_never_called_on_a_restricted_account(
     data: AmpioData = mock_config_entry.runtime_data
     platform = MagicMock(spec=EntityPlatform)
     platform.async_add_entities = AsyncMock()
+    platform.entities = {}
     factory = MagicMock(return_value=[MagicMock(spec=Entity)])
 
     async_add_entities = MagicMock()
@@ -694,7 +702,7 @@ async def test_a_module_that_loses_its_last_object_loses_its_controls(
     """A mac no object names keeps no working control on its module device.
 
     The module row stays admitted, so the command would still reach the
-    panel, while the mac has left the device tree and the report offers
+    panel, while the mac has left the object tree and the report offers
     the device. A batch that left the entities up would leave a control
     that works on a device the next submit deletes.
     """
@@ -706,7 +714,6 @@ async def test_a_module_that_loses_its_last_object_loses_its_controls(
     await _remove(hass, mock_client, NEW_INPUT_ID)
 
     assert hass.states.get(button_id).attributes.get(ATTR_RESTORED) is True
-    assert 53257 not in mock_config_entry.runtime_data.module_device_ids
     # The record stays for the repair to offer with the device it sits on.
     assert entity_registry.async_get(button_id) is not None
     module = device_registry.async_get_device_by_identifier(
@@ -716,6 +723,68 @@ async def test_a_module_that_loses_its_last_object_loses_its_controls(
     stale = find_stale_records(hass, mock_config_entry)
     assert module.id in {device.id for device in stale.devices}
     assert button_id not in {record.entity_id for record in stale.entities}
+
+
+async def test_a_batch_leaves_a_live_macs_controls_alone(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A capability the module did not report is no reason to take a control down.
+
+    The buzzer is built from the capability map, which a module that
+    stayed silent through the description sweep leaves unknown. Its mac is
+    still named by objects, so the batch adds what that mac is missing and
+    takes nothing away from it.
+    """
+    with_buzzer(mock_client)
+    await setup_integration(hass, mock_config_entry)
+    buzzer_id = entity_id_of(hass, "siren", module_unique_id(52111, "_buzzer"))
+    assert hass.states.get(buzzer_id) is not None
+
+    mock_client.capabilities[52111] = {}
+    await _add(hass, mock_client, _new_input())
+
+    assert hass.states.get(buzzer_id).attributes.get(ATTR_RESTORED) is None
+
+
+async def test_a_module_that_gets_its_object_back_needs_no_repair(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """The last object off a module and back again brings everything straight back.
+
+    The mac keeps its place in the tree while its device record stands,
+    so the object resolves to the device its child still hangs under. A
+    tree that dropped the mac would resolve the object to the hub, and
+    the child the registry cannot re-parent would hold its entities back
+    until the user deleted the device.
+    """
+    await setup_integration(hass, mock_config_entry)
+    new_input = _new_input(leaf_id="0_d009_257_1_1")
+    await _add(hass, mock_client, new_input)
+    entity_id = NEW_INPUT_ENTITY_ID(hass)
+    button_id = entity_id_of(hass, "button", module_unique_id(53257, "_identify"))
+    module = device_registry.async_get_device_by_identifier(
+        module_identifier(53257), mock_config_entry.entry_id
+    )
+    assert module is not None
+
+    await _remove(hass, mock_client, NEW_INPUT_ID)
+    await _add(hass, mock_client, new_input)
+
+    data: AmpioData = mock_config_entry.runtime_data
+    assert data.parent_for(new_input) == module.id
+    child = _child(device_registry, mock_config_entry, NEW_INPUT_ID)
+    assert child is not None
+    assert child.parent_device_id == module.id
+    assert hass.states.get(entity_id).state == STATE_OFF
+    assert hass.states.get(button_id).attributes.get(ATTR_RESTORED) is None
+    stale = find_stale_records(hass, mock_config_entry)
+    assert module.id not in {device.id for device in stale.devices}
+    assert child.id not in {device.id for device in stale.devices}
+    assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is None
 
 
 async def test_module_row_reads_none_on_a_standard_account(

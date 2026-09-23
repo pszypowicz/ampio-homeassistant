@@ -255,11 +255,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    # Every catalogue this account receives has now been read, the scene
-    # one included, so the report can account for each record the
-    # registries hold for this entry, and offer the user the ones it
-    # cannot. From here on a read that changes what can be accounted for
-    # raises it again.
+    # The platforms have run, so a catalogue one of them fetches has
+    # either landed or left itself unknown, which is what the scene
+    # platform does when it defers. The report accounts for every record
+    # the catalogues it holds explain and offers the user the rest. From
+    # here on, a read that changes what can be accounted for raises it
+    # again.
     entry.runtime_data.async_mark_ready(
         partial(async_report_stale_records, hass, entry)
     )
