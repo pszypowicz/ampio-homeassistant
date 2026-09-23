@@ -64,8 +64,7 @@ class AmpioCoverLockSensorDescription(BinarySensorEntityDescription):
 # only report by dropping a feature. It reads on both account tiers,
 # because the block bits ride the object state push. The write is the
 # ampio.set_roller_lock action, which the administrator login alone can
-# use, and which explains every refusal and every failure to reach the
-# server.
+# use, and which explains every refusal and every transport error.
 COVER_LOCK_SENSORS: Final = (
     AmpioCoverLockSensorDescription(
         key="blocks_opening",

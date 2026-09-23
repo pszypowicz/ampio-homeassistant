@@ -663,7 +663,7 @@ class AmpioData:
                 if not self._misparented(obj):
                     buildable.append(obj)
             # An entity reads the room map when it is built, so the map is
-            # fresh before the factories run.
+            # refreshed before the factories run.
             if buildable:
                 await self.async_refresh_rooms()
             for registration in self._platforms:
