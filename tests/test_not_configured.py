@@ -8,6 +8,7 @@ from ampio_mqtt import (
     AmpioClient,
     AmpioNotConfigured,
     NotConfigured,
+    ObjectAdded,
     ObjectRemoved,
     format_mac,
 )
@@ -25,7 +26,7 @@ from custom_components.ampio.const import (
 )
 from custom_components.ampio.stale import find_stale_records
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.const import ATTR_RESTORED
+from homeassistant.const import ATTR_RESTORED, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
     device_registry as dr,
@@ -468,6 +469,51 @@ async def test_deleting_a_refused_row_surfaces_its_records(
     issue = issue_registry.async_get_issue(DOMAIN, STALE_RECORDS_ISSUE)
     assert issue is not None
     assert f"- {PUMP_OBJECT.name}" in issue.translation_placeholders["names"]
+
+
+async def test_a_row_refused_at_setup_comes_back_under_its_module(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    issue_registry: ir.IssueRegistry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A row refused at setup, alone on its module, comes back once Designer is fixed.
+
+    The entity is live again, no misparent warning is logged, and the
+    stale report offers neither the object's child device nor its module
+    device.
+    """
+    mock_client.objects[PUMP_OBJECT.id] = PUMP_OBJECT
+    await setup_integration(hass, mock_config_entry)
+    entry_id = mock_config_entry.entry_id
+    switch_id = entity_id_of(hass, "switch", unique_id(PUMP_OBJECT.id))
+    _refuse(mock_client, PUMP_OBJECT.id)
+    await _reload(hass, mock_config_entry)
+    assert hass.states.get(switch_id).attributes.get(ATTR_RESTORED) is True
+
+    # The installer checks the box again, so the door admits the row.
+    mock_client.objects[PUMP_OBJECT.id] = PUMP_OBJECT
+    caplog.clear()
+    emit(mock_client, ObjectAdded(object=PUMP_OBJECT))
+    emit(mock_client, NotConfigured())
+    await _settle(hass)
+
+    state = hass.states.get(switch_id)
+    assert state.state != STATE_UNAVAILABLE
+    assert state.attributes.get(ATTR_RESTORED) is None
+    assert "hangs under a different module" not in caplog.text
+    assert issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE) is None
+    module = device_registry.async_get_device_by_identifier(PUMP_IDENTIFIER, entry_id)
+    child = device_registry.async_get_child_device_by_identifier(
+        (DOMAIN, unique_id(PUMP_OBJECT.id)), entry_id
+    )
+    assert module is not None
+    assert child is not None
+    assert child.parent_device_id == module.id
+    stale = find_stale_records(hass, mock_config_entry)
+    assert {device.id for device in stale.devices}.isdisjoint({module.id, child.id})
 
 
 async def test_a_dead_entity_on_a_held_module_is_still_offered(

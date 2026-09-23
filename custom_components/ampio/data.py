@@ -654,14 +654,18 @@ class AmpioData:
                     self._fingerprints.pop(oid, None)
                     continue
                 self._fingerprints[oid] = fingerprint(obj)
+                # The module device goes into the tree before the parent
+                # comparison. A mac the tree does not hold resolves to the
+                # hub, so a child whose record still hangs under that
+                # module, such as one whose row the door refused at the
+                # last setup, would read as outgrown.
+                self.ensure_module_device(obj)
                 if not self._misparented(obj):
                     buildable.append(obj)
-            # An entity reads the room map and the module device when it is
-            # built, so both precede the factories.
+            # An entity reads the room map when it is built, so the map is
+            # fresh before the factories run.
             if buildable:
                 await self.async_refresh_rooms()
-                for obj in buildable:
-                    self.ensure_module_device(obj)
             for registration in self._platforms:
                 to_add: list[Entity] = []
                 to_remove: list[Entity] = []
