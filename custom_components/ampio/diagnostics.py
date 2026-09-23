@@ -18,12 +18,6 @@ from homeassistant.core import HomeAssistant
 from .data import AmpioConfigEntry, AmpioData
 
 TO_REDACT_ENTRY = {CONF_HOST, CONF_PASSWORD, CONF_USERNAME}
-# ampio-mqtt keeps a safelisted summary of the retained ``info`` reply, but
-# it keeps a value under a safe key without validating it, so a malformed
-# reply can carry a host name through (ampio-mqtt#308). That summary is one
-# JSON string, which key-based redaction cannot reach inside, so the whole
-# string is masked. The parsed ``server_info`` carries the debugging value.
-TO_REDACT_SNAPSHOT = {"info"}
 
 
 def _capability_name(function_id: int) -> str:
@@ -129,12 +123,11 @@ async def async_get_config_entry_diagnostics(
     """Return diagnostics for a config entry."""
     # ampio-mqtt redacts its own snapshot. It masks the account in every
     # topic, the broker host, and the host identifiers of ``server_info``,
-    # and lists the refused rows by id. Those are the places a key-based
-    # redactor cannot reach. The ``info`` summary is masked here as well.
+    # lists the refused rows by id, and keeps only the parsed values of the
+    # retained ``info`` reply. Those are the places a key-based redactor
+    # cannot reach, so the block is passed through.
     return {
         "entry_data": async_redact_data(entry.data, TO_REDACT_ENTRY),
-        "snapshot": async_redact_data(
-            entry.runtime_data.client.diagnostics_snapshot(), TO_REDACT_SNAPSHOT
-        ),
+        "snapshot": entry.runtime_data.client.diagnostics_snapshot(),
         "designer_config": _designer_config(entry.runtime_data),
     }
