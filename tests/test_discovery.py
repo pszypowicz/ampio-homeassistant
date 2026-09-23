@@ -11,6 +11,7 @@ from ampio_mqtt import (
     AccessTier,
     AmpioAdminClient,
     AmpioConnectionError,
+    AmpioModule,
     AmpioObject,
     AmpioTimeoutError,
     ModuleFunction,
@@ -1046,11 +1047,12 @@ async def test_an_unload_stops_a_batch_parked_in_the_sweep(
 ) -> None:
     """A batch waiting on its sweep adds nothing once the platforms have unloaded."""
     await setup_integration(hass, mock_config_entry)
+    identify_id = entity_id_of(hass, "button", module_unique_id(52111, "_identify"))
     release = asyncio.Event()
-    sweeping = asyncio.Event()
+    batch: list[asyncio.Task[Any]] = []
 
     async def _parked_sweep() -> RecordSweep:
-        sweeping.set()
+        batch.append(asyncio.current_task())  # type: ignore[arg-type]
         await release.wait()
         mock_client.capabilities[NEW_MAC] = {ModuleFunction.BUZZER: 4}
         return RecordSweep(
@@ -1062,7 +1064,11 @@ async def test_an_unload_stops_a_batch_parked_in_the_sweep(
     mock_client.objects[new_input.id] = new_input
     emit(mock_client, ObjectAdded(object=new_input))
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=2))
-    await asyncio.wait_for(sweeping.wait(), timeout=5)
+    for _ in range(50):
+        if batch:
+            break
+        await asyncio.sleep(0)
+    assert batch
 
     unloaded = False
     late_adds: list[Entity] = []
@@ -1074,10 +1080,9 @@ async def test_an_unload_stops_a_batch_parked_in_the_sweep(
         result = await unload_platforms(*args)
         unloaded = True
         release.set()
-        # Hand the loop to a batch that the release woke, before the
-        # unload moves on to cancel the entry's background tasks.
-        for _ in range(20):
-            await asyncio.sleep(0)
+        # Whatever the release woke runs to its end or its cancellation
+        # before the unload moves on to cancel the entry's background tasks.
+        await asyncio.wait(batch, timeout=5)
         return result
 
     async def _recording_add(
@@ -1096,12 +1101,86 @@ async def test_an_unload_stops_a_batch_parked_in_the_sweep(
         assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
         await hass.async_block_till_done(wait_background_tasks=True)
 
+    assert batch[0].done()
     assert late_adds == []
     mock_client.resolve_records.side_effect = None
     mock_client.resolve_records.return_value = EMPTY_SWEEP
     assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
     await hass.async_block_till_done()
     assert mock_config_entry.state is ConfigEntryState.LOADED
+    assert hass.states.get(NEW_INPUT_ENTITY_ID(hass)).state == STATE_OFF
+    assert hass.states.get(identify_id).attributes.get(ATTR_RESTORED) is None
+    assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+async def test_an_unload_lets_a_parked_removal_finish(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A batch removing a sounding buzzer finishes the removal before the unload.
+
+    The buzzer's removal sends a stop, and an unload that broke in there
+    would leave its state behind and its entity id taken at the next setup.
+    """
+    mock_client.modules[40] = AmpioModule(
+        id=40,
+        mac=NEW_MAC,
+        mac_global=100000 + NEW_MAC,
+        nazwa_urzadzenia="m-dot taras",
+        typ_urzadzenia=44,
+        wersja_softu=63,
+        wersja_pcb=7,
+    )
+    mock_client.capabilities[NEW_MAC] = {ModuleFunction.BUZZER: 4}
+    await setup_integration(hass, mock_config_entry)
+    new_input = _new_input(leaf_id="0_d009_257_1_1")
+    await _add(hass, mock_client, new_input)
+    buzzer_id = entity_id_of(hass, "siren", module_unique_id(NEW_MAC, "_buzzer"))
+    await hass.services.async_call(
+        "siren", "turn_on", {"entity_id": buzzer_id}, blocking=True
+    )
+    assert hass.states.get(buzzer_id).state == STATE_ON
+
+    release = asyncio.Event()
+    stopping: list[asyncio.Task[Any]] = []
+
+    async def _parked_stop(*_args: Any) -> None:
+        stopping.append(asyncio.current_task())  # type: ignore[arg-type]
+        await release.wait()
+
+    mock_client.buzz_stop.side_effect = _parked_stop
+    mock_client.objects.pop(NEW_INPUT_ID)
+    emit(mock_client, ObjectRemoved(object=new_input))
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=2))
+    for _ in range(50):
+        if stopping:
+            break
+        await asyncio.sleep(0)
+    assert stopping
+
+    unload = hass.async_create_task(
+        hass.config_entries.async_unload(mock_config_entry.entry_id)
+    )
+    for _ in range(20):
+        await asyncio.sleep(0)
+    release.set()
+    assert await unload
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    mock_client.buzz_stop.side_effect = None
+    mock_client.objects[NEW_INPUT_ID] = new_input
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert mock_config_entry.state is ConfigEntryState.LOADED
+    assert (
+        entity_id_of(hass, "siren", module_unique_id(NEW_MAC, "_buzzer")) == buzzer_id
+    )
+    state = hass.states.get(buzzer_id)
+    assert state.state == STATE_OFF
+    assert state.attributes.get(ATTR_RESTORED) is None
     assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
 

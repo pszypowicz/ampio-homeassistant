@@ -1,11 +1,11 @@
 """Runtime data for the Ampio integration: the device tree the catalogue defines."""
 
 import asyncio
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Coroutine, Iterable
 from contextlib import suppress
 from dataclasses import dataclass
 import logging
-from typing import Final
+from typing import Any, Final
 
 from ampio_mqtt import (
     AmpioAdminClient,
@@ -252,8 +252,14 @@ class AmpioData:
         self._warned_misparented: set[int] = set()
         self._reconcile_lock = asyncio.Lock()
         # The batch tasks that have not finished, so that an unload can
-        # cancel them before the platforms go.
+        # wait for them before the platforms go. A batch is never
+        # canceled, because a cancel inside an entity removal leaves the
+        # entity half removed. The waits a batch may abandon run as tasks
+        # of their own, which ``async_shutdown`` cancels, and the batch
+        # returns once it sees ``_stopping``.
         self._reconcile_tasks: set[asyncio.Task[None]] = set()
+        self._abandonable: set[asyncio.Task[None]] = set()
+        self._stopping = False
         self._debouncer = Debouncer(
             hass,
             _LOGGER,
@@ -669,14 +675,34 @@ class AmpioData:
 
         The unload calls this before the platforms unload. Home Assistant
         cancels an entry's background tasks only after the platforms have
-        unloaded, and a batch that resumed in that gap, from the sweep or
-        the room fetch, would add entities to platforms that are gone.
+        unloaded, and a batch that went on in that gap would add entities
+        to platforms that are gone. The sweep and the room fetch are cut
+        short, and whatever a batch is removing or adding at that moment
+        finishes first.
         """
+        self._stopping = True
         self._debouncer.async_shutdown()
-        tasks = list(self._reconcile_tasks)
-        for task in tasks:
+        for wait in self._abandonable:
+            wait.cancel()
+        await asyncio.gather(*self._reconcile_tasks, return_exceptions=True)
+
+    async def _async_abandonable(self, coro: Coroutine[Any, Any, None]) -> None:
+        """Await a wait that ``async_shutdown`` may cancel, without canceling the batch.
+
+        The caller checks ``_stopping`` afterwards, because a canceled
+        wait returns here like a finished one.
+        """
+        task = self.hass.async_create_task(coro, "ampio_reconcile_wait")
+        self._abandonable.add(task)
+        try:
+            await asyncio.wait((task,))
+        except asyncio.CancelledError:
             task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
+            raise
+        finally:
+            self._abandonable.discard(task)
+        if not task.cancelled():
+            task.result()
 
     async def _async_reconcile(self) -> None:
         """Bring the entities in line with the catalogue, and report.
@@ -691,6 +717,8 @@ class AmpioData:
         and the report run whether or not an object is queued.
         """
         async with self._reconcile_lock:
+            if self._stopping:
+                return
             pending, self._pending = self._pending, {}
             buildable = False
             new_macs: list[int] = []
@@ -713,7 +741,9 @@ class AmpioData:
             # An entity reads the room map when it is built, so the map is
             # refreshed before the factories run.
             if buildable:
-                await self.async_refresh_rooms()
+                await self._async_abandonable(self.async_refresh_rooms())
+                if self._stopping:
+                    return
             for registration in self._platforms:
                 to_add: list[Entity] = []
                 to_remove: list[Entity] = []
@@ -737,6 +767,8 @@ class AmpioData:
                     # by nothing, which is where a user deletes it.
                     await entity.async_remove()
                 if to_add:
+                    if self._stopping:
+                        return
                     # Awaited, so that the platform's table holds the entities
                     # before the batch ends.
                     await registration.platform.async_add_entities(to_add)
@@ -749,7 +781,9 @@ class AmpioData:
             # timeouts, so the module controls, the report, and the next
             # batch wait for it.
             if new_macs and (admin := self.admin) is not None:
-                await self._async_sweep_for(admin, new_macs)
+                await self._async_abandonable(self._async_sweep_for(admin, new_macs))
+                if self._stopping:
+                    return
             # The module entities follow the objects' rule, expected
             # versus built, over every mac the tree holds, narrowed in one
             # place. Removal waits for a mac the catalogue no longer
@@ -795,6 +829,8 @@ class AmpioData:
                     # offer it, with the device it sits on or on its own.
                     await entity.async_remove()
                 if module_add:
+                    if self._stopping:
+                        return
                     # Awaited for the same reason as the objects above.
                     await module_platform.async_add_entities(module_add)
             self.async_report_records()
@@ -804,23 +840,21 @@ class AmpioData:
     ) -> None:
         """Run the description sweep again for the module devices a batch added.
 
-        A new module with no capability entry after the sweep, because the
-        sweep failed or the module has not answered one since the
-        integration started, goes without its capability-gated controls
-        and the roller lock action on its covers, and a warning names it.
-        A module that answered an earlier sweep keeps its entry when this
-        one leaves it out, so its controls are built and it gets no
-        warning. The batch goes on either way, so the Identify button and
-        the object entities still stand.
+        A new module with no capability entry after the sweep, failed or
+        completed, goes without its capability-gated controls and the
+        roller lock action on its covers, and a warning names it. A module
+        that has an entry gets its controls from it and no warning, even
+        when this sweep left it out. The batch goes on either way, so the
+        Identify button and the object entities still stand.
         """
         with suppress(AmpioConnectionError, AmpioTimeoutError):
             await admin.resolve_records()
         missing = [mac for mac in new_macs if mac not in admin.capabilities]
         if missing:
             _LOGGER.warning(
-                "No capability data for new Ampio modules %s, because they have "
-                "not answered a Designer description sweep. Their buzzer, Unlock "
-                "touch, and panel lights are left out until a reload sweeps again",
+                "No capability data for new Ampio modules %s after the Designer "
+                "description sweep. Their buzzer, Unlock touch, and panel lights "
+                "are left out until a reload sweeps again",
                 ", ".join(format_mac(mac) for mac in missing),
             )
 

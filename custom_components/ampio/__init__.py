@@ -278,7 +278,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> bo
     """Unload a config entry.
 
     The batches stop first, so that none adds an entity to a platform
-    that has unloaded. The client stays connected until the on-unload
+    that has unloaded, and one that is removing an entity finishes that. The client stays connected until the on-unload
     callbacks run, after the platforms.
     """
     await entry.runtime_data.async_shutdown()
