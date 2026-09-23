@@ -16,7 +16,7 @@ The type check and the test suite run from a virtual environment at `.venv`. Two
    uv pip install -p .venv -r requirements_test.txt "$(jq -r '.requirements[0]' custom_components/ampio/manifest.json)"
    ```
 
-Python 3.14 is required. On an older Python the resolver falls back to a years-old Home Assistant release with no error.
+Python 3.14.2 or newer is required, because the pinned Home Assistant release requires it. On an older Python the install fails.
 
 The hooks start mypy and pytest with `uv run`. It finds `.venv` in the repository root or in a parent directory. If your checkout has no venv of its own, for example a git worktree, set `VIRTUAL_ENV` to the venv path.
 

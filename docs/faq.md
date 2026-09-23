@@ -30,7 +30,7 @@ Until you submit the repair, the log fills with warnings that start "The device 
 
 The repair cannot bring back what belonged to the old module devices, so give each module device its name, its area and its labels again. On an administrator account the module entities are new as well: the Identify button, the supply voltage and temperature sensors, the buzzer, the Unlock touch button, and the Backlight and Status light. Each of them has a new entity id and no history, so point your automations at the new ids. Once the repair has run and you have named a module device again, select "Recreate entity IDs" on that device's page, and Home Assistant rebuilds every entity id on the device from the names in force.
 
-An object device with no area of its own inherits its module's area, so an object you never placed yourself reads as having none until you give its module an area again. An object device you did put in an area keeps it.
+An object device with an area of its own keeps it, whether you chose that area or it came from the Ampio app. Only an object device with no area of its own takes its module's area, so it reads as having none until you give its module an area again.
 
 If you skip the panel lights in a template through a label, as described under [My touch panels go dark when I turn off all the lights](#my-touch-panels-go-dark-when-i-turn-off-all-the-lights), put the label on the new Backlight and Status light entities, because the old ones carried it. A template sensor or template helper that reads `label_entities()` keeps the result it last computed after you change a label, because a label change is not an event it listens for. It catches up when it renders again, and a reload forces that. The template reload action reloads the templates in your YAML configuration. A template helper you created in the UI belongs to an entry of its own, which that action does not reach. To reload it, run the `homeassistant.reload_config_entry` action with the helper as its target, or restart Home Assistant.
 
@@ -164,7 +164,7 @@ Ampio Designer's read-only checkbox blocks a write to the object at the server, 
 - A template over `states.light` whose result is passed as `entity_id`.
 - A call to `light.turn_off` with `entity_id: all`.
 
-Every other way to target lights skips them already. Both entities carry the diagnostic category, and Home Assistant leaves an entity with a category out of area, device, and floor targeting, out of the voice assistants, and out of the HomeKit bridge.
+Area, device and floor targets skip these diagnostic entities. A direct entity target, `entity_id: all`, and a label you put on the entities themselves can all reach them. Voice assistants and HomeKit leave them out by default unless you include them yourself.
 
 The two forms above are different. A template over `states.light` sees every light entity, and no template test reports an entity's category. A list of entity ids is a direct target, and a direct target is never filtered.
 

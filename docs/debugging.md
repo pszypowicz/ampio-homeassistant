@@ -24,7 +24,7 @@ Settings -> Devices & Services -> Ampio -> the three-dot menu on the entry -> Do
 
 The diagnostics download no longer carries catalogue rows. To read your own object's row, request the catalogue from the M-SERV with an MQTT client.
 
-On the administrator login, publish `devicesDetails` to `ampio/control/<user>/config` and read the reply on `ampio/fromDB/<user>/config/devicesDetails`. On a standard account, publish `devices` to `ampio/control/<user>/data` and read the reply on `ampio/fromDB/<user>/data/devices`. That reply carries every field below except `params`, so also publish `params_devices` to `ampio/control/<user>/data` and read the reply on `ampio/fromDB/<user>/data/params_devices`. Replace `<user>` with your Ampio login in both.
+On either account tier, publish `devices` to `ampio/control/<user>/data` and read the reply on `ampio/fromDB/<user>/data/devices`. That reply carries every field below except `params`, so also publish `params_devices` to the same control topic and read `ampio/fromDB/<user>/data/params_devices`. Replace `<user>` with your Ampio login in both.
 
 The fields the integration classifies from:
 
