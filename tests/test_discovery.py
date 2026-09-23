@@ -1048,11 +1048,14 @@ async def test_an_unload_stops_a_batch_parked_in_the_sweep(
     """A batch waiting on its sweep adds nothing once the platforms have unloaded."""
     await setup_integration(hass, mock_config_entry)
     identify_id = entity_id_of(hass, "button", module_unique_id(52111, "_identify"))
+    data: AmpioData = mock_config_entry.runtime_data
     release = asyncio.Event()
-    batch: list[asyncio.Task[Any]] = []
+    batch: list[asyncio.Task[None]] = []
 
     async def _parked_sweep() -> RecordSweep:
-        batch.append(asyncio.current_task())  # type: ignore[arg-type]
+        # The sweep runs in a task of its own, so the batch is the one
+        # task the runtime data holds for it.
+        batch.extend(data._reconcile_tasks)
         await release.wait()
         mock_client.capabilities[NEW_MAC] = {ModuleFunction.BUZZER: 4}
         return RecordSweep(
@@ -1080,9 +1083,10 @@ async def test_an_unload_stops_a_batch_parked_in_the_sweep(
         result = await unload_platforms(*args)
         unloaded = True
         release.set()
-        # Whatever the release woke runs to its end or its cancellation
-        # before the unload moves on to cancel the entry's background tasks.
-        await asyncio.wait(batch, timeout=5)
+        # The batch has to be over before Home Assistant moves on, and one
+        # loop turn is what a released sweep needs to reach the batch.
+        await asyncio.sleep(0)
+        assert all(task.done() for task in batch)
         return result
 
     async def _recording_add(
@@ -1101,7 +1105,7 @@ async def test_an_unload_stops_a_batch_parked_in_the_sweep(
         assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
         await hass.async_block_till_done(wait_background_tasks=True)
 
-    assert batch[0].done()
+    assert len(batch) == 1
     assert late_adds == []
     mock_client.resolve_records.side_effect = None
     mock_client.resolve_records.return_value = EMPTY_SWEEP
@@ -1111,6 +1115,51 @@ async def test_an_unload_stops_a_batch_parked_in_the_sweep(
     assert hass.states.get(NEW_INPUT_ENTITY_ID(hass)).state == STATE_OFF
     assert hass.states.get(identify_id).attributes.get(ATTR_RESTORED) is None
     assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+async def test_an_unload_during_an_object_add_starts_no_sweep(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A batch that sees the unload after an add returns before its sweep.
+
+    The sweep would start after shutdown's cancel pass and hold the unload
+    for as long as its replies take.
+    """
+    await setup_integration(hass, mock_config_entry)
+    new_uid = unique_id(NEW_INPUT_ID)
+    adding = asyncio.Event()
+    release = asyncio.Event()
+    add_entities = EntityPlatform.async_add_entities
+
+    async def _paused_add(
+        platform: EntityPlatform, entities: Any, *args: Any, **kwargs: Any
+    ) -> None:
+        if any(entity.unique_id == new_uid for entity in entities):
+            adding.set()
+            await release.wait()
+        await add_entities(platform, entities, *args, **kwargs)
+
+    async def _endless_sweep() -> RecordSweep:
+        await asyncio.Event().wait()
+        return EMPTY_SWEEP
+
+    mock_client.resolve_records.side_effect = _endless_sweep
+    new_input = _new_input(leaf_id="0_d009_257_1_1")
+    with patch.object(EntityPlatform, "async_add_entities", _paused_add):
+        mock_client.objects[new_input.id] = new_input
+        emit(mock_client, ObjectAdded(object=new_input))
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=2))
+        await asyncio.wait_for(adding.wait(), timeout=5)
+
+        unload = hass.async_create_task(
+            hass.config_entries.async_unload(mock_config_entry.entry_id)
+        )
+        for _ in range(5):
+            await asyncio.sleep(0)
+        release.set()
+        assert await asyncio.wait_for(unload, timeout=5)
+
+    mock_client.resolve_records.assert_awaited_once_with()
 
 
 async def test_an_unload_lets_a_parked_removal_finish(

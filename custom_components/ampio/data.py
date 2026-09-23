@@ -676,9 +676,9 @@ class AmpioData:
         The unload calls this before the platforms unload. Home Assistant
         cancels an entry's background tasks only after the platforms have
         unloaded, and a batch that went on in that gap would add entities
-        to platforms that are gone. The sweep and the room fetch are cut
-        short, and whatever a batch is removing or adding at that moment
-        finishes first.
+        to platforms that are gone. A running sweep or room fetch is cut
+        short, and neither starts after this call. Whatever a batch is
+        removing or adding at that moment finishes first.
         """
         self._stopping = True
         self._debouncer.async_shutdown()
@@ -689,9 +689,14 @@ class AmpioData:
     async def _async_abandonable(self, coro: Coroutine[Any, Any, None]) -> None:
         """Await a wait that ``async_shutdown`` may cancel, without canceling the batch.
 
-        The caller checks ``_stopping`` afterwards, because a canceled
+        Once stopping, the wait is not started at all, because shutdown's
+        cancel pass is over and nothing would cut it short. The caller
+        checks ``_stopping`` afterwards, because a canceled or skipped
         wait returns here like a finished one.
         """
+        if self._stopping:
+            coro.close()
+            return
         task = self.hass.async_create_task(coro, "ampio_reconcile_wait")
         self._abandonable.add(task)
         try:
