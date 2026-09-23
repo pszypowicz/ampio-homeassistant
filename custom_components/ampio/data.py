@@ -640,9 +640,10 @@ class AmpioData:
         a hide, an un-hide, a re-tag, a pulse time, and a move, and the
         module entities answer to it per override mac.
 
-        A batch with nothing pending still has work. The admission door
-        takes a row out of the catalogue without an object event, so the
-        module pass and the report run whether or not an object is queued.
+        A batch with nothing pending still has work, because a row the door
+        refused at connect never became an object, and deleting it in
+        Ampio Designer leaves no object event to queue. So the module pass
+        and the report run whether or not an object is queued.
         """
         async with self._reconcile_lock:
             pending, self._pending = self._pending, {}
