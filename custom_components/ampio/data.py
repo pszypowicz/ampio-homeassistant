@@ -553,23 +553,16 @@ class AmpioData:
         """The device an object's entities register under.
 
         The parent the object's child device already hangs under, while
-        that child and its parent are registered, and ``parent_for``
-        otherwise. The registry refuses to re-parent a child, and an
-        entity registered under any other parent would not be added, so a
-        misparented object's entities stay under the child's old parent
-        until someone deletes that device.
+        that child is registered, and ``parent_for`` otherwise. The
+        registry refuses to re-parent a child, and an entity registered
+        under any other parent would not be added, so a misparented
+        object's entities stay under the child's old parent until someone
+        deletes that device.
         """
-        device_registry = dr.async_get(self.hass)
-        child = device_registry.async_get_child_device_by_identifier(
+        child = dr.async_get(self.hass).async_get_child_device_by_identifier(
             (DOMAIN, obj.object_key), self.entry.entry_id
         )
-        if (
-            child is not None
-            and device_registry.async_get(
-                child.parent_device_id, include_child_devices=False
-            )
-            is not None
-        ):
+        if child is not None:
             return child.parent_device_id
         return self.parent_for(obj)
 

@@ -37,7 +37,7 @@ from homeassistant.helpers import (
     issue_registry as ir,
 )
 from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.entity_platform import EntityPlatform
+from homeassistant.helpers.entity_platform import EntityPlatform, async_get_platforms
 from homeassistant.util import dt as dt_util
 
 from . import setup_integration
@@ -510,6 +510,106 @@ async def test_deleting_a_moved_child_brings_it_back_under_the_new_module(
     assert moved.name_by_user == "Przekaznik piwnica"
     assert moved.area_id == piwnica.id
     assert hass.states.get(entity_id).state == STATE_ON
+
+
+async def test_a_child_deleted_during_a_batch_comes_back_under_the_new_module(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """An entity built before its stuck child is deleted registers under the new module."""
+    await setup_integration(hass, mock_config_entry)
+    child = _child(device_registry, mock_config_entry, 74)
+    assert child is not None
+    entity_id = RELAY_SWITCH_ID(hass)
+    sensor_platform = next(
+        platform
+        for platform in async_get_platforms(hass, DOMAIN)
+        if platform.domain == "sensor"
+    )
+    add = sensor_platform.async_add_entities
+
+    async def delete_then_add(entities: list[Entity]) -> None:
+        # The user deletes the stuck child after the batch built the new
+        # pulse sensor and before the batch adds it.
+        if any(entity.unique_id == unique_id(74, "_pulse") for entity in entities):
+            stuck = _child(device_registry, mock_config_entry, 74)
+            assert stuck is not None
+            assert await async_remove_config_entry_device(
+                hass, mock_config_entry, stuck
+            )
+            device_registry.async_remove_device(stuck.id)
+        await add(entities)
+
+    # The move and a new pulse time land in one push, so the batch builds
+    # the pulse sensor while the child still hangs under the old module.
+    moved = replace(
+        mock_client.objects[74],
+        address=parse_module_address("0_be82_257_2_1"),
+        leaf_key="leaf_0_be82_257_2_1",
+        czas=300,
+    )
+    with patch.object(sensor_platform, "async_add_entities", delete_then_add):
+        await _update(hass, mock_client, moved)
+    await _settle(hass)
+
+    rebuilt = _child(device_registry, mock_config_entry, 74)
+    new_module = device_registry.async_get_device_by_identifier(
+        (DOMAIN, "module_mac:0xBE82"), mock_config_entry.entry_id
+    )
+    assert rebuilt is not None
+    assert new_module is not None
+    assert rebuilt.id == child.id
+    assert rebuilt.parent_device_id == new_module.id
+    for built in (entity_id, RELAY_PULSE_ID(hass)):
+        record = entity_registry.async_get(built)
+        assert record is not None
+        assert record.device_id == child.id
+    assert hass.states.get(entity_id).state == STATE_ON
+
+
+async def test_the_misparent_warning_returns_with_a_second_move(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An object misparented again after its device was rebuilt is warned about again."""
+    await setup_integration(hass, mock_config_entry)
+    original = mock_client.objects[74]
+    moved = replace(
+        original,
+        address=parse_module_address("0_be82_257_2_1"),
+        leaf_key="leaf_0_be82_257_2_1",
+    )
+
+    def warnings() -> int:
+        return sum(
+            1
+            for record in caplog.records
+            if record.levelno == logging.WARNING
+            and "Ampio object 74 hangs under a different module" in record.getMessage()
+        )
+
+    caplog.clear()
+    await _update(hass, mock_client, moved)
+    assert warnings() == 1
+
+    stuck = _child(device_registry, mock_config_entry, 74)
+    assert stuck is not None
+    assert await async_remove_config_entry_device(hass, mock_config_entry, stuck)
+    device_registry.async_remove_device(stuck.id)
+    await _settle(hass)
+    rebuilt = _child(device_registry, mock_config_entry, 74)
+    assert rebuilt is not None
+    assert rebuilt.parent_device_id != stuck.parent_device_id
+    assert warnings() == 1
+
+    await _update(hass, mock_client, original)
+    assert warnings() == 2
 
 
 async def test_deleting_the_old_module_brings_a_stuck_child_back_too(
