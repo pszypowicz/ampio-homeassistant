@@ -59,7 +59,7 @@
         }),
       }),
       'last_payloads': dict({
-        'info': '**REDACTED**',
+        'info': '{"Results": {"mac": 47846, "userId": -1, "serverVersion": "1865", "serverRevision": "409", "mqttVersion": "5.133.11"}}',
       }),
       'mac_collisions': list([
       ]),

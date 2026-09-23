@@ -173,7 +173,7 @@
       "message": "No unique module row matches this cover. In Ampio Designer, restore the missing module row or give each device its own MAC address. Save the changes."
     },
     "cover_lock_not_swept": {
-      "message": "The module did not answer during setup. Make sure that the module is online. Reload the Ampio integration to request its descriptions again."
+      "message": "The module has not answered a description request since the integration started. Make sure that the module is online. Reload the Ampio integration to request its descriptions again."
     },
     "cover_lock_object_missing": {
       "message": "The Ampio server no longer lists this cover. Restore the cover in Ampio Designer or select an existing cover for this action."

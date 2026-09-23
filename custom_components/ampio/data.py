@@ -1,10 +1,11 @@
 """Runtime data for the Ampio integration: the device tree the catalogue defines."""
 
 import asyncio
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Coroutine, Iterable
+from contextlib import suppress
 from dataclasses import dataclass
 import logging
-from typing import Final
+from typing import Any, Final
 
 from ampio_mqtt import (
     AmpioAdminClient,
@@ -14,6 +15,7 @@ from ampio_mqtt import (
     AmpioNotConfigured,
     AmpioObject,
     AmpioServerInfo,
+    AmpioTimeoutError,
     NotConfigured,
     ObjectRemoved,
     ObjectUpdated,
@@ -249,6 +251,15 @@ class AmpioData:
         # does not repeat it while the child stays where it is.
         self._warned_misparented: set[int] = set()
         self._reconcile_lock = asyncio.Lock()
+        # The batch tasks that have not finished, so that an unload can
+        # wait for them before the platforms go. A batch is never
+        # canceled, because a cancel inside an entity removal leaves the
+        # entity half removed. The waits a batch may abandon run as tasks
+        # of their own, which ``async_shutdown`` cancels, and the batch
+        # returns once it sees ``_stopping``.
+        self._reconcile_tasks: set[asyncio.Task[None]] = set()
+        self._abandonable: set[asyncio.Task[None]] = set()
+        self._stopping = False
         self._debouncer = Debouncer(
             hass,
             _LOGGER,
@@ -652,10 +663,51 @@ class AmpioData:
 
     @callback
     def _async_schedule_reconcile(self) -> None:
-        """Run the batch as an entry task, so that an unload cancels it."""
-        self.entry.async_create_background_task(
+        """Run the batch as an entry task, and keep it for ``async_shutdown``."""
+        task = self.entry.async_create_background_task(
             self.hass, self._async_reconcile(), "ampio_reconcile"
         )
+        self._reconcile_tasks.add(task)
+        task.add_done_callback(self._reconcile_tasks.discard)
+
+    async def async_shutdown(self) -> None:
+        """Stop the batches, and wait until none is running.
+
+        The unload calls this before the platforms unload. Home Assistant
+        cancels an entry's background tasks only after the platforms have
+        unloaded, and a batch that went on in that gap would add entities
+        to platforms that are gone. A running sweep or room fetch is cut
+        short, and neither starts after this call. Whatever a batch is
+        removing or adding at that moment finishes first.
+        """
+        self._stopping = True
+        self._debouncer.async_shutdown()
+        for wait in self._abandonable:
+            wait.cancel()
+        await asyncio.gather(*self._reconcile_tasks, return_exceptions=True)
+
+    async def _async_abandonable(self, coro: Coroutine[Any, Any, None]) -> None:
+        """Await a wait that ``async_shutdown`` may cancel, without canceling the batch.
+
+        Once stopping, the wait is not started at all, because shutdown's
+        cancel pass is over and nothing would cut it short. The caller
+        checks ``_stopping`` afterwards, because a canceled or skipped
+        wait returns here like a finished one.
+        """
+        if self._stopping:
+            coro.close()
+            return
+        task = self.hass.async_create_task(coro, "ampio_reconcile_wait")
+        self._abandonable.add(task)
+        try:
+            await asyncio.wait((task,))
+        except asyncio.CancelledError:
+            task.cancel()
+            raise
+        finally:
+            self._abandonable.discard(task)
+        if not task.cancelled():
+            task.result()
 
     async def _async_reconcile(self) -> None:
         """Bring the entities in line with the catalogue, and report.
@@ -670,8 +722,11 @@ class AmpioData:
         and the report run whether or not an object is queued.
         """
         async with self._reconcile_lock:
+            if self._stopping:
+                return
             pending, self._pending = self._pending, {}
             buildable = False
+            new_macs: list[int] = []
             for oid in pending:
                 obj = self.client.objects.get(oid)
                 if obj is None:
@@ -685,12 +740,15 @@ class AmpioData:
                 # to the hub, so a child whose record still hangs under that
                 # module, such as one whose row the door refused at the
                 # last setup, would read as outgrown.
-                self.ensure_module_device(obj)
+                if (mac := self.ensure_module_device(obj)) is not None:
+                    new_macs.append(mac)
                 buildable = True
             # An entity reads the room map when it is built, so the map is
             # refreshed before the factories run.
             if buildable:
-                await self.async_refresh_rooms()
+                await self._async_abandonable(self.async_refresh_rooms())
+                if self._stopping:
+                    return
             for registration in self._platforms:
                 to_add: list[Entity] = []
                 to_remove: list[Entity] = []
@@ -714,9 +772,23 @@ class AmpioData:
                     # by nothing, which is where a user deletes it.
                     await entity.async_remove()
                 if to_add:
+                    if self._stopping:
+                        return
                     # Awaited, so that the platform's table holds the entities
                     # before the batch ends.
                     await registration.platform.async_add_entities(to_add)
+            # A module device this batch created has no entry in the
+            # capability map, because the last sweep ran before the module
+            # was in the tree, and the gated module factories read that
+            # map. One sweep covers every new mac in the batch. It runs
+            # after the object entities are built, so a slow reply cannot
+            # delay those, but it holds the lock for up to both reply
+            # timeouts, so the module controls, the report, and the next
+            # batch wait for it.
+            if new_macs and (admin := self.admin) is not None:
+                await self._async_abandonable(self._async_sweep_for(admin, new_macs))
+                if self._stopping:
+                    return
             # The module entities follow the objects' rule, expected
             # versus built, over every mac the tree holds, narrowed in one
             # place. Removal waits for a mac the catalogue no longer
@@ -762,9 +834,34 @@ class AmpioData:
                     # offer it, with the device it sits on or on its own.
                     await entity.async_remove()
                 if module_add:
+                    if self._stopping:
+                        return
                     # Awaited for the same reason as the objects above.
                     await module_platform.async_add_entities(module_add)
             self.async_report_records()
+
+    async def _async_sweep_for(
+        self, admin: AmpioAdminClient, new_macs: list[int]
+    ) -> None:
+        """Run the description sweep again for the module devices a batch added.
+
+        A new module with no capability entry after the sweep, failed or
+        completed, goes without its capability-gated controls and the
+        roller lock action on its covers, and a warning names it. A module
+        that has an entry gets its controls from it and no warning, even
+        when this sweep left it out. The batch goes on either way, so the
+        Identify button and the object entities still stand.
+        """
+        with suppress(AmpioConnectionError, AmpioTimeoutError):
+            await admin.resolve_records()
+        missing = [mac for mac in new_macs if mac not in admin.capabilities]
+        if missing:
+            _LOGGER.warning(
+                "No capability data for new Ampio modules %s after the Designer "
+                "description sweep. Their buzzer, Unlock touch, and panel lights "
+                "are left out until a reload sweeps again",
+                ", ".join(format_mac(mac) for mac in missing),
+            )
 
     async def async_refresh_rooms(self) -> None:
         """Read the room map, so that a new child takes its app room.
