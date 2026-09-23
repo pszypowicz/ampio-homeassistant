@@ -369,6 +369,44 @@ async def test_a_refusal_during_setup_reaches_the_repair(
     }
 
 
+async def test_deleting_a_refused_row_surfaces_its_records(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """A row deleted while it stood refused stops being held out of the offer.
+
+    The object left the catalogue when the door refused it, so its
+    deletion carries no second removal event, and the door's own event is
+    the only thing that announces it.
+    """
+    mock_client.objects[PUMP_OBJECT.id] = PUMP_OBJECT
+    await setup_integration(hass, mock_config_entry)
+    entry_id = mock_config_entry.entry_id
+    _refuse(mock_client, PUMP_OBJECT.id)
+    await _reload(hass, mock_config_entry)
+    child = device_registry.async_get_child_device_by_identifier(
+        (DOMAIN, unique_id(PUMP_OBJECT.id)), entry_id
+    )
+    assert child is not None
+    held = find_stale_records(hass, mock_config_entry)
+    assert child.id not in {device.id for device in held.devices}
+
+    # The installer deleted the row in Ampio Designer, so the door has
+    # nothing left to refuse.
+    emit(mock_client, NotConfigured())
+    await hass.async_block_till_done()
+
+    assert issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE) is None
+    stale = find_stale_records(hass, mock_config_entry)
+    assert child.id in {device.id for device in stale.devices}
+    issue = issue_registry.async_get_issue(DOMAIN, STALE_RECORDS_ISSUE)
+    assert issue is not None
+    assert f"- {PUMP_OBJECT.name}" in issue.translation_placeholders["names"]
+
+
 async def test_a_dead_entity_on_a_held_module_is_still_offered(
     hass: HomeAssistant,
     mock_client: MagicMock,

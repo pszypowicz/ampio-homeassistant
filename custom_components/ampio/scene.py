@@ -27,6 +27,13 @@ async def async_setup_entry(
     fetch failure defers the platform so Home Assistant retries it, and
     the runtime data keeps no catalogue, which is what tells the
     stale-record report that the scenes are unknown rather than gone.
+
+    The catalogue is recorded whole, and the entities are built from the
+    active rows. ``active`` is a toggle the app flips both ways, so a
+    scene switched off is still a scene the server serves, and its
+    registry record waits for it rather than being reported as a
+    leftover. A retry that lands after a failed fetch reports the records
+    again, because that is the first moment the scenes can be spoken for.
     """
     data = entry.runtime_data
     try:
@@ -35,9 +42,11 @@ async def async_setup_entry(
         raise PlatformNotReady(
             f"Fetching the Ampio scene catalogue failed: {err}"
         ) from err
-    active = [scene for scene in scenes if scene.active]
-    data.scene_ids = frozenset(scene.id for scene in active)
-    async_add_entities(AmpioSceneEntity(data, scene) for scene in active)
+    data.scene_ids = frozenset(scene.id for scene in scenes)
+    async_add_entities(
+        AmpioSceneEntity(data, scene) for scene in scenes if scene.active
+    )
+    data.async_report_records()
 
 
 class AmpioSceneEntity(Scene):

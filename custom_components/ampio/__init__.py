@@ -255,17 +255,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    # The platforms have claimed every record they build. Whatever the
-    # registries still hold for this entry beyond that is a leftover the
-    # user gets to delete through a repair issue, recomputed after every
-    # catalogue change from here on.
+    # Every catalogue this account receives has now been read, the scene
+    # one included, so the report can account for each record the
+    # registries hold for this entry, and offer the user the ones it
+    # cannot. From here on a read that changes what can be accounted for
+    # raises it again.
     entry.runtime_data.async_mark_ready(
         partial(async_report_stale_records, hass, entry)
     )
     # The report reads what the door refuses, which async_report_not_configured
     # records before any platform loads, so a row the door refused is named by
-    # the installer repair and left out of the leftovers, and no two repairs
-    # ask for opposite things about one record.
+    # the installer repair and kept out of the offer, and no two repairs ask
+    # for opposite things about one record.
     async_report_stale_records(hass, entry)
     return True
 

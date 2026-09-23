@@ -51,6 +51,12 @@ NOT_CONFIGURED_ISSUE: Final = "not_configured"
 # one that predates it.
 MODULE_KEY_STEM: Final = "module_mac"
 
+# What every module entity's unique id starts with, ``module_mac_``. The
+# entity builds its key on it and the stale report reads a record back
+# through it, so the two cannot answer differently about what a module
+# record looks like.
+MODULE_KEY_PREFIX: Final = f"{MODULE_KEY_STEM}_"
+
 # The stem of a scene entity's unique id, ``scene_<id>``. The platform
 # mints it and the stale report reads it back, so one constant keeps the
 # report from mistaking a scene record for a shape nothing mints.

@@ -1,5 +1,6 @@
 """Tests for the stale-record repair of the Ampio integration."""
 
+from dataclasses import replace
 from datetime import timedelta
 from http import HTTPStatus
 from unittest.mock import MagicMock
@@ -18,6 +19,7 @@ from custom_components.ampio.stale import (
     find_stale_records,
 )
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.const import ATTR_RESTORED
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
     device_registry as dr,
@@ -30,6 +32,7 @@ from homeassistant.util import dt as dt_util
 from . import setup_integration
 from .conftest import (
     DEFAULT_SCENES,
+    HUB_IDENTIFIER,
     MSENS_IDENTIFIER,
     entity_id_of,
     make_object,
@@ -216,16 +219,146 @@ async def test_a_deferred_platform_reports_once_it_lands(
     assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is None
 
     # The catalogue answers on the platform's first background retry, and
-    # the scene the entry was set up with is gone from it.
+    # the scene the entry was set up with is gone from it. The retry is
+    # the first moment the scenes can be spoken for, so it raises the card
+    # itself; nothing else would, because no object changed.
     mock_client.fetch_scenes.side_effect = None
     mock_client.fetch_scenes.return_value = [DEFAULT_SCENES[1]]
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
     await hass.async_block_till_done()
-    async_report_stale_records(hass, mock_config_entry)
 
     issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID)
     assert issue is not None
     assert issue.translation_placeholders == {"names": f"- {SCENE_ENTITY_ID}"}
+
+
+async def test_a_deactivated_scene_keeps_its_record(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """A scene switched off in the app is served, so its record waits for it.
+
+    ``active`` is a toggle the app flips both ways, and the server keeps
+    serving the row either way, so the record is what the scene comes back
+    under and the id every automation names survives the season.
+    """
+    await setup_integration(hass, mock_config_entry)
+    assert entity_registry.async_get(SCENE_ENTITY_ID) is not None
+
+    mock_client.fetch_scenes.return_value = [
+        replace(DEFAULT_SCENES[0], active=False),
+        DEFAULT_SCENES[1],
+    ]
+    await _reload(hass, mock_config_entry)
+
+    # No entity is built for it, so the record reads as restored, which
+    # is the state its entity comes back from when the app switches the
+    # scene on again.
+    state = hass.states.get(SCENE_ENTITY_ID)
+    assert state is not None
+    assert state.attributes.get(ATTR_RESTORED) is True
+    stale = find_stale_records(hass, mock_config_entry)
+    assert SCENE_ENTITY_ID not in {record.entity_id for record in stale.entities}
+    assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is None
+    # The submit path reads the records again, so it is answered too.
+    async_remove_stale_records(hass, mock_config_entry, ISSUE_ID)
+    assert entity_registry.async_get(SCENE_ENTITY_ID) is not None
+
+
+async def test_a_disabled_record_is_offered_once_its_row_leaves_the_catalogue(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """Disabling an entity says nothing about what the server still serves.
+
+    The record sits on the hub, which stands, so it is offered on its own
+    rather than through a device.
+    """
+    await setup_integration(hass, mock_config_entry)
+    entity_registry.async_update_entity(
+        SCENE_ENTITY_ID, disabled_by=er.RegistryEntryDisabler.USER
+    )
+    mock_client.fetch_scenes.return_value = [DEFAULT_SCENES[1]]
+    await _reload(hass, mock_config_entry)
+
+    stale = find_stale_records(hass, mock_config_entry)
+    assert SCENE_ENTITY_ID in {record.entity_id for record in stale.entities}
+    issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID)
+    assert issue is not None
+    assert f"- {SCENE_ENTITY_ID}" in issue.translation_placeholders["names"]
+
+
+async def test_an_emptied_object_catalogue_offers_the_whole_install(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """An empty object catalogue is an answer, so every record it explained goes.
+
+    A revoked app grant empties what a standard account is served, and
+    the server asserts that emptiness rather than failing the read. The
+    card says the account is served nothing rather than that Ampio
+    Designer deleted anything, and the hub stays.
+    """
+    await setup_integration(hass, mock_config_entry)
+    entry_id = mock_config_entry.entry_id
+    mock_client.objects = {}
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    await _reload(hass, mock_config_entry)
+
+    assert mock_config_entry.state is ConfigEntryState.LOADED
+    issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID)
+    assert issue is not None
+    assert issue.translation_key == "stale_records_not_served"
+    offered = {
+        device.id for device in find_stale_records(hass, mock_config_entry).devices
+    }
+    hub = device_registry.async_get_device_by_identifier(HUB_IDENTIFIER, entry_id)
+    module = device_registry.async_get_device_by_identifier(MSENS_IDENTIFIER, entry_id)
+    assert hub is not None
+    assert module is not None
+    assert module.id in offered
+    assert hub.id not in offered
+
+
+async def test_the_submit_drops_a_removed_module_device_from_the_tree(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    """A module device the repair deletes leaves the tree with it.
+
+    The repair flow reloads right after, and the tree must not depend on
+    that reload to stop handing out the id of a device that is gone.
+    """
+    await setup_integration(hass, mock_config_entry)
+    data = mock_config_entry.runtime_data
+    # The catalogue dropped the module's objects and the batch behind it
+    # has not run, which is the window a submit can land in.
+    for oid in [
+        obj.id for obj in mock_client.objects.values() if obj.address.mac == MSENS_MAC
+    ]:
+        del mock_client.objects[oid]
+    assert MSENS_MAC in data.module_device_ids
+
+    async_remove_stale_records(hass, mock_config_entry, ISSUE_ID)
+
+    assert MSENS_MAC not in data.module_device_ids
+    assert (
+        device_registry.async_get_device_by_identifier(
+            MSENS_IDENTIFIER, mock_config_entry.entry_id
+        )
+        is None
+    )
 
 
 async def test_removing_the_entry_clears_both_issues(

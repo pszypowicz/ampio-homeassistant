@@ -27,6 +27,7 @@ from syrupy.assertion import SnapshotAssertion
 from custom_components.ampio import async_remove_config_entry_device
 from custom_components.ampio.const import DOMAIN, MODULE_KEY_STEM
 from custom_components.ampio.data import AmpioData, module_identifier
+from custom_components.ampio.stale import find_stale_records
 from homeassistant.const import ATTR_RESTORED, STATE_OFF, STATE_ON, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
@@ -681,6 +682,40 @@ async def test_deleted_module_device_comes_back_with_its_object(
     assert hass.states.get(NEW_INPUT_ENTITY_ID(hass)).state == STATE_OFF
     assert hass.states.get(button_id) is not None
     assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+async def test_a_module_that_loses_its_last_object_loses_its_controls(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """A mac no object names keeps no working control on its module device.
+
+    The module row stays admitted, so the command would still reach the
+    panel, while the mac has left the device tree and the report offers
+    the device. A batch that left the entities up would leave a control
+    that works on a device the next submit deletes.
+    """
+    await setup_integration(hass, mock_config_entry)
+    await _add(hass, mock_client, _new_input(leaf_id="0_d009_257_1_1"))
+    button_id = entity_id_of(hass, "button", module_unique_id(53257, "_identify"))
+    assert hass.states.get(button_id) is not None
+
+    await _remove(hass, mock_client, NEW_INPUT_ID)
+
+    assert hass.states.get(button_id).attributes.get(ATTR_RESTORED) is True
+    assert 53257 not in mock_config_entry.runtime_data.module_device_ids
+    # The record stays for the repair to offer with the device it sits on.
+    assert entity_registry.async_get(button_id) is not None
+    module = device_registry.async_get_device_by_identifier(
+        module_identifier(53257), mock_config_entry.entry_id
+    )
+    assert module is not None
+    stale = find_stale_records(hass, mock_config_entry)
+    assert module.id in {device.id for device in stale.devices}
+    assert button_id not in {record.entity_id for record in stale.entities}
 
 
 async def test_module_row_reads_none_on_a_standard_account(

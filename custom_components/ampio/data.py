@@ -31,7 +31,7 @@ from homeassistant.helpers.entity_platform import (
     async_get_current_platform,
 )
 
-from .const import DOMAIN, MODULE_KEY_STEM
+from .const import DOMAIN, MODULE_KEY_PREFIX, MODULE_KEY_STEM
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,6 +42,8 @@ HUB_IDENTIFIER: Final = (DOMAIN, "hub")
 
 # The M-SERV pushes the catalogue and the params table as separate messages
 # within one second of a Designer save, so a batch waits this long for both.
+# The stale-record report rides the end of the batch, so the same wait keeps
+# it off a devices table read against the params table from before the save.
 RECONCILE_COOLDOWN: Final = 1.0
 
 type Fingerprint = tuple[str, int, int | None, int, int, int, int, int]
@@ -88,6 +90,22 @@ def _built_entities(platform: EntityPlatform, object_key: str) -> dict[str, Enti
         if (uid := entity.unique_id) is not None
         and (uid == object_key or uid.startswith(prefix))
     }
+
+
+def _built_module_entities(platform: EntityPlatform, mac: int) -> list[Entity]:
+    """The entities a platform holds for one module device, by override mac.
+
+    A module entity's unique id is the prefix, the mac, and what the entity
+    does on the module, so the mac with its separator is what tells one
+    module's entities from another's. The platform's own table is the truth
+    for what is built, as it is for the objects.
+    """
+    prefix = f"{MODULE_KEY_PREFIX}{format_mac(mac)}_"
+    return [
+        entity
+        for entity in platform.entities.values()
+        if entity.unique_id is not None and entity.unique_id.startswith(prefix)
+    ]
 
 
 def module_identifier(mac: int) -> tuple[str, str]:
@@ -213,12 +231,14 @@ class AmpioData:
         # Setup fills it before the platforms load, and every batch that
         # builds a child refreshes it first.
         self.rooms: dict[int, str] = {}
-        # The ids of the active scenes the last fetch returned, or None
-        # while no fetch has landed on this setup. Scenes are fetched
-        # rather than pushed, and a failed fetch defers the scene platform,
-        # which leaves the catalogue unknown rather than empty. The
-        # stale-record report speaks for a scene record only while this
-        # holds a catalogue.
+        # Every scene id the last fetch returned, or None while no fetch
+        # has landed on this setup. Scenes are fetched rather than pushed,
+        # and a failed fetch defers the scene platform, which leaves the
+        # catalogue unknown rather than empty. The stale-record report
+        # speaks for a scene record only while this holds a catalogue.
+        # The inactive rows are in: the platform builds no entity for one,
+        # and the app switches a scene back on without the server ever
+        # having stopped serving the row.
         self.scene_ids: frozenset[int] | None = None
         self._platforms: list[_PlatformRegistration] = []
         self._module_platforms: list[_ModulePlatformRegistration] = []
@@ -236,10 +256,10 @@ class AmpioData:
             function=self._async_schedule_reconcile,
             background=True,
         )
-        # The stale-record report, handed over once every platform loaded.
-        # A batch that runs while a platform is still loading would report
-        # every entity that platform has not built yet, so nothing reports
-        # before setup says so.
+        # The stale-record report, handed over once every platform has
+        # loaded. Setup raises the card itself at the end of that pass, so
+        # anything that would report before the handover leaves the first
+        # card to setup rather than raising and clearing one midway.
         self._report: Callable[[], None] | None = None
 
     @classmethod
@@ -451,13 +471,12 @@ class AmpioData:
         if self.admin is not None:
             return set()
         entity_registry = er.async_get(self.hass)
-        prefix = f"{MODULE_KEY_STEM}_"
         return {
             record.unique_id
             for record in er.async_entries_for_config_entry(
                 entity_registry, self.entry.entry_id
             )
-            if record.unique_id.startswith(prefix)
+            if record.unique_id.startswith(MODULE_KEY_PREFIX)
         }
 
     def _expected_entities(
@@ -515,13 +534,26 @@ class AmpioData:
 
     @callback
     def async_mark_ready(self, report: Callable[[], None]) -> None:
-        """Let every batch from now on end by calling ``report``.
+        """Let every batch and every later catalogue read report.
 
-        A batch that runs while a platform is still loading would report
-        every entity that platform has not built yet, so the handover is
-        what says the platforms are done.
+        Setup hands the report over once the platforms have loaded and
+        then raises the card itself, so the handover is what says the
+        setup pass owns the first one.
         """
         self._report = report
+
+    @callback
+    def async_report_records(self) -> None:
+        """Report the leftover records, once setup has handed the report over.
+
+        A catalogue this account is served reaches the report through
+        here, so that a read which changes what the report can account
+        for refreshes the card on its own. The scene platform calls it
+        when a fetch lands, and the admission door when what it refuses
+        changes.
+        """
+        if self._report is not None:
+            self._report()
 
     @callback
     def _catalogue_event(self, event: ObjectUpdated | ObjectRemoved) -> None:
@@ -598,9 +630,9 @@ class AmpioData:
                     # The registry record stays behind, so the id survives
                     # a Designer edit that takes the entity away and gives
                     # it back. While the object is in the catalogue the
-                    # stale report has no cause to name for that record;
-                    # the entity's own page carries the delete for a record
-                    # no platform provides.
+                    # stale report has no cause to name for that record,
+                    # and an enabled one reads on its own page as provided
+                    # by nothing, which is where a user deletes it.
                     await entity.async_remove()
                 if to_add:
                     # Awaited, so that the platform's table holds the entities
@@ -621,8 +653,25 @@ class AmpioData:
                         await module_registration.platform.async_add_entities(
                             module_entities
                         )
-            if self._report is not None:
-                self._report()
+            # A mac no object names has left the device tree, and a setup
+            # running now would build neither its device nor an entity on
+            # it. The batch takes those entities down to land on the same
+            # tree, so that the module device the report goes on to offer
+            # carries no control that still works, and drops the mac so
+            # that an object returning to it builds the device again.
+            live = self.live_macs()
+            for mac, device_id in [
+                (mac, device_id)
+                for mac, device_id in self.module_device_ids.items()
+                if mac not in live
+            ]:
+                for module_registration in self._module_platforms:
+                    for entity in _built_module_entities(
+                        module_registration.platform, mac
+                    ):
+                        await entity.async_remove()
+                self.forget_module_device(device_id)
+            self.async_report_records()
 
     async def async_refresh_rooms(self) -> None:
         """Read the room map, so that a new child takes its app room.

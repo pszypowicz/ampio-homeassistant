@@ -16,7 +16,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.device_registry import ChildDeviceInfo, DeviceInfo
 from homeassistant.helpers.entity import Entity
 
-from .const import DOMAIN, MODULE_KEY_STEM
+from .const import DOMAIN, MODULE_KEY_PREFIX
 from .data import AmpioData, module_identifier
 
 
@@ -178,12 +178,12 @@ class AmpioModuleEntity(AmpioBaseEntity):
         ``key_suffix`` names what the entity does on the module, and it
         reaches the unique id alone: Home Assistant composes the entity id
         from the area name, the device name and the entity name. The key is
-        built from ``MODULE_KEY_STEM``, which is also what the stale-record
-        report matches a withheld module entity on.
+        built from ``MODULE_KEY_PREFIX``, which is also what the
+        stale-record report reads a module record back through.
         """
         self._data = data
         self._mac = mac
-        self._key = f"{MODULE_KEY_STEM}_{format_mac(mac)}_{key_suffix}"
+        self._key = f"{MODULE_KEY_PREFIX}{format_mac(mac)}_{key_suffix}"
         self._attr_unique_id = self._key
         self._attr_device_info = DeviceInfo(identifiers={module_identifier(mac)})
 

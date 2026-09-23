@@ -28,7 +28,7 @@ from homeassistant.helpers import (
 from .const import (
     ADMIN_ONLY_RECORDS_ISSUE,
     DOMAIN,
-    MODULE_KEY_STEM,
+    MODULE_KEY_PREFIX,
     NOT_CONFIGURED_ISSUE,
     SCENE_KEY_STEM,
     STALE_RECORDS_ISSUE,
@@ -42,8 +42,6 @@ _LOGGER = logging.getLogger(__name__)
 # ``AmpioObject.object_key``, which the library spells ``obj_<id>``. The
 # refusal list arrives as bare ids and is spelled back into this shape.
 OBJECT_KEY_PREFIX: Final = "obj_"
-# The prefix of every module entity's unique id, ``module_mac_<mac>_<suffix>``.
-MODULE_KEY_PREFIX: Final = f"{MODULE_KEY_STEM}_"
 # The prefix of a scene entity's unique id, ``scene_<id>``.
 SCENE_KEY_PREFIX: Final = f"{SCENE_KEY_STEM}_"
 
@@ -125,8 +123,8 @@ def _refused_records(entry: AmpioConfigEntry) -> _RefusedRecords:
     ``AmpioObject.object_key``, which reads ``obj_<id>``. A refused row is
     not in ``client.objects``, so there is no object to ask and the token
     is built from the id. A module entity's unique id is built from
-    ``MODULE_KEY_STEM`` and the override mac, which is what the door names
-    on a collision.
+    ``MODULE_KEY_PREFIX`` and the override mac, which is what the door
+    names on a collision.
     """
     refused = entry.runtime_data.not_configured
     if refused is None:
@@ -149,8 +147,13 @@ class _LiveCatalogue:
 
     ``scenes`` is None while the scene catalogue is unknown, which is what
     a failed fetch leaves behind. The other two fields carry no unknown,
-    because the object catalogue arrives with the connection and setup
-    stops without it, and the override macs are read off those objects.
+    because an object catalogue is a state the server asserts rather than
+    a read that can fail. It arrives with the connection, and an empty one
+    is an answer, which is what a restricted account meets when its app
+    grant is revoked. Both fields then read empty, so every record they
+    would explain is offered, and the wording the tier picks says the
+    account is served nothing rather than that Ampio Designer deleted
+    anything.
     """
 
     # ``obj_<id>`` for every object the catalogue carries.
@@ -172,8 +175,11 @@ class _LiveCatalogue:
         answers True for a scene record, because an unknown is not an
         absence.
 
-        A key that matches no arm is one this release does not mint, and
-        the report names it. This integration does not migrate, so a
+        Three shapes reach a registry record today: ``obj_<id>`` with an
+        optional suffix, ``module_mac_<mac>_<suffix>``, and ``scene_<id>``.
+        A key that matches none of them is one this release does not mint,
+        and the report names it, so a fourth shape added to the entities
+        owes this method an arm. This integration does not migrate, so a
         record an older key left behind is reported as it stands, never
         rewritten into the shape that replaced it.
         """
@@ -192,9 +198,11 @@ class _LiveCatalogue:
 def _live_catalogue(data: AmpioData) -> _LiveCatalogue:
     """Spell each catalogue this account received into the keys it explains.
 
-    A scene counts while it is active, because that is the column the
-    platform builds on. A scene the app deactivated is in the catalogue
-    and on no entity, so its record has nothing left to stand for.
+    Every scene the fetch returned counts, the inactive ones included.
+    ``active`` is a toggle the app flips both ways and the library passes
+    the column through, so a scene switched off for a season is a row the
+    server still serves, and its record is the one its entity comes back
+    under. Only a scene the catalogue no longer carries is offered.
     """
     scene_ids = data.scene_ids
     return _LiveCatalogue(
@@ -261,10 +269,11 @@ def find_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> StaleRec
     Two consequences of that narrowing are deliberate. A record whose
     object is in the catalogue is not offered even when no platform builds
     an entity under its key, so a Designer edit that clears an object's
-    pulse time leaves the pulse sensor's record behind, and Home Assistant
-    carries the delete for a record no platform provides on the entity's
-    own page. A module entity a capability gate stopped building is kept
-    for the same reason, its mac still being named by an object.
+    pulse time leaves the pulse sensor's record behind. An enabled record
+    in that state reads on its own page as provided by nothing, which is
+    where a user deletes it. A module entity a capability gate stopped
+    building is kept for the same reason, its mac still being named by an
+    object.
 
     The records of a Designer row the admission door refused are none of
     the causes, and they are left out of all three lists. The row is
@@ -411,6 +420,13 @@ def async_remove_stale_records(
             # A module's removal already took its children.
             if device_registry.async_get(device.id) is not None:
                 device_registry.async_remove_device(device.id)
+            # The tree keeps a mac pointing at the device it built, so a
+            # removal it did not hear about would leave an object
+            # resolving to a device that is gone. The removal hook says
+            # the same thing for a delete from the device page, and this
+            # says it for a delete from the repair, whether or not the
+            # caller reloads afterwards. A child's id keys no mac.
+            entry.runtime_data.forget_module_device(device.id)
         for entity in stale.entities:
             entity_registry.async_remove(entity.entity_id)
     else:
@@ -443,6 +459,13 @@ def async_report_not_configured(
     it appears. The clear path logs nothing.
     """
     entry.runtime_data.not_configured = refused
+    # The stale report reads this record to decide which records a refused
+    # row keeps out of its lists, so a change to either side re-reads
+    # both. A row deleted in Ampio Designer while it stood refused leaves
+    # the catalogue without a second removal event, and this is what
+    # surfaces its records. It waits for the platforms like every other
+    # report.
+    entry.runtime_data.async_report_records()
     if refused is None:
         ir.async_delete_issue(hass, DOMAIN, NOT_CONFIGURED_ISSUE)
         return
