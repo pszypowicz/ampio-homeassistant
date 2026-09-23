@@ -429,3 +429,35 @@
     'state': 'on',
   })
 # ---
+# name: test_blended_rgbw_state
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      <LightEntityStateAttribute.BRIGHTNESS: 'brightness'>: 240,
+      <LightEntityStateAttribute.COLOR_MODE: 'color_mode'>: <ColorMode.RGB: 'rgb'>,
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Salon RGBW',
+      <LightEntityStateAttribute.HS_COLOR: 'hs_color'>: tuple(
+        209.565,
+        28.75,
+      ),
+      <LightEntityStateAttribute.RGB_COLOR: 'rgb_color'>: tuple(
+        171,
+        206,
+        240,
+      ),
+      <LightEntityCapabilityAttribute.SUPPORTED_COLOR_MODES: 'supported_color_modes'>: list([
+        <ColorMode.RGB: 'rgb'>,
+      ]),
+      <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <LightEntityFeature: 0>,
+      <LightEntityStateAttribute.XY_COLOR: 'xy_color'>: tuple(
+        0.256,
+        0.288,
+      ),
+    }),
+    'context': <ANY>,
+    'entity_id': 'light.salon_rgbw',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'on',
+  })
+# ---

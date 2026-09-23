@@ -19,10 +19,13 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
+    OptionsFlow,
+    OptionsFlowWithReload,
 )
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import callback
 
-from .const import ADMIN_USERNAME, DEFAULT_HOST, DOMAIN
+from .const import ADMIN_USERNAME, CONF_BLEND_WHITE, DEFAULT_HOST, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +37,8 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     }
 )
 
+OPTIONS_SCHEMA = vol.Schema({vol.Optional(CONF_BLEND_WHITE, default=False): bool})
+
 
 class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Ampio."""
@@ -42,6 +47,13 @@ class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
     _pending_input: dict[str, Any]
     _pending_key: str
     _pending_mac: int
+
+    @staticmethod
+    @callback
+    @override
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        """Return the options flow."""
+        return AmpioOptionsFlow()
 
     async def _async_check(
         self, user_input: dict[str, Any]
@@ -201,4 +213,25 @@ class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
             unique_id=self._pending_key,
             data_updates=self._pending_input,
             title=self._pending_input[CONF_HOST],
+        )
+
+
+class AmpioOptionsFlow(OptionsFlowWithReload):
+    """Choose how rgbw outputs present their white channel.
+
+    A changed option reloads the entry, because a light's supported color
+    modes are fixed when it is built.
+    """
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show the one switch, or store it."""
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=self.add_suggested_values_to_schema(
+                OPTIONS_SCHEMA, self.config_entry.options
+            ),
         )
