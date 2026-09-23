@@ -358,9 +358,8 @@ class AmpioData:
         """Create the module device of the object's module, unless it exists.
 
         Returns the override mac when this call put the module into the
-        tree, which is when the module platforms owe it their entities, and
-        None when the object hangs on the hub or its module already has a
-        device.
+        tree, and None when the object hangs on the hub or its module
+        already has a device.
 
         The override mac rides every object's address on both account
         tiers, and Ampio Designer re-stamps it onto a replacement unit, so
@@ -393,9 +392,10 @@ class AmpioData:
     def forget_module_device(self, device_id: str) -> None:
         """Drop a module device from the tree, so that the next object builds it again.
 
-        Both callers have just deleted the device record: the removal hook
-        when it permits a delete from the device page, and the repair when
-        its submit takes one. The registry keeps the deleted record, so the
+        Both callers answer for a record that is going. The removal hook
+        permits a delete from the device page, which Home Assistant
+        performs as soon as the hook returns, and the repair has just
+        taken one itself. The registry keeps the deleted record, so the
         next object on the mac gets the device back through
         ``ensure_module_device``, with its id, its user name, and its area.
 
@@ -467,11 +467,12 @@ class AmpioData:
         runs and none can, and the records those factories would have
         built are recognized by their unique id alone.
 
-        The convention is the contract: a module entity's unique id reads
-        ``module_mac_<mac>_<suffix>``, built from ``MODULE_KEY_STEM``, which
-        also builds the module device's identifier. A record that does not
-        carry the stem was minted before it and reads as stale, which is
-        what it is.
+        The convention is the contract. A module entity's unique id reads
+        ``module_mac_<mac>_<suffix>``, built from ``MODULE_KEY_PREFIX``,
+        whose stem also builds the module device's identifier. A module
+        record an older release minted under another key carries neither,
+        so this leaves it alone and the stale report names it as a shape
+        nothing mints.
         """
         if self.admin is not None:
             return set()
@@ -525,9 +526,10 @@ class AmpioData:
         light platform.
 
         Nothing for a mac no object this account receives names, because a
-        module device answers to the objects on both tiers and a mac with
-        none of them has left the tree. Nothing either on an account that
-        is served no module surface, where no module factory runs at all.
+        module device answers to the objects on both tiers, and a mac with
+        none of them left is one the catalogue no longer accounts for.
+        Nothing either on an account that is served no module surface,
+        where no module factory runs at all.
         """
         if (admin := self.admin) is None or mac not in live:
             return {}
@@ -564,7 +566,7 @@ class AmpioData:
 
     @callback
     def async_mark_ready(self, report: Callable[[], None]) -> None:
-        """Let every batch and every later catalogue read report.
+        """Let the batches and the catalogue reads from now on report.
 
         Setup hands the report over once the platforms have loaded and
         then raises the card itself, so the handover is what says the
@@ -609,11 +611,14 @@ class AmpioData:
     def async_request_pass(self) -> None:
         """Queue a batch that no object change carried.
 
-        A row the library's admission door refuses never became an object,
-        so nothing emits an object event when it leaves the catalogue,
-        while what the catalogue names has changed. The batch is what
-        brings the module entities in line with it, and the report at the
-        end of that batch is what the card follows.
+        A row that was an object leaves the catalogue as an object event,
+        whether Ampio Designer deleted it or the door refused it, so a
+        refusal that lands while the entry runs already queues a batch.
+        A row the door refused at connect never became an object, and
+        deleting that row in Designer gives the library nothing to evict,
+        so the door's own change is the only signal it carries. This is
+        the batch that follows it. The batch brings the module entities in
+        line with the macs the catalogue names, and reports at its end.
 
         Nothing is queued before setup hands the report over, because the
         setup pass builds the tree from the catalogue it has just read.
@@ -683,14 +688,15 @@ class AmpioData:
                     # before the batch ends.
                     await registration.platform.async_add_entities(to_add)
             # The module entities follow the objects' rule, expected
-            # versus built, over every mac the tree holds, with one
-            # narrowing. A mac the catalogue no longer names has its
-            # entities taken down, because the object catalogue is what
-            # decides the tree and it has answered. A mac the catalogue
-            # still names only gains what it is missing: a factory that
-            # builds nothing there is reading the capability map, which a
-            # module that stayed silent through the sweep leaves unknown,
-            # and an unknown is no reason to take a working control away.
+            # versus built, over every mac the tree holds, narrowed in one
+            # place. Removal waits for a mac the catalogue no longer
+            # names, which is an absence the object catalogue answered for
+            # on both tiers. A mac it still names only gains what it is
+            # missing, because a factory that builds nothing there has
+            # read something other than that catalogue, such as the
+            # capability map a module that stayed silent through the sweep
+            # leaves unknown, and an unknown is no reason to take a
+            # working control away.
             #
             # So one pass covers a mac this batch put in the tree, a mac
             # whose last object left, and a mac whose object came back,

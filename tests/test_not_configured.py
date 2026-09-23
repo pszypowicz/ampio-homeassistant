@@ -8,6 +8,7 @@ from ampio_mqtt import (
     AmpioClient,
     AmpioNotConfigured,
     NotConfigured,
+    ObjectRemoved,
     format_mac,
 )
 from ampio_mqtt.testing import AmpioStore, apply_reply, build_store
@@ -361,8 +362,13 @@ async def test_a_refusal_during_setup_reaches_the_repair(
     assert child is not None
 
     def _refuse_while_fetching() -> dict[int, str]:
-        """Refuse the row in the middle of setup's room fetch."""
+        """Refuse the row in the middle of setup's room fetch.
+
+        The row was admitted at connect, so the library evicts the object
+        it can no longer admit and reports the door change beside it.
+        """
         del mock_client.objects[PUMP_OBJECT.id]
+        emit(mock_client, ObjectRemoved(object=PUMP_OBJECT))
         emit(
             mock_client,
             NotConfigured(objects=((PUMP_OBJECT.id, PUMP_OBJECT.name),)),
@@ -391,21 +397,25 @@ async def test_a_refusal_takes_the_module_controls_down(
     mock_config_entry: MockConfigEntry,
     device_registry: dr.DeviceRegistry,
 ) -> None:
-    """A refusal reaches the module entities, which no object event would.
+    """A refusal takes the module controls down, as a deletion does.
 
     The refused row leaves the catalogue, so no object names its mac and
     the report offers the records of the entities on its module device.
     The module row stays admitted, so those entities would otherwise keep
-    working while the report offered them for deletion.
+    working while the report offered them for deletion. Unlike a deletion,
+    the row is expected back, so the records are what its entities return
+    under and the device that parents its child is held.
     """
     mock_client.objects[PUMP_OBJECT.id] = PUMP_OBJECT
     await setup_integration(hass, mock_config_entry)
     button_id = entity_id_of(hass, "button", module_unique_id(PUMP_MAC, "_identify"))
     assert hass.states.get(button_id) is not None
 
-    # The door refuses the row while the entry runs. It never became an
-    # object, so the library reports it as a door change and nothing else.
+    # Ampio Designer loses the row's leaf while the entry runs. The row
+    # was an object, so the library evicts it as it would a deleted one
+    # and reports the door change beside it.
     del mock_client.objects[PUMP_OBJECT.id]
+    emit(mock_client, ObjectRemoved(object=PUMP_OBJECT))
     emit(mock_client, NotConfigured(objects=((PUMP_OBJECT.id, PUMP_OBJECT.name),)))
     await _settle(hass)
 

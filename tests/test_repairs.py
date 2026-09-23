@@ -221,7 +221,8 @@ async def test_a_deferred_platform_reports_once_it_lands(
     # The catalogue answers on the platform's first background retry, and
     # the scene the entry was set up with is gone from it. The retry is
     # the first moment the scenes can be spoken for, so it raises the card
-    # itself; nothing else would, because no object changed.
+    # itself. Nothing else raises it here, because no object changed and
+    # the door refuses nothing.
     mock_client.fetch_scenes.side_effect = None
     mock_client.fetch_scenes.return_value = [DEFAULT_SCENES[1]]
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))

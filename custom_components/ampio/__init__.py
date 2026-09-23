@@ -179,7 +179,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     # From here to the subscriptions below, nothing awaits. The library
     # dispatches what its admission door refuses as an event, and an event
     # that lands while setup sits between connect and the subscription
-    # reaches nobody: the installer repair would not appear, and the
+    # reaches nobody. The installer repair would not appear, and the
     # refused row's records would read to the stale-record report as
     # leftovers. ``create`` is synchronous for that reason, and the room
     # map is fetched once the window is closed.

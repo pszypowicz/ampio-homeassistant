@@ -37,10 +37,10 @@ from .data import AmpioConfigEntry, AmpioData, RefusedRows
 
 _LOGGER = logging.getLogger(__name__)
 
-# The prefix of every record an object stands behind: its entities' unique
+# The prefix of every record an object stands behind. Its entities' unique
 # ids and its child device's identifier are built from
-# ``AmpioObject.object_key``, which the library spells ``obj_<id>``. The
-# refusal list arrives as bare ids and is spelled back into this shape.
+# ``AmpioObject.object_key``, which the library spells ``obj_<id>``, and
+# the refusal list arrives as bare ids that are spelled back into it.
 OBJECT_KEY_PREFIX: Final = "obj_"
 # The prefix of a scene entity's unique id, ``scene_<id>``.
 SCENE_KEY_PREFIX: Final = f"{SCENE_KEY_STEM}_"
@@ -159,9 +159,9 @@ class _LiveCatalogue:
     # ``obj_<id>`` for every object the catalogue carries.
     objects: frozenset[str]
     # ``module_mac_<mac>_`` for every override mac an admitted object
-    # names: the prefix every module entity's unique id on it starts with.
-    # The trailing separator is what keeps mac 0xCB8 from claiming
-    # ``module_mac_0xCB8F_buzzer``.
+    # names, which is the prefix every module entity's unique id on it
+    # starts with. The trailing separator is what keeps mac 0xCB8 from
+    # claiming ``module_mac_0xCB8F_buzzer``.
     module_prefixes: tuple[str, ...]
     # ``scene_<id>`` for every scene the last fetch returned, active or
     # not, or None while no fetch has landed on this setup.
@@ -314,8 +314,8 @@ def find_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> StaleRec
         devices.append(device)
 
     # Every record an offered device takes with it, named by the device
-    # rather than on its own. Disabled records included: the registry
-    # removes them with the device like any other.
+    # rather than on its own. Disabled records included, because the
+    # registry removes them with the device like any other.
     covered = {
         record.entity_id
         for device in devices
@@ -459,14 +459,14 @@ def async_report_not_configured(
     it appears. The clear path logs nothing.
     """
     entry.runtime_data.not_configured = refused
-    # A refused row never became an object, so nothing emits an object
-    # event when it leaves the catalogue, and the batch queued here runs
-    # instead. It brings the module entities in line with the macs the
-    # catalogue still names, then reports, which is what re-reads this
+    # The batch queued here brings the module entities in line with the
+    # macs the catalogue names, then reports, which is what re-reads this
     # record. The report keeps a refused row's records out of its lists,
-    # so a change to either side has to re-read both, and a row deleted in
-    # Ampio Designer while it stood refused needs it most, having left the
-    # catalogue already.
+    # so a change to either side has to re-read both. A row that was an
+    # object queues that batch through its eviction as well, but a row the
+    # door refused at connect never became one, so when Ampio Designer
+    # deletes it the library has nothing to evict and this is the only
+    # signal its records get.
     entry.runtime_data.async_request_pass()
     if refused is None:
         ir.async_delete_issue(hass, DOMAIN, NOT_CONFIGURED_ISSUE)
