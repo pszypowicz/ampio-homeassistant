@@ -1,6 +1,7 @@
 """Light platform for the Ampio integration."""
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any, override
 
 from ampio_mqtt import (
@@ -10,7 +11,10 @@ from ampio_mqtt import (
     AmpioObject,
     AmpioTimeoutError,
     AmpioValueError,
+    AvailabilityChanged,
     ModuleFunction,
+    ObjectRemoved,
+    ObjectUpdated,
     OutputKind,
 )
 import voluptuous as vol
@@ -24,10 +28,11 @@ from homeassistant.components.light import (
     LightEntity,
 )
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv, entity_platform
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 from homeassistant.helpers.typing import VolDictType
 from homeassistant.util.color import color_rgb_to_rgbw, color_rgbw_to_rgb
 
@@ -66,6 +71,22 @@ def _at_level(color: tuple[int, ...], level: int) -> tuple[int, ...]:
     if not (peak := max(color)):
         return color
     return tuple(round(channel * level / peak) for channel in color)
+
+
+@dataclass(frozen=True)
+class _LitMemory(ExtraStoredData):
+    """What a light held when it was last lit, kept across a restart."""
+
+    rgbw: tuple[int, int, int, int] | None
+    level: int | None
+
+    @override
+    def as_dict(self) -> dict[str, Any]:
+        """The memory as the restore cache stores it."""
+        return {
+            "rgbw": None if self.rgbw is None else list(self.rgbw),
+            "level": self.level,
+        }
 
 
 def _kelvin_from_coldness(coldness: int, minimum: int, maximum: int) -> int:
@@ -200,13 +221,20 @@ async def async_setup_entry(
     )
 
 
-class AmpioLight(AmpioEntity, LightEntity):
+class AmpioLight(AmpioEntity, LightEntity, RestoreEntity):
     """A light backed by an Ampio output object.
 
     An rgbw output presents its four channels as ``ColorMode.RGBW`` by
     default. With the ``blend_white`` option it presents ``ColorMode.RGB``
     instead: a written color takes its white channel from the common part
     of red, green, and blue, and the reported color adds white back in.
+
+    The light remembers what it last held lit: an rgbw output its four
+    channels, a dimmer its level, and a CCT light its power. An off state
+    keeps the memory, a turn_on that leaves a part unnamed takes that part
+    from it, and the restore cache carries it across a restart. The
+    device keeps none of this itself, because an rgbw output turns off as
+    ``setColors 0/0/0/0`` and a dimmer's ``turnOn`` means full level.
     """
 
     def __init__(self, data: AmpioData, obj: AmpioObject) -> None:
@@ -228,6 +256,49 @@ class AmpioLight(AmpioEntity, LightEntity):
             mode = ColorMode.ONOFF
         self._attr_color_mode = mode
         self._attr_supported_color_modes = {mode}
+        self._last_rgbw: tuple[int, int, int, int] | None = None
+        self._last_level: int | None = None
+
+    @override
+    async def async_added_to_hass(self) -> None:
+        """Subscribe, then take the memory from the cache and the live state."""
+        await super().async_added_to_hass()
+        if (extra := await self.async_get_last_extra_data()) is not None:
+            stored = extra.as_dict()
+            if (rgbw := stored.get("rgbw")) is not None:
+                red, green, blue, white = rgbw
+                self._last_rgbw = (red, green, blue, white)
+            self._last_level = stored.get("level")
+        self._remember()
+
+    @callback
+    @override
+    def _push_received(
+        self, event: ObjectUpdated | ObjectRemoved | AvailabilityChanged
+    ) -> None:
+        """Remember a lit state before writing it."""
+        self._remember()
+        super()._push_received(event)
+
+    def _remember(self) -> None:
+        """Keep the state the object holds when it is lit."""
+        if (obj := self._object) is None:
+            return
+        if self._rgbw_output:
+            if (rgbw := obj.rgbw) is not None and any(rgbw):
+                self._last_rgbw = rgbw
+        elif self._attr_color_mode is ColorMode.COLOR_TEMP:
+            if (cct := obj.cct) is not None and cct[0]:
+                self._last_level = cct[0]
+        elif self._attr_color_mode is ColorMode.BRIGHTNESS:
+            if level := obj.numeric_value:
+                self._last_level = int(level)
+
+    @property
+    @override
+    def extra_restore_state_data(self) -> _LitMemory:
+        """The memory the restore cache keeps."""
+        return _LitMemory(self._last_rgbw, self._last_level)
 
     @property
     @override
@@ -301,18 +372,22 @@ class AmpioLight(AmpioEntity, LightEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the light on, honoring brightness, color, and color temperature.
 
+        A part the call leaves unnamed comes from the lit memory, and
+        with no memory an rgbw output falls back to plain white and full
+        level, a CCT light to full power, and a dimmer to the plain verb.
+
         Resolved rgbw channels that are all zero mean off; an explicit
         all-zero color is a request for darkness, and turn_off is its
         honest execution. A blended rgb color becomes rgbw channels
         before any of that, and a brightness-only call scales the
-        channels the output holds, whatever their white share. A CCT turn-on that names no temperature writes
-        the power axis alone, which leaves the temperature where it
-        stands. One that names no brightness writes the temperature axis
-        alone, on top of whatever power the light already stands at, and
-        never reads that power back first - unless the light is off, in
-        which case a bare temperature must still turn it on, so the
-        write carries the full-power constant into the same setWW frame
-        instead of a stale or absent power byte.
+        remembered channels, whatever their white share. A CCT turn-on
+        that names no temperature writes the power axis alone, which
+        leaves the temperature where it stands. One that names no
+        brightness writes the temperature axis alone, on top of whatever
+        power the light already stands at, and never reads that power
+        back first - unless the light is off, in which case a bare
+        temperature must still turn it on, so the write carries the
+        remembered power into the same setWW frame.
 
         A Designer read-only object raises instead of sending a write the
         M-SERV would silently drop.
@@ -320,16 +395,15 @@ class AmpioLight(AmpioEntity, LightEntity):
         raise_if_read_only(self._object)
         client = self._data.client
         if self._rgbw_output:
-            current = self._object.rgbw if self._object else None
-            lit = current if current and any(current) else None
+            memory = self._last_rgbw
             rgbw: tuple[int, int, int, int] | None = kwargs.get(ATTR_RGBW_COLOR)
             if (rgb := kwargs.get(ATTR_RGB_COLOR)) is not None:
                 rgbw = color_rgb_to_rgbw(*rgb)
             if rgbw is None:
-                rgbw = lit or _DEFAULT_RGBW
+                rgbw = memory or _DEFAULT_RGBW
             brightness: int | None = kwargs.get(ATTR_BRIGHTNESS)
             if brightness is None:
-                brightness = max(lit) if lit else 255
+                brightness = max(memory) if memory else 255
             red, green, blue, white = _at_level(rgbw, brightness)
             rgbw = (red, green, blue, white)
             if not any(rgbw):
@@ -342,8 +416,7 @@ class AmpioLight(AmpioEntity, LightEntity):
             kelvin: int | None = kwargs.get(ATTR_COLOR_TEMP_KELVIN)
             if kelvin is None:
                 if power is None:
-                    current_cct = self._object.cct if self._object else None
-                    power = current_cct[0] if current_cct and current_cct[0] else 255
+                    power = self._last_level or 255
                 await client.set_ww_power(self._object_id, power)
                 return
             coldness = _coldness_from_kelvin(
@@ -359,17 +432,18 @@ class AmpioLight(AmpioEntity, LightEntity):
                 await client.set_ww_coldness(self._object_id, coldness)
                 return
             await client.set_ww(
-                self._object_id, 255 if power is None else power, coldness
+                self._object_id,
+                (self._last_level or 255) if power is None else power,
+                coldness,
             )
             return
         obj = self._object
-        if (
-            self._attr_color_mode is ColorMode.BRIGHTNESS
-            and (brightness := kwargs.get(ATTR_BRIGHTNESS)) is not None
+        if self._attr_color_mode is ColorMode.BRIGHTNESS and (
+            (level := kwargs.get(ATTR_BRIGHTNESS, self._last_level)) is not None
         ):
             await client.set_value(
                 self._object_id,
-                brightness,
+                level,
                 pulse_ms=(obj.pulse_ms or None) if obj else None,
             )
             return
