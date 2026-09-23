@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import Callable, Iterable
+from contextlib import suppress
 from dataclasses import dataclass
 import logging
 from typing import Final
@@ -250,6 +251,9 @@ class AmpioData:
         # does not repeat it while the child stays where it is.
         self._warned_misparented: set[int] = set()
         self._reconcile_lock = asyncio.Lock()
+        # The batch tasks that have not finished, so that an unload can
+        # cancel them before the platforms go.
+        self._reconcile_tasks: set[asyncio.Task[None]] = set()
         self._debouncer = Debouncer(
             hass,
             _LOGGER,
@@ -653,10 +657,26 @@ class AmpioData:
 
     @callback
     def _async_schedule_reconcile(self) -> None:
-        """Run the batch as an entry task, so that an unload cancels it."""
-        self.entry.async_create_background_task(
+        """Run the batch as an entry task, and keep it for ``async_shutdown``."""
+        task = self.entry.async_create_background_task(
             self.hass, self._async_reconcile(), "ampio_reconcile"
         )
+        self._reconcile_tasks.add(task)
+        task.add_done_callback(self._reconcile_tasks.discard)
+
+    async def async_shutdown(self) -> None:
+        """Stop the batches, and wait until none is running.
+
+        The unload calls this before the platforms unload. Home Assistant
+        cancels an entry's background tasks only after the platforms have
+        unloaded, and a batch that resumed in that gap, from the sweep or
+        the room fetch, would add entities to platforms that are gone.
+        """
+        self._debouncer.async_shutdown()
+        tasks = list(self._reconcile_tasks)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _async_reconcile(self) -> None:
         """Bring the entities in line with the catalogue, and report.
@@ -784,27 +804,24 @@ class AmpioData:
     ) -> None:
         """Run the description sweep again for the module devices a batch added.
 
-        A new module the sweep leaves unanswered, whether the sweep failed
-        or the module stayed silent, has no capability entry. That costs
-        its capability-gated controls and the roller lock action on its
-        covers, and a warning names it. The batch goes on, so its
-        Identify button and the object entities still stand, and a reload
-        sweeps again.
-
-        ``silent_macs`` holds catalogued macs alone, and a new mac need
-        not be catalogued, so an answer is read from ``answered_macs``.
+        A new module with no capability entry after the sweep, because the
+        sweep failed or the module has not answered one since the
+        integration started, goes without its capability-gated controls
+        and the roller lock action on its covers, and a warning names it.
+        A module that answered an earlier sweep keeps its entry when this
+        one leaves it out, so its controls are built and it gets no
+        warning. The batch goes on either way, so the Identify button and
+        the object entities still stand.
         """
-        try:
-            sweep = await admin.resolve_records()
-        except AmpioConnectionError, AmpioTimeoutError:
-            unanswered = new_macs
-        else:
-            unanswered = [mac for mac in new_macs if mac not in sweep.answered_macs]
-        if unanswered:
+        with suppress(AmpioConnectionError, AmpioTimeoutError):
+            await admin.resolve_records()
+        missing = [mac for mac in new_macs if mac not in admin.capabilities]
+        if missing:
             _LOGGER.warning(
-                "New Ampio modules %s did not answer the Designer description "
-                "sweep; reload the integration to build the rest of their controls",
-                ", ".join(format_mac(mac) for mac in unanswered),
+                "No capability data for new Ampio modules %s, because they have "
+                "not answered a Designer description sweep. Their buzzer, Unlock "
+                "touch, and panel lights are left out until a reload sweeps again",
+                ", ".join(format_mac(mac) for mac in missing),
             )
 
     async def async_refresh_rooms(self) -> None:

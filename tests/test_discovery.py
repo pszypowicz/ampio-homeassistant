@@ -1,5 +1,6 @@
 """Tests for the runtime discovery of the Ampio integration."""
 
+import asyncio
 from dataclasses import replace
 from datetime import timedelta
 import logging
@@ -31,6 +32,7 @@ from custom_components.ampio import async_remove_config_entry_device
 from custom_components.ampio.const import DOMAIN, MODULE_KEY_STEM
 from custom_components.ampio.data import AmpioData, module_identifier
 from custom_components.ampio.stale import find_stale_records
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import ATTR_RESTORED, STATE_OFF, STATE_ON, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
@@ -1010,6 +1012,96 @@ async def test_a_failed_sweep_leaves_the_rest_of_the_batch_built(
     assert len(warnings) == 1
     assert format_mac(NEW_MAC) in warnings[0]
     assert "reload" in warnings[0]
+    assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+async def test_capabilities_from_an_earlier_sweep_need_no_warning(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A new module the batch sweep leaves out keeps what an earlier sweep gave it.
+
+    The library keeps a module's capability entry when a later sweep does
+    not list it, so its controls are built from that entry and there is
+    nothing to reload for.
+    """
+    mock_client.capabilities[NEW_MAC] = {ModuleFunction.BUZZER: 4}
+    await setup_integration(hass, mock_config_entry)
+
+    await _add(hass, mock_client, _new_input(leaf_id="0_d009_257_1_1"))
+
+    assert mock_client.resolve_records.await_count == 2
+    buzzer_id = entity_id_of(hass, "siren", module_unique_id(NEW_MAC, "_buzzer"))
+    assert hass.states.get(buzzer_id) is not None
+    assert _sweep_warnings(caplog) == []
+
+
+async def test_an_unload_stops_a_batch_parked_in_the_sweep(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A batch waiting on its sweep adds nothing once the platforms have unloaded."""
+    await setup_integration(hass, mock_config_entry)
+    release = asyncio.Event()
+    sweeping = asyncio.Event()
+
+    async def _parked_sweep() -> RecordSweep:
+        sweeping.set()
+        await release.wait()
+        mock_client.capabilities[NEW_MAC] = {ModuleFunction.BUZZER: 4}
+        return RecordSweep(
+            records={}, answered_macs=frozenset({NEW_MAC}), silent_macs=frozenset()
+        )
+
+    mock_client.resolve_records.side_effect = _parked_sweep
+    new_input = _new_input(leaf_id="0_d009_257_1_1")
+    mock_client.objects[new_input.id] = new_input
+    emit(mock_client, ObjectAdded(object=new_input))
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=2))
+    await asyncio.wait_for(sweeping.wait(), timeout=5)
+
+    unloaded = False
+    late_adds: list[Entity] = []
+    unload_platforms = hass.config_entries.async_unload_platforms
+    add_entities = EntityPlatform.async_add_entities
+
+    async def _unload_then_release(*args: Any) -> bool:
+        nonlocal unloaded
+        result = await unload_platforms(*args)
+        unloaded = True
+        release.set()
+        # Hand the loop to a batch that the release woke, before the
+        # unload moves on to cancel the entry's background tasks.
+        for _ in range(20):
+            await asyncio.sleep(0)
+        return result
+
+    async def _recording_add(
+        platform: EntityPlatform, entities: Any, *args: Any, **kwargs: Any
+    ) -> None:
+        if unloaded:
+            late_adds.extend(entities)
+        await add_entities(platform, entities, *args, **kwargs)
+
+    with (
+        patch.object(
+            hass.config_entries, "async_unload_platforms", _unload_then_release
+        ),
+        patch.object(EntityPlatform, "async_add_entities", _recording_add),
+    ):
+        assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+        await hass.async_block_till_done(wait_background_tasks=True)
+
+    assert late_adds == []
+    mock_client.resolve_records.side_effect = None
+    mock_client.resolve_records.return_value = EMPTY_SWEEP
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert mock_config_entry.state is ConfigEntryState.LOADED
     assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
 
