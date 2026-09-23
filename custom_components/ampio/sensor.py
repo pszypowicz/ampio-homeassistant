@@ -355,14 +355,19 @@ class AmpioModuleSensor(AmpioModuleEntity, SensorEntity):
 
     @callback
     def _module_updated(self, event: ModuleUpdated | ModuleRemoved) -> None:
-        """Write state when diagnostics change, or the row goes, for this override mac.
+        """Write state when this override mac's row changes, gains a reading, or goes.
 
         The client filters subscriptions by object id alone, so this
-        callback compares the module's override mac. A removal leaves
-        ``module_row_for`` with nothing on this mac, so the write that
-        follows reads ``native_value`` back to None.
+        callback compares the module's override mac. A row can also leave
+        this mac without a removal, because the library reports a mac
+        reassigned on an existing row as a ``ModuleUpdated`` carrying the
+        new mac alone. So an event on any mac writes state while no row
+        holds this one, and ``native_value`` reads back to None.
         """
-        if event.module.mac == self._mac:
+        if (
+            event.module.mac == self._mac
+            or self._data.module_row_for(self._mac) is None
+        ):
             self.async_write_ha_state()
 
     @property

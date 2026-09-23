@@ -604,6 +604,31 @@ async def test_module_sensor_reads_unknown_once_its_row_is_removed(
 
 
 @pytest.mark.usefixtures("sensor_only")
+async def test_module_sensor_reads_unknown_once_its_row_moves_to_another_mac(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """A row that takes a new override mac leaves the old mac's reading unknown.
+
+    The library reports the reassignment as a ``ModuleUpdated`` carrying
+    the new mac, with no removal for the old one.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    mock_client.modules[17] = replace(mock_client.modules[17], supply_voltage=12.4)
+    emit(mock_client, ModuleUpdated(module=mock_client.modules[17]))
+    await hass.async_block_till_done()
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == "12.4"
+
+    mock_client.modules[17] = replace(mock_client.modules[17], mac=0xD00A)
+    emit(mock_client, ModuleUpdated(module=mock_client.modules[17]))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(MODULE_VOLTAGE_ID(hass)).state == STATE_UNKNOWN
+
+
+@pytest.mark.usefixtures("sensor_only")
 async def test_module_sensor_ignores_another_module(
     hass: HomeAssistant,
     mock_client: MagicMock,
