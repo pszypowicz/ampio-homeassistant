@@ -157,7 +157,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
         raise ConfigEntryNotReady(
             translation_domain=DOMAIN, translation_key="cannot_connect"
         ) from err
-    # A True start() guarantees the server identity; the None check narrows the type.
+    # A True connect(), and an AmpioNotConfigured raised after every initial
+    # reply landed, both leave the server identity in place. The None check
+    # narrows the type.
     if not discovered or (info := client.server_info) is None:
         raise ConfigEntryNotReady(
             translation_domain=DOMAIN, translation_key="discovery_timeout"
@@ -300,7 +302,7 @@ async def async_remove_config_entry_device(
     the object resolves to. The batch the hook queues builds it again under
     the resolved parent within seconds, with its id, its area, and its name
     restored. A module device the hook permits to delete drops out of the
-    tree, so that the next object on its row builds it back the same way,
+    tree, so that the next object on its mac builds it back the same way,
     and every object still parented to that device is queued first, so
     that the child the registry takes down with it comes back too.
     """
@@ -335,8 +337,9 @@ async def async_remove_config_entry_device(
                     data.async_request_reconcile(obj)
                     break
     # Home Assistant removes the device right after this returns. The tree
-    # forgets a module device with it, so that the next batch on that row
+    # forgets a module device with it, so that the next batch on that mac
     # builds the device back through the path that built it the first
-    # time. A child's id keys no row.
+    # time. A child's device id matches no module device, so forgetting it
+    # changes nothing.
     data.forget_module_device(device_entry.id)
     return True

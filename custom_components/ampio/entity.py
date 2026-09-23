@@ -83,9 +83,8 @@ class AmpioEntity(AmpioBaseEntity):
         ``key_suffix`` separates a second entity built from one object, and
         it reaches the unique id alone: Home Assistant composes the entity
         id from the area name, the device name and the entity name by
-        default. No
-        server scope: object ids are unique per M-SERV, and one M-SERV is
-        allowed.
+        default. No server scope: object ids are unique per M-SERV, and one
+        M-SERV is allowed.
         """
         self._data = data
         self._object_id = obj.id
@@ -182,8 +181,7 @@ class AmpioModuleEntity(AmpioBaseEntity):
         ``key_suffix`` names what the entity does on the module, and it
         reaches the unique id alone: Home Assistant composes the entity id
         from the area name, the device name and the entity name by default.
-        The key is
-        built from ``MODULE_KEY_PREFIX``, which is also what the
+        The key is built from ``MODULE_KEY_PREFIX``, which is also what the
         stale-record report reads a module record back through.
         """
         self._data = data

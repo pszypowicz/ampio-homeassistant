@@ -70,7 +70,7 @@ See [faq.md](faq.md) for what an update does to an entity id, and for the reset 
 
 The integration follows the Ampio catalogue while it runs, on both account tiers. An object you add in Designer gets its entity within seconds, under its module, in its app room. On a standard account the object must also be granted to the Home Assistant user in the app. An object you delete or hide loses its entity at once, and the repair on the Settings page lists it. The delete stays yours, because on a standard account a lost app permission looks the same as a delete. A relay you re-tag as a light, or a pulse time you set, is followed the same way.
 
-The administrator login gets no catalogue push from the M-SERV. It gets a digest of the app tables on every save instead. The integration re-reads the catalogue when that digest changes, so a change in Designer appears a few seconds later there too.
+The M-SERV pushes the object tables to both account tiers when you save in Designer, so objects follow a save the same way on either login. It never pushes the module list, which the administrator login alone receives. The administrator login re-reads the module list when the digest of the app tables changes on a save, so the module list follows a Designer save a few seconds later.
 
 ## Moving an object to another module
 

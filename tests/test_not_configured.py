@@ -562,20 +562,22 @@ async def test_a_dead_entity_on_a_held_module_is_still_offered(
         assert f"- {entity_id}" in issue.translation_placeholders["names"]
 
 
+@pytest.mark.parametrize("answered", [True, False])
 async def test_collision_keeps_the_colliding_macs_module_entities_out_of_the_stale_offer(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
+    answered: bool,
 ) -> None:
     """A collision on a still-live mac keeps that mac's module records out of both stale lists.
 
-    A colliding mac empties the capability map, so a capability-gated
-    module entity such as the buzzer stops being built on the next
-    connect. An object still resolves to the mac, so the record is a
-    module record the catalogue accounts for and there is no cause to
-    name for it. A module prefix that drifted from the stem the entity
-    builds its key with would read the record as a shape nothing mints
-    and offer it, which is what this guards.
+    The door evicts the colliding rows with their capability maps, and the
+    record sweep at the next connect fills the map again for every mac the
+    server's module records answer, the colliding one included. So the
+    buzzer is built again when the sweep answers the mac, and stays
+    unbuilt when the module is silent through it. Either way an object
+    still resolves to the mac, so the record is one the catalogue accounts
+    for and the report has no cause to name for it.
     """
     with_buzzer(mock_client)
     await setup_integration(hass, mock_config_entry)
@@ -593,16 +595,16 @@ async def test_collision_keeps_the_colliding_macs_module_entities_out_of_the_sta
 
     assert entity_id in _claimed()
 
-    mock_client.capabilities[52111] = {}
+    if not answered:
+        # The mocked sweep answers no mac, so the map the eviction dropped
+        # stays empty.
+        mock_client.capabilities[52111] = {}
     mock_client.connect.side_effect = AmpioNotConfigured(
         collisions=((52111, (17, 18)),)
     )
     await _reload(hass, mock_config_entry)
 
-    # The registry record survives the reload, but the capability gate
-    # keeps the buzzer platform from rebuilding it, so no loaded platform
-    # claims it, which is what makes it a stale-list candidate at all.
-    assert entity_id not in _claimed()
+    assert (entity_id in _claimed()) is answered
     stale = find_stale_records(hass, mock_config_entry)
     offered = {entity.unique_id for entity in stale.entities} | {
         entity.unique_id for entity in stale.withheld

@@ -74,8 +74,9 @@ class NotConfiguredRepairFlow(RepairsFlow):
     The registry records of a refused row are what the entities come back
     under once the installer corrects the project, so this flow offers no
     deletion and touches neither registry. Submitting closes the notice.
-    Every catalogue change reads the admission door again, so a project
-    that still reads the same way raises the notice again.
+    The library reports a change of the refused set and nothing else, so
+    a project that still reads the same way raises the notice again at
+    the next setup, or when the refused set changes.
     """
 
     async def async_step_init(
