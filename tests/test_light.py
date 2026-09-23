@@ -16,6 +16,7 @@ from ampio_mqtt import (
 import pytest
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
+    mock_restore_cache_with_extra_data,
     snapshot_platform,
 )
 from syrupy.assertion import SnapshotAssertion
@@ -47,7 +48,7 @@ from homeassistant.const import (
     STATE_UNAVAILABLE,
     Platform,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
@@ -273,7 +274,8 @@ async def test_timed_lights_pulse_on_turn_on(
 async def test_dimmer_turn_on_without_brightness(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """Turning a dimmer on without a brightness uses the plain verb."""
+    """A dimmer with no remembered level turns on with the plain verb."""
+    mock_client.objects[71] = replace(mock_client.objects[71], state="0")
     await setup_integration(hass, mock_config_entry)
 
     await hass.services.async_call(
@@ -344,13 +346,9 @@ async def test_rgbw_color_without_brightness_keeps_the_level(
 async def test_rgbw_color_without_brightness_on_a_dark_output_is_full(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """A color with no brightness turns a dark output on at full scale."""
+    """A color with no brightness and no memory turns on at full scale."""
+    mock_client.objects[72] = replace(mock_client.objects[72], state="0")
     await setup_integration(hass, mock_config_entry)
-
-    obj = replace(mock_client.objects[72], state="0")
-    mock_client.objects[72] = obj
-    emit(mock_client, ObjectUpdated(object=obj))
-    await hass.async_block_till_done()
 
     await hass.services.async_call(
         LIGHT_DOMAIN,
@@ -364,13 +362,9 @@ async def test_rgbw_color_without_brightness_on_a_dark_output_is_full(
 async def test_rgbw_turn_on_from_dark_defaults_to_white(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
-    """Turning an all-zero rgbw on without arguments raises the white channel."""
+    """A bare turn_on with no memory raises the white channel."""
+    mock_client.objects[72] = replace(mock_client.objects[72], state="0")
     await setup_integration(hass, mock_config_entry)
-
-    obj = replace(mock_client.objects[72], state="0")
-    mock_client.objects[72] = obj
-    emit(mock_client, ObjectUpdated(object=obj))
-    await hass.async_block_till_done()
 
     await hass.services.async_call(
         LIGHT_DOMAIN,
@@ -433,10 +427,8 @@ def _blended(entry: MockConfigEntry) -> MockConfigEntry:
 
 
 def _go_dark(mock_client: MagicMock) -> None:
-    """Push the rgbw output to all channels at zero."""
-    obj = replace(mock_client.objects[72], state="0")
-    mock_client.objects[72] = obj
-    emit(mock_client, ObjectUpdated(object=obj))
+    """Start the rgbw output dark, so the light has no lit state to remember."""
+    mock_client.objects[72] = replace(mock_client.objects[72], state="0")
 
 
 async def test_blended_rgbw_state(
@@ -501,9 +493,8 @@ async def test_blended_turn_on_derives_the_white_channel(
     channels: tuple[int, int, int, int],
 ) -> None:
     """A requested color sends white as the share red, green, and blue have in common."""
-    await setup_integration(hass, _blended(mock_config_entry))
     _go_dark(mock_client)
-    await hass.async_block_till_done()
+    await setup_integration(hass, _blended(mock_config_entry))
 
     await hass.services.async_call(
         LIGHT_DOMAIN,
@@ -544,9 +535,8 @@ async def test_blended_rgbw_request_lands_on_the_blend(
     channels: tuple[int, int, int, int],
 ) -> None:
     """An rgbw_color request arrives as its rgb blend and is written back blended."""
-    await setup_integration(hass, _blended(mock_config_entry))
     _go_dark(mock_client)
-    await hass.async_block_till_done()
+    await setup_integration(hass, _blended(mock_config_entry))
 
     await hass.services.async_call(
         LIGHT_DOMAIN,
@@ -1555,3 +1545,197 @@ async def test_cct_light_turn_off_routes_through_the_client(
         blocking=True,
     )
     mock_client.turn_off.assert_awaited_once_with(76)
+
+
+def _push(mock_client: MagicMock, object_id: int, state: str) -> None:
+    """Emit a state update for ``object_id`` as the bus would."""
+    obj = replace(mock_client.objects[object_id], state=state)
+    mock_client.objects[object_id] = obj
+    emit(mock_client, ObjectUpdated(object=obj))
+
+
+async def test_rgbw_bare_turn_on_replays_the_last_lit_channels(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A bare turn_on from dark sends the channels the output last held lit.
+
+    The lit value arrives as a push, as a wall button or the Ampio app
+    would send it, so the memory follows every source of change.
+    """
+    await setup_integration(hass, mock_config_entry)
+    _push(mock_client, 72, str(40 | 5 << 8 | 20 << 24))
+    _push(mock_client, 72, "0")
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: RGBW_ENTITY_ID(hass)},
+        blocking=True,
+    )
+    mock_client.set_colors.assert_awaited_once_with(72, 40, 5, 0, 20)
+
+
+async def test_rgbw_color_from_dark_uses_the_last_level(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A color with no brightness brings a dark output back at its last level."""
+    await setup_integration(hass, mock_config_entry)
+    _push(mock_client, 72, str(30 | 15 << 8))
+    _push(mock_client, 72, "0")
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: RGBW_ENTITY_ID(hass), ATTR_RGBW_COLOR: (0, 0, 255, 0)},
+        blocking=True,
+    )
+    mock_client.set_colors.assert_awaited_once_with(72, 0, 0, 30, 0)
+
+
+async def test_rgbw_brightness_from_dark_uses_the_last_color(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A brightness alone brings a dark output back in its last color."""
+    await setup_integration(hass, mock_config_entry)
+    _push(mock_client, 72, "0")
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: RGBW_ENTITY_ID(hass), ATTR_BRIGHTNESS: 120},
+        blocking=True,
+    )
+    mock_client.set_colors.assert_awaited_once_with(72, 30, 60, 90, 120)
+
+
+async def test_rgbw_memory_survives_a_restart(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The last lit channels come back from the restore cache."""
+    mock_restore_cache_with_extra_data(
+        hass, [(State("light.salon_rgbw", STATE_OFF), {"rgbw": [5, 0, 0, 0]})]
+    )
+    mock_client.objects[72] = replace(mock_client.objects[72], state="0")
+    await setup_integration(hass, mock_config_entry)
+    assert RGBW_ENTITY_ID(hass) == "light.salon_rgbw"
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: RGBW_ENTITY_ID(hass)},
+        blocking=True,
+    )
+    mock_client.set_colors.assert_awaited_once_with(72, 5, 0, 0, 0)
+
+
+async def test_dimmer_bare_turn_on_replays_the_last_level(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A bare turn_on from dark sends the level the dimmer last held lit."""
+    await setup_integration(hass, mock_config_entry)
+    _push(mock_client, 71, "0")
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: DIMMER_ENTITY_ID(hass)},
+        blocking=True,
+    )
+    mock_client.set_value.assert_awaited_once_with(71, 128, pulse_ms=None)
+    mock_client.turn_on.assert_not_called()
+
+
+async def test_timed_dimmer_replays_the_last_level_as_a_pulse(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A dimmer with a Designer time pulses at its remembered level."""
+    mock_client.objects[71] = replace(mock_client.objects[71], czas=3000)
+    await setup_integration(hass, mock_config_entry)
+    _push(mock_client, 71, "0")
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: DIMMER_ENTITY_ID(hass)},
+        blocking=True,
+    )
+    mock_client.set_value.assert_awaited_once_with(71, 128, pulse_ms=30000)
+
+
+async def test_dimmer_memory_survives_a_restart(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The last lit level comes back from the restore cache."""
+    mock_restore_cache_with_extra_data(
+        hass, [(State("light.taras_taras_led", STATE_OFF), {"level": 42})]
+    )
+    mock_client.objects[71] = replace(mock_client.objects[71], state="0")
+    await setup_integration(hass, mock_config_entry)
+    assert DIMMER_ENTITY_ID(hass) == "light.taras_taras_led"
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: DIMMER_ENTITY_ID(hass)},
+        blocking=True,
+    )
+    mock_client.set_value.assert_awaited_once_with(71, 42, pulse_ms=None)
+
+
+async def test_cct_bare_turn_on_from_dark_replays_the_last_power(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A dark CCT light turns on at the power it last held lit."""
+    await setup_integration(hass, mock_config_entry)
+    _push(mock_client, 76, str(85 << 8))
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: CCT_ENTITY_ID(hass)},
+        blocking=True,
+    )
+    mock_client.set_ww_power.assert_awaited_once_with(76, 84)
+
+
+async def test_cct_temperature_from_dark_uses_the_last_power(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A temperature alone brings a dark CCT light back at its last power."""
+    await setup_integration(hass, mock_config_entry)
+    _push(mock_client, 76, str(85 << 8))
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: CCT_ENTITY_ID(hass), ATTR_COLOR_TEMP_KELVIN: 4276},
+        blocking=True,
+    )
+    mock_client.set_ww.assert_awaited_once_with(76, 84, 128)
+
+
+async def test_cct_memory_survives_a_restart(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """The last lit power comes back from the restore cache."""
+    mock_restore_cache_with_extra_data(
+        hass, [(State("light.sypialnia_cct", STATE_OFF), {"level": 60})]
+    )
+    mock_client.objects[76] = replace(mock_client.objects[76], state=str(85 << 8))
+    await setup_integration(hass, mock_config_entry)
+    assert CCT_ENTITY_ID(hass) == "light.sypialnia_cct"
+
+    await hass.services.async_call(
+        LIGHT_DOMAIN,
+        SERVICE_TURN_ON,
+        {ATTR_ENTITY_ID: CCT_ENTITY_ID(hass)},
+        blocking=True,
+    )
+    mock_client.set_ww_power.assert_awaited_once_with(76, 60)
