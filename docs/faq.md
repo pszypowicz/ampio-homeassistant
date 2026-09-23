@@ -109,7 +109,7 @@ A third cause takes every control at once, arrows, slider, and both stop buttons
 
 An administrator can still hold or release this cover's roller lock through the `ampio.set_roller_lock` action while it is read-only, because the lock write rides the raw tree rather than the path the read-only marker gates. Doing so changes nothing about the cover itself. Only the lock binary sensors' own state moves, since the read-only refusal already applies above where the lock bits are read. A scene that captured this cover before it went read-only stops restoring it, silently, with no warning and no error.
 
-**Fix:** For a lock, none is required. The arrow returns once the lock clears, whether that is a Designer rule's trigger or a call to `ampio.set_roller_lock` releasing it. For read-only, clear the checkbox in Ampio Designer if you want the cover to take commands again. An automation that targets the cover through an area, a device, or a label skips it silently while either cause holds. An automation that names the cover by its entity id raises and halts the rest of the sequence unless the action sets `continue_on_error: true`.
+**Fix:** For a lock, none is required. The arrow returns once the lock clears, whether that is a Designer rule's trigger or a call to `ampio.set_roller_lock` releasing it. For read-only, clear the checkbox in Ampio Designer if you want the cover to take commands again. An automation that targets the cover through an area, a device, or a label skips it silently for an action whose control is gone, such as opening while opening is locked, and for every action while the cover is read-only. An automation that names the cover by its entity id raises for that action instead. A set position or set tilt position action stays supported while only one direction is locked, so it reaches the cover however the automation targets it, and it raises when the move runs in the locked direction. Either error halts the rest of the sequence unless the action sets `continue_on_error: true`.
 
 ## A cover's roller lock is unknown, or the set roller lock action fails
 
@@ -209,48 +209,56 @@ For a single entity, the control for regenerating an entity id on its settings p
 
 **Every automation, script, scene, and dashboard card that names an Ampio entity id stops working.** Write those ids down first, and plan to repoint them.
 
-You need shell access to the Home Assistant host, through the SSH add-on or the Terminal add-on.
+You need an SSH connection to the Home Assistant host from another computer, through the official Terminal & SSH add-on or the community SSH add-on. Open it before you stop Home Assistant. The terminal panel in the Home Assistant sidebar runs through Home Assistant itself, so `ha core stop` closes it and you lose the shell partway through the procedure.
+
+The official add-on logs you in as root and has no `sudo`, so run the commands below as they stand. The community add-on logs you in as a user, so put `sudo` in front of each `cp` and `jq` command.
 
 1. Take a backup, as described above.
 2. Write down the Ampio entity ids your automations use.
-3. Stop Home Assistant:
+3. Connect over SSH from another computer.
+4. Stop Home Assistant:
 
    ```sh
    ha core stop
    ```
 
-4. Copy the entity registry, then remove every Ampio record from it:
+5. Copy the entity registry, then remove every Ampio record from it:
 
    ```sh
-   sudo cp /config/.storage/core.entity_registry /config/.storage/core.entity_registry.bak
-   sudo jq '(.data.entities, .data.deleted_entities) |= map(select(.platform != "ampio"))' \
+   cp /config/.storage/core.entity_registry /config/.storage/core.entity_registry.bak
+   jq '(.data.entities, .data.deleted_entities) |= map(select(.platform != "ampio"))' \
      /config/.storage/core.entity_registry > /tmp/registry.json
-   sudo cp /tmp/registry.json /config/.storage/core.entity_registry
+   cp /tmp/registry.json /config/.storage/core.entity_registry
    ```
 
-5. Start Home Assistant:
+6. Start Home Assistant:
 
    ```sh
    ha core start
    ```
 
-6. Open Settings, then Devices and services, then Ampio. Confirm that the entity count matches what you had.
-7. Repoint your automations at the new ids.
-8. Put your entity labels back, the panel labels among them, and give back any entity name and any entity area you had set yourself.
+7. Open Settings, then Devices and services, then Ampio. Confirm that the entity count matches what you had.
+8. Repoint your automations at the new ids.
+9. Put your entity labels back, the panel labels among them, and give back any entity name and any entity area you had set yourself.
 
 The `deleted_entities` list matters as much as the `entities` list. Leave the deleted records in place, and Home Assistant restores every old id on the next start.
 
 ### If something goes wrong
 
-Stop Home Assistant, copy the backup file back, then start Home Assistant:
+Over the same SSH connection, stop Home Assistant, copy the backup file back, then start Home Assistant. On the community add-on, put `sudo` in front of `cp` again:
 
 ```sh
 ha core stop
-sudo cp /config/.storage/core.entity_registry.bak /config/.storage/core.entity_registry
+cp /config/.storage/core.entity_registry.bak /config/.storage/core.entity_registry
 ha core start
 ```
 
-If the instance does not start at all, restore the full backup from Settings, System, Backups.
+If the instance does not start at all, the Backups page is out of reach, because it needs a running Home Assistant. Restore the full backup over the SSH connection instead. List the backups, find the one you took in step 1, and restore it by its slug:
+
+```sh
+ha backups list
+ha backups restore <slug>
+```
 
 ## What this does not touch
 
