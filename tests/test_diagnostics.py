@@ -13,7 +13,7 @@ from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
 from syrupy.assertion import SnapshotAssertion
 
 from custom_components.ampio.const import DOMAIN
-from custom_components.ampio.diagnostics import TO_REDACT_ENTRY
+from custom_components.ampio.diagnostics import TO_REDACT_ENTRY, TO_REDACT_SNAPSHOT
 from homeassistant.components.diagnostics import REDACTED, async_redact_data
 from homeassistant.const import CONF_HOST, CONF_USERNAME
 from homeassistant.core import HomeAssistant
@@ -73,11 +73,11 @@ DIAGNOSTICS_SNAPSHOT = {
             "temperature": None,
         },
     ],
-    # The library keeps only the safelisted scalar fields of the info
-    # reply, so the fixture carries the shape it emits.
+    # A malformed reply can carry a host name under a key the library's
+    # safelist keeps (ampio-mqtt#308), so the fixture carries one.
     "last_payloads": {
-        "info": '{"Status": "OK", "Results": {"mac": 47846, "userId": -1, '
-        '"serverVersion": "1865", "serverRevision": "409", '
+        "info": '{"Status": "OK", "Results": {"mac": "broker.example.invalid", '
+        '"userId": -1, "serverVersion": "1865", "serverRevision": "409", '
         '"mqttVersion": "5.133.11"}}'
     },
 }
@@ -98,6 +98,7 @@ async def test_config_entry_diagnostics(
         hass, hass_client, mock_config_entry
     )
 
+    assert "broker.example.invalid" not in str(result)
     assert result == snapshot
 
 
@@ -350,4 +351,6 @@ async def test_designer_config_leaves_entry_data_and_snapshot_unchanged(
     assert result["entry_data"] == async_redact_data(
         mock_config_entry.data, TO_REDACT_ENTRY
     )
-    assert result["snapshot"] == DIAGNOSTICS_SNAPSHOT
+    assert result["snapshot"] == async_redact_data(
+        DIAGNOSTICS_SNAPSHOT, TO_REDACT_SNAPSHOT
+    )
