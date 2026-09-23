@@ -219,7 +219,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     # record bundle. Setup waits for it: the capability map decides which
     # modules carry a buzzer, and the platforms load below. The sweep is
     # served to the administrator login alone, and the narrowed reference
-    # is what says so.
+    # is what says so. A batch that adds a module device sweeps again.
     if (admin := entry.runtime_data.admin) is not None:
         await _async_sweep_records(admin)
 

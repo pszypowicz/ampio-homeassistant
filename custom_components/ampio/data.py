@@ -14,6 +14,7 @@ from ampio_mqtt import (
     AmpioNotConfigured,
     AmpioObject,
     AmpioServerInfo,
+    AmpioTimeoutError,
     NotConfigured,
     ObjectRemoved,
     ObjectUpdated,
@@ -672,6 +673,7 @@ class AmpioData:
         async with self._reconcile_lock:
             pending, self._pending = self._pending, {}
             buildable = False
+            new_macs: list[int] = []
             for oid in pending:
                 obj = self.client.objects.get(oid)
                 if obj is None:
@@ -685,7 +687,8 @@ class AmpioData:
                 # to the hub, so a child whose record still hangs under that
                 # module, such as one whose row the door refused at the
                 # last setup, would read as outgrown.
-                self.ensure_module_device(obj)
+                if (mac := self.ensure_module_device(obj)) is not None:
+                    new_macs.append(mac)
                 buildable = True
             # An entity reads the room map when it is built, so the map is
             # refreshed before the factories run.
@@ -717,6 +720,14 @@ class AmpioData:
                     # Awaited, so that the platform's table holds the entities
                     # before the batch ends.
                     await registration.platform.async_add_entities(to_add)
+            # A module device this batch created has no entry in the
+            # capability map, because the last sweep ran before the module
+            # was in the tree, and the gated module factories read that
+            # map. One sweep covers every new mac in the batch, and it
+            # runs after the object entities are built, so a slow reply
+            # holds back only the module controls.
+            if new_macs and (admin := self.admin) is not None:
+                await self._async_sweep_for(admin, new_macs)
             # The module entities follow the objects' rule, expected
             # versus built, over every mac the tree holds, narrowed in one
             # place. Removal waits for a mac the catalogue no longer
@@ -765,6 +776,24 @@ class AmpioData:
                     # Awaited for the same reason as the objects above.
                     await module_platform.async_add_entities(module_add)
             self.async_report_records()
+
+    async def _async_sweep_for(
+        self, admin: AmpioAdminClient, new_macs: list[int]
+    ) -> None:
+        """Run the description sweep again for the module devices a batch added.
+
+        A failure costs the capability-gated controls of those modules and
+        nothing else. The batch goes on, so their Identify buttons and the
+        object entities still stand, and a reload sweeps again.
+        """
+        try:
+            await admin.resolve_records()
+        except AmpioConnectionError, AmpioTimeoutError:
+            _LOGGER.warning(
+                "The Designer description sweep for new Ampio modules %s did not "
+                "complete; reload the integration to build the rest of their controls",
+                ", ".join(format_mac(mac) for mac in new_macs),
+            )
 
     async def async_refresh_rooms(self) -> None:
         """Read the room map, so that a new child takes its app room.

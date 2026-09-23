@@ -11,6 +11,8 @@ from ampio_mqtt import (
     AmpioAdminClient,
     AmpioConnectionError,
     AmpioObject,
+    AmpioTimeoutError,
+    ModuleFunction,
     ObjectAdded,
     ObjectRemoved,
     ObjectUpdated,
@@ -43,6 +45,7 @@ from homeassistant.util import dt as dt_util
 from . import setup_integration
 from .conftest import (
     DEFAULT_ROOMS,
+    EMPTY_SWEEP,
     HUB_IDENTIFIER,
     MSENS_IDENTIFIER,
     emit,
@@ -852,6 +855,127 @@ async def test_a_batch_leaves_a_live_macs_controls_alone(
     await _add(hass, mock_client, _new_input())
 
     assert hass.states.get(buzzer_id).attributes.get(ATTR_RESTORED) is None
+
+
+NEW_MAC = 53257
+SECOND_NEW_MAC = 53258
+
+
+def _report_buzzer(client: MagicMock, *macs: int) -> None:
+    """Make the next sweep report a buzzer on each mac, as a new panel would."""
+
+    def _resolve() -> Any:
+        for mac in macs:
+            client.capabilities[mac] = {ModuleFunction.BUZZER: 4}
+        return EMPTY_SWEEP
+
+    client.resolve_records.side_effect = _resolve
+
+
+async def test_a_new_module_gets_its_gated_controls_in_the_same_batch(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A module added while the entry runs gets its buzzer from a fresh sweep."""
+    await setup_integration(hass, mock_config_entry)
+    _report_buzzer(mock_client, NEW_MAC)
+
+    await _add(hass, mock_client, _new_input(leaf_id="0_d009_257_1_1"))
+
+    assert mock_client.resolve_records.await_count == 2
+    buzzer_id = entity_id_of(hass, "siren", module_unique_id(NEW_MAC, "_buzzer"))
+    assert hass.states.get(buzzer_id) is not None
+
+
+async def test_two_new_modules_in_one_batch_sweep_once(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A batch that adds two module devices runs one sweep for both."""
+    await setup_integration(hass, mock_config_entry)
+    _report_buzzer(mock_client, NEW_MAC, SECOND_NEW_MAC)
+    first = _new_input(leaf_id="0_d009_257_1_1")
+    second = make_object(
+        NEW_INPUT_ID + 1,
+        "wej",
+        7,
+        leaf_id="0_d00a_257_1_1",
+        funkcja=12,
+        name="Przycisk garaz",
+        state="0",
+    )
+
+    for obj in (first, second):
+        mock_client.objects[obj.id] = obj
+        emit(mock_client, ObjectAdded(object=obj))
+    await _settle(hass)
+
+    assert mock_client.resolve_records.await_count == 2
+    for mac in (NEW_MAC, SECOND_NEW_MAC):
+        buzzer_id = entity_id_of(hass, "siren", module_unique_id(mac, "_buzzer"))
+        assert hass.states.get(buzzer_id) is not None
+
+
+async def test_a_batch_without_a_new_module_does_not_sweep(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """An object on a module the tree already holds costs no sweep."""
+    await setup_integration(hass, mock_config_entry)
+
+    await _add(hass, mock_client, _new_input())
+
+    assert hass.states.get(NEW_INPUT_ENTITY_ID(hass)) is not None
+    mock_client.resolve_records.assert_awaited_once_with()
+
+
+async def test_a_failed_sweep_leaves_the_rest_of_the_batch_built(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A sweep that times out keeps the object entities and the Identify button, and warns."""
+    await setup_integration(hass, mock_config_entry)
+    mock_client.resolve_records.side_effect = AmpioTimeoutError("no reply")
+
+    await _add(hass, mock_client, _new_input(leaf_id="0_d009_257_1_1"))
+
+    assert mock_client.resolve_records.await_count == 2
+    assert hass.states.get(NEW_INPUT_ENTITY_ID(hass)).state == STATE_OFF
+    button_id = entity_id_of(hass, "button", module_unique_id(NEW_MAC, "_identify"))
+    assert hass.states.get(button_id) is not None
+    warnings = [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == logging.WARNING and "sweep" in record.getMessage()
+    ]
+    assert len(warnings) == 1
+    assert format_mac(NEW_MAC) in warnings[0]
+    assert "reload" in warnings[0]
+    assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+async def test_a_new_module_on_a_standard_account_does_not_sweep(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A standard account is not served the sweep, so a new module runs none.
+
+    The restricted client has no ``resolve_records`` at all, so a batch
+    that reached for it would fail rather than finish.
+    """
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+    await setup_integration(hass, mock_config_entry)
+    data: AmpioData = mock_config_entry.runtime_data
+    report = MagicMock()
+    data.async_mark_ready(report)
+
+    await _add(hass, mock_client, _new_input(leaf_id="0_d009_257_1_1"))
+
+    assert not hasattr(mock_client, "resolve_records")
+    assert NEW_MAC in data.module_device_ids
+    report.assert_called_once_with()
+    assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
 
 async def test_a_module_that_gets_its_object_back_needs_no_repair(
