@@ -3,8 +3,10 @@
 from typing import Any, override
 
 from ampio_mqtt import (
+    AmpioConnectionError,
     AmpioNotConfigured,
     AmpioObject,
+    AmpioTimeoutError,
     AmpioUnsupported,
     AmpioValueError,
     OutputKind,
@@ -19,7 +21,7 @@ from homeassistant.components.cover import (
     CoverEntityFeature,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv, entity_platform
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import VolDictType
@@ -288,4 +290,9 @@ class AmpioCover(AmpioEntity, CoverEntity):
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="cover_lock_unsupported",
+                ) from err
+            except (AmpioConnectionError, AmpioTimeoutError) as err:
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="cover_lock_failed",
                 ) from err

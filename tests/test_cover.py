@@ -6,7 +6,9 @@ from unittest.mock import MagicMock, patch
 
 from ampio_mqtt import (
     AccessTier,
+    AmpioConnectionError,
     AmpioNotConfigured,
+    AmpioTimeoutError,
     AmpioUnsupported,
     AmpioValueError,
     ObjectRemoved,
@@ -43,7 +45,11 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceNotSupported, ServiceValidationError
+from homeassistant.exceptions import (
+    HomeAssistantError,
+    ServiceNotSupported,
+    ServiceValidationError,
+)
 from homeassistant.helpers import entity_registry as er
 
 from . import setup_integration
@@ -730,6 +736,30 @@ async def test_set_roller_lock_translates_refusal(
     with pytest.raises(ServiceValidationError) as excinfo:
         await _set_roller_lock(hass, POSITION_ENTITY_ID(hass), "opening", True)
     assert excinfo.value.translation_key == key
+    assert excinfo.value.__cause__ is error
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(AmpioConnectionError("broker down"), id="connection"),
+        pytest.param(AmpioTimeoutError("no reply"), id="timeout"),
+    ],
+)
+async def test_set_roller_lock_translates_a_transport_failure(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    error: Exception,
+) -> None:
+    """A lock that does not reach the server reports the translated failure."""
+    mock_client.block_opening.side_effect = error
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(HomeAssistantError) as excinfo:
+        await _set_roller_lock(hass, POSITION_ENTITY_ID(hass), "opening", True)
+    assert not isinstance(excinfo.value, ServiceValidationError)
+    assert excinfo.value.translation_key == "cover_lock_failed"
     assert excinfo.value.__cause__ is error
 
 
