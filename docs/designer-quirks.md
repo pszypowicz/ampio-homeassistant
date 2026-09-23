@@ -4,7 +4,7 @@
 
 The device-type tag on an output ("Description in device" -> for example "Lighting - On-off light") is stored twice: in the output's description record inside the module's CAN memory, and mirrored into the `type` column of the M-SERV's object catalogue. The integration classifies relays from the catalogue column, because the column is served to every account tier. The CAN records answer the admin login only, and an entity's platform must build identically on both tiers (see the stability contract below).
 
-Tags saved with older Ampio tooling exist only in the CAN record, and the catalogue column stayed empty. A relay in that state shows its Lighting tag in Designer, yet Home Assistant surfaces it as a switch. To check what the integration sees for an output, download the diagnostics and look up the object's `type` field in the catalogue payload - [debugging.md](debugging.md) shows how.
+Tags saved with older Ampio tooling exist only in the CAN record, and the catalogue column stayed empty. A relay in that state shows its Lighting tag in Designer, yet Home Assistant surfaces it as a switch. To check what the integration sees for an output, request the object catalogue from the M-SERV as [debugging.md](debugging.md#reading-the-raw-catalogue) describes, and read the `type` field in the object's row.
 
 The fix, in the current web Designer: touch every affected output individually - select a different device type and switch it back to Lighting, so Designer registers an edit - then save once. One save covers all the outputs you touched. Verified behavior on a real install, and confirmed in the Designer web bundle:
 
@@ -38,7 +38,7 @@ The M-SERV's own device carries MAC `0x1`, which is also the default a device ta
 
 ## Moving an object to another module
 
-Home Assistant cannot move a child device to another parent. When you move an object to another module in Designer, the object's device keeps its old parent. The integration removes the object's entities within seconds, logs one warning that names the object, and lists the device in the repair on the Settings page. Replacing a module does not do this, because the replacement takes the same MAC address and the object stays where it was.
+Home Assistant cannot move a child device to another parent. When you move an object to another module in Designer, the object's device keeps its old parent. The integration removes the object's entities within seconds, logs a warning that names the object, and lists the device in the repair on the Settings page. Replacing a module does not do this, because the replacement takes the same MAC address and the object stays where it was.
 
 Submit the repair, or delete the object's device under Settings, then Devices and services. The object comes back under the new module, with its id, its area, and its name restored. If that object was the last one on its old module, the old module device stays behind empty, and the repair lists it too.
 

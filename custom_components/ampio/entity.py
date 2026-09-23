@@ -53,10 +53,12 @@ def raise_if_read_only(obj: AmpioObject | None) -> None:
 class AmpioBaseEntity(Entity):
     """Entity that carries this integration's naming and key conventions.
 
-    Home Assistant composes the entity id from the area name, the device
-    name and the entity name, once, at first registration, and the user's
-    Entity ID format setting decides which of those take part. This class
-    writes no id, so an Ampio entity follows that setting like any other.
+    Home Assistant composes the entity id once, at first registration,
+    from the area name, the device name and the entity name by default,
+    leaving out any part that is empty. The user's Entity ID format setting
+    can leave out the area or add the floor, and it cannot leave out the
+    device or the entity name. This class writes no id, so an Ampio entity
+    follows that setting like any other.
 
     Every device this integration creates carries a name, so Home
     Assistant's own ``<platform>_<unique id>`` fallback is not reached: an
@@ -168,8 +170,9 @@ class AmpioModuleEntity(AmpioBaseEntity):
     it at all. It is the argument the module commands take, and
     ``_require_module_id`` resolves it at call time.
 
-    Availability tracks the connection and nothing else. A subclass whose
-    surface reports something of its own overrides ``available``.
+    Availability follows the connection and nothing else. A reading of
+    module data whose catalogue row is missing reports an unknown value,
+    and the entity stays available.
     """
 
     def __init__(self, data: AmpioData, mac: int, *, key_suffix: str) -> None:

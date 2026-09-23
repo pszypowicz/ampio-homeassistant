@@ -12,23 +12,28 @@ Do not start a procedure on this page without a backup. Some of them delete reco
 
 ## Entities are missing or stay unavailable after an update
 
-**Check:** Open Settings, then Devices and services, then Ampio. Compare the entity count with what you had. An entity with the state `unavailable` or the label "restored" is one the integration no longer builds.
+**Check:** First tell a lost connection apart from entities the integration no longer builds, because the two look alike on a dashboard. When the connection to the M-SERV drops, every Ampio entity apart from the scenes reads `unavailable` at the same moment, and the log carries the warning "Connection to the Ampio server lost; reconnecting". Those entities come back on their own when the connection returns, so check the M-SERV and your network and wait before you change anything. An entity the integration no longer builds reads `unavailable` as well, but it stays that way while the connection is up, and under Developer tools, then States, its attributes include `restored: true`.
 
-**Fix:** Remove the Ampio integration entry, then add it again. Home Assistant remembers a removed entity for 30 days, so the re-add restores your entity ids, your renames, and your areas. It is the supported first step here, so reach for it early. If the entity count is still wrong afterwards, download the diagnostics as described in [debugging.md](debugging.md) and report it in the issues.
+**Fix:** Look at the Settings page for an Ampio repair before you do anything else. If your module devices lost their names and areas at the same time, follow [Most Ampio entities are unavailable and my module devices lost their names](#most-ampio-entities-are-unavailable-and-my-module-devices-lost-their-names) and submit the repair it describes. If a repair lists the entities for another reason, [An entity is listed that Ampio Designer no longer has](#an-entity-is-listed-that-ampio-designer-no-longer-has) explains each one.
 
-## My module devices lost their names and areas after an update
+If no repair accounts for the entities, remove the Ampio integration entry, then add it again. Home Assistant remembers a removed entity for 30 days, so the re-add restores your entity ids, your renames, and your areas. If the entity count is still wrong afterwards, download the diagnostics as described in [debugging.md](debugging.md) and report it in the issues.
 
-**Check:** Open Settings, then Devices and services, then Ampio. Every module device is listed under the name the Ampio server gives it, with no area and none of the labels you put on it, and the entities on it have new entity ids and no history. A repair on the Settings page lists leftover Ampio records, and you recognize the module devices it names as the ones you had. Your object entities are missing at the same time.
+## Most Ampio entities are unavailable and my module devices lost their names
 
-This integration ships as a beta and carries no upgrade path. Every version is prepared as though it were a fresh install, and a release that changes what a device record is keyed on builds those devices again under the new key. Home Assistant treats a device under a new key as a new device, so the name you typed, the area, the labels, and the history of the entities on it all start empty. Each object's device still hangs under one of the old module devices, which is a parent its object no longer belongs to, and Home Assistant cannot move a child device to another parent, so the integration holds those objects' entities back until the old devices go.
+**Check:** Open Settings, then Devices and services, then Ampio. Each module appears as a device that carries the name the Ampio server gives it, with no area and none of the labels you put on it, and your old module devices are listed beside them. Most Ampio entities read `unavailable` while the connection is up. The Settings page shows a repair titled "Ampio records to clean up" on an administrator account, or "Ampio records to check" on a standard account, and your old module devices are among the records it lists.
 
-That covers every object on a module, which on a normal install is most of the entities this integration provides. Only the M-SERV's own objects carry on through it, because their devices hang under the hub rather than under a module.
+Your old module devices are registered under a key the integration no longer uses, so it built a new device for each module. Home Assistant treats a device under a new key as a new device, so the name you typed, the area and the labels start empty on it. The device of each object on a module still hangs under one of the old module devices, and Home Assistant cannot move a device to another parent, so the integration holds back that object's entities until the old device goes. That covers every object on a module, which on most installs is most of the entities this integration provides. The M-SERV's own objects and the scenes keep working, because they hang under the hub.
 
-**Fix:** Submit that repair. It deletes the old module devices, and the reload behind it puts every object back under its module within seconds, with the object's entity ids, its own name, and its own area intact. Then give each module device its name, its area, and its labels again.
+Until you submit the repair, the log fills with warnings that start "The device of Ampio object" and name an object whose device hangs under a different module. They are expected, and they stop once the repair is submitted.
 
-Take a note of the module entity ids your automations use before you submit, because the administrator-only module entities come back under new ids: the Identify button, the supply voltage and temperature sensors, the buzzer, the Unlock touch button, and the Backlight and Status light. Their old records are among what the repair deletes.
+**Fix:** Write down the module entity ids your automations use, then submit that repair once. It deletes the old module devices with the object devices under them, and the reload behind it builds every object again under its module. Every object entity comes back with its entity id, its name and its area.
+
+The repair cannot bring back what belonged to the old module devices, so give each module device its name, its area and its labels again. On an administrator account the module entities are new as well: the Identify button, the supply voltage and temperature sensors, the buzzer, the Unlock touch button, and the Backlight and Status light. Each of them has a new entity id and no history, so point your automations at the new ids. To rebuild such an id from the module name you set, regenerate it from the entity's settings page.
 
 An object device with no area of its own inherits its module's area, so an object you never placed yourself reads as having none until you give its module an area again. An object device you did put in an area keeps it.
+
+If you skip the panel lights in a template through a label, as described under [My touch panels go dark when I turn off all the lights](#my-touch-panels-go-dark-when-i-turn-off-all-the-lights), put the label on the new Backlight and Status light entities, because the old ones carried it. A template sensor or template helper that reads `label_entities()` keeps the result it last computed after you change a label, because a label change is not an event it listens for. It catches up when it renders again, and a reload forces that. The template reload action reloads the templates in your YAML configuration. A template helper you created in the UI reloads through its own entry, which that action does not reach, so reload the helper's entry or restart Home Assistant.
+
 
 ## Setup does not finish, and stays on "Retrying setup"
 
@@ -38,7 +43,7 @@ An object device with no area of its own inherits its module's area, so an objec
 
 ## An entity is listed that Ampio Designer no longer has
 
-**Check:** Such an entity shows the state `unavailable` or the label "restored". After each start or reload the integration raises up to three repairs on the Settings page, under Repairs. One lists the devices and entities it did not build and cannot explain. One lists the entities it withheld because your Ampio account is not the administrator one. The third names Ampio Designer rows it could not use at all, and it asks you to fix them in Designer rather than offering to delete anything. Read that one first, because an entity it accounts for is not stale. [designer-quirks.md](designer-quirks.md) covers both faults it reports.
+**Check:** Such an entity reads `unavailable` while the connection is up, and under Developer tools, then States, its attributes include `restored: true`. After each start or reload the integration raises up to three repairs on the Settings page, under Repairs. One lists the devices and entities it did not build and cannot explain. One lists the entities it withheld because your Ampio account is not the administrator one. The third names Ampio Designer rows it could not use at all, and it asks you to fix them in Designer rather than offering to delete anything. Read that one first, because an entity it accounts for is not stale. [designer-quirks.md](designer-quirks.md) covers both faults it reports.
 
 **Fix:** Select Submit on the repair that lists the records to clean up, and it deletes them all at once. The integration then reloads. An object that you moved to another module in Ampio Designer comes back under its new module.
 
@@ -71,13 +76,13 @@ If the address you enter answers with different M-SERV hardware, the flow asks y
 
 ## My entity ids look different from the ones in the docs
 
-**Check:** Open Settings, then Devices and services, then Entities, and filter the list by the Ampio integration. Home Assistant composes each id from the area name, the device name and the entity name, so an object called Taras LED in the room Taras reads `light.taras_taras_led`, and the Identify button on a module called M-SENS Salon reads `button.m_sens_salon_identify`. The Entity ID format setting under Settings, then System, decides which of those parts take part. An install from an earlier release keeps the ids that release gave it, because an id is stored against the entity's unique id, and a release changes those only where the release note says it does.
+**Check:** Open Settings, then Devices and services, then Entities, and filter the list by the Ampio integration. By default Home Assistant composes each id from the area name, the device name and the entity name, in that order, and leaves out any part that is empty. So an object called Taras LED in the room Taras reads `light.taras_taras_led`, because its main entity has no name of its own, and the Identify button on a module called M-SENS Salon, which has no area, reads `button.m_sens_salon_identify`. The Entity ID format setting under Settings, then System, can leave out the area or add the floor, and it cannot leave out the device name or the entity name. An install from an earlier release keeps the ids that release gave it, because an id is stored against the entity's unique id, and a release changes those only where the release note says it does.
 
 **Fix:** None is required. An id that works goes on working, and nothing forces you to change it. To rebuild one from the names you have now, open the entity, select the cog icon, and use Home Assistant's control for regenerating an entity id. To rebuild every Ampio id at once, use the reset procedure below. It is a support procedure, and no update requires it.
 
 ## Why does an entity id stay the same when I rename something?
 
-Home Assistant builds an entity id once, when the entity registers for the first time, and stores it from then on. A device rename does not move it. An area change does not move it. An update does not move it either, as long as the release keeps what the entity is keyed on underneath. A release that changes that key builds the entity again, with a new id and no history, and the release note says so. Short of that, the only thing that rebuilds an id is you, through the control for regenerating an entity id on the entity's own settings page.
+Home Assistant builds an entity id once, when the entity registers for the first time, and stores it from then on. A device rename does not move it. An area change does not move it. An update does not move it either, as long as the release keeps what the entity is keyed on underneath. A release that changes that key builds the entity again, with a new id and no history, and the release note says so. Short of that, an id is rebuilt only when you ask Home Assistant to regenerate it, for one entity from its settings page or for several at once from a selection in the entities table, or when you follow the reset procedure below.
 
 Removing the integration does not move it either. Home Assistant remembers a removed entity for 30 days. If you add the integration again inside that window, the old entity id comes back. The name you gave the entity and the area you put it in come back with it.
 
@@ -85,7 +90,7 @@ Your automations therefore keep working across a rename, a reinstall, and every 
 
 ## A relay I tagged as a light shows as a switch
 
-See [designer-quirks.md](designer-quirks.md). That page tells you how to check the tag in the diagnostics, and how to re-save the output in Designer.
+See [designer-quirks.md](designer-quirks.md). That page tells you how to check the tag in the object's catalogue row, and how to re-save the output in Designer.
 
 ## An object sits under the wrong module
 
@@ -187,13 +192,13 @@ Several module entities are provided with the administrator login alone: the Ide
 
 The Identify button once existed on both accounts, where a press on a standard account only ever returned an error. If you did not change anything, an update is what removed it. If you changed the account this integration uses, that removed it too. The sensors, the buzzer, the Unlock touch button, and the Backlight and Status light are administrator-only from their first release, so a standard account never had them to lose.
 
-A repair on the Settings page lists whichever of these entities your account withholds. Submit it to delete the records, or leave it alone. If you point the integration back at the administrator account, the entities come back on their own with the same entity ids.
+A repair on the Settings page lists whichever of these entities your account withholds. Submit it to delete the records, or leave it alone. If you leave it alone and point the integration back at the administrator account, the entities come back on their own with the same entity ids. If you submitted it, Home Assistant keeps the deleted records for as long as the Ampio entry stands, and for 30 days after you remove the entry. The entities come back with their old ids inside that window as well, unless another entity took one of those ids in the meantime.
 
 ## My module devices are named "Ampio module 0xCB8F"
 
 You see this on a standard Ampio account most of the time. The names you gave your modules in Ampio Designer are served to the administrator login alone, so a module falls back to its address on the Ampio bus, written in hex the way Designer's MAC field shows it. It is the same device and the same module either way. On an administrator account a module reads this way when you deleted its device row in Designer and left its objects behind, because no row is left to name it. With the device row in place, an administrator account shows the Designer name.
 
-If the names you typed yourself are gone as well, along with your areas and your labels, then a release changed what a module device is keyed on and built those devices again. "My module devices lost their names and areas after an update" above covers that case and the repair that finishes it.
+If the names you typed yourself are gone as well, along with your areas and your labels, see [Most Ampio entities are unavailable and my module devices lost their names](#most-ampio-entities-are-unavailable-and-my-module-devices-lost-their-names) above.
 
 ## How do I reset every Ampio entity id?
 

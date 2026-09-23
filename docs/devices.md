@@ -24,13 +24,13 @@ A rename in Designer or in the app does not reach Home Assistant straight away. 
 
 ## The Identify button
 
-Each module device has an Identify button. A press lights the module's CAN LED for 30 s, so you can find the module in the cabinet. The button exists with the administrator login alone. A standard account is given none, because the Ampio server would not carry the frame. A DIN-rail module lights its CAN LED steadily. An M-DOT panel lights the LED on its back only, so a wall-mounted panel gives no visible sign.
+On the administrator login, each module device has an Identify button. A press lights the module's CAN LED for 30 s, so you can find the module in the cabinet. A standard account is given no Identify button, because the Ampio server would not carry the frame. A DIN-rail module lights its CAN LED steadily. An M-DOT panel lights the LED on its back only, so a wall-mounted panel gives no visible sign.
 
-The module keeps the LED lit until it receives a stop. The integration sends the stop after 30 s, and again at once when you reload or remove the integration. If Home Assistant restarts during those 30 s, the stop is never sent. Then the LED stays lit until Ampio Designer sends a stop or the module restarts.
+The module keeps the LED lit until it receives a stop. The integration sends the stop after 30 s. If you reload or remove the integration before then, it sends the stop at that moment instead. If Home Assistant restarts during those 30 s, the stop is never sent. Then the LED stays lit until Ampio Designer sends a stop or the module restarts.
 
 ## The module sensors
 
-Each module device also carries two diagnostic sensors, a supply voltage and a temperature, both readings the module reports about itself. They exist with the administrator login alone, for the same reason as the Identify button. A module that never sends that reading leaves its sensor unknown rather than unavailable, because the reading is not replayed at connect and silence says nothing about the module's health.
+On the administrator login, each module device also carries two diagnostic sensors, a supply voltage and a temperature, both readings the module reports about itself. A standard account is given neither, for the same reason as the Identify button. A module that never sends that reading leaves its sensor unknown rather than unavailable, because the reading is not replayed at connect and silence says nothing about the module's health.
 
 ## The buzzer
 
@@ -54,9 +54,9 @@ Home Assistant matches rooms to areas by name. If your Ampio rooms and your area
 
 ## Entity ids
 
-Home Assistant builds an entity id from the area name, the device name and the entity name when it first registers the entity, and the id holds still after that. A rename in Ampio Designer or in Home Assistant changes the name you see and leaves the id alone, so your automations keep working. An object with no name in Designer takes a numbered placeholder instead.
+Home Assistant builds an entity id when it first registers the entity, and the id holds still after that. By default it takes the area name, the device name and the entity name, in that order, and it leaves out any part that is empty, which is why an object's main entity, whose own name is empty, reads as the area and the device name alone. A rename in Ampio Designer or in Home Assistant changes the name you see and leaves the id alone, so your automations keep working. An object with no name in Designer takes a numbered placeholder instead.
 
-The Entity ID format setting under Settings, then System, decides which of those names take part, and Ampio entities follow it like any other integration's. An object called Taras LED in the room Taras reads `light.taras_taras_led`. A module called M-SENS Salon gives its Identify button `button.m_sens_salon_identify`, with no area in front of it, because a module device gets no area of its own.
+The Entity ID format setting under Settings, then System, can leave out the area or add the floor, and it cannot leave out the device name or the entity name. Ampio entities follow it like any other integration's. An object called Taras LED in the room Taras reads `light.taras_taras_led`. A module called M-SENS Salon gives its Identify button `button.m_sens_salon_identify`, with no area in front of it, because the integration seeds no area on a module device. If you give a module device an area, an id on it that registers or that you regenerate after that carries the area in front.
 
 Two objects that carry the same name in Ampio Designer and share a room, or share having none, cannot share an id, so one of the two takes Home Assistant's `_2` suffix and reads `button.dzwonek_2` beside `button.dzwonek`. The same two names in different rooms read `button.salon_dzwonek` and `button.kuchnia_dzwonek`, and nothing collides. Give a colliding pair distinct names in Designer if you want to tell them apart by their ids.
 

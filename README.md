@@ -26,7 +26,7 @@ A Home Assistant integration for the [Ampio Smart Home](https://ampio.com/) syst
 
 ## Actions
 
-Every entity id below is an example. Home Assistant composes each id from the area name, the device name and the entity name when it first registers the entity, so your install has ids of its own. Look them up under Settings, then Devices and services, then Entities.
+Every entity id below is an example. Home Assistant composes each id when it first registers the entity, by default from the area name, the device name and the entity name, so your install has ids of its own. Look them up under Settings, then Devices and services, then Entities.
 
 `ampio.buzz_pattern` plays a two-step sequence on a panel's buzzer. The siren entity covers a single tone for a single length, and this action reaches the rest of what the hardware frame carries.
 
@@ -71,7 +71,7 @@ data:
 
 The backlight's white channel drives the panel's own white LEDs rather than blending into red, green, and blue, so `[0, 0, 0, 255]` is plain white. A field number the panel does not have is refused, naming the panel's real field count rather than doing nothing. Coloring individual fields leaves the Backlight or Status light entity reporting whatever color it already held, because that entity holds one color for the whole surface and a partial change has no honest single color to report. Both actions need an administrator Ampio account, like the entities themselves.
 
-Target these two actions at the entity by name, not at an area or a device, and not at `entity_id: all`. Any of those reaches every Ampio light the target matches and sends the field colors to each one. A module device gets no seeded area, only an object child device does, so an area target usually reaches only object lights, colors nothing at all, and returns exactly one error, since Home Assistant re-raises just the first exception rather than one per light. That error is Home Assistant's own handling of an action not every targeted entity supports, and there is no way to filter it out.
+Target these two actions at the entity by name, not at an area or a device, and not at `entity_id: all`. Any of those reaches every Ampio light the target matches and sends the field colors to each one. The Backlight and the Status light carry the diagnostic category, and Home Assistant leaves an entity with a category out of area and device targets, so an area target reaches only object lights, colors nothing at all, and returns exactly one error, since Home Assistant re-raises just the first exception rather than one per light. That error is Home Assistant's own handling of an action not every targeted entity supports, and there is no way to filter it out.
 
 `ampio.set_roller_lock` holds or releases a cover's roller lock. The lock frame rides the raw CAN tree, which only the administrator login reaches:
 
@@ -118,7 +118,7 @@ Requires Home Assistant 2026.9.0 or newer. `ampio-mqtt` is installed automatical
 
 To change the address, the account, or the password later, open the entry and choose Reconfigure from its menu. Your devices and your entities keep their ids, their areas, and any name you gave them yourself. If the Ampio server rejects the stored password, Home Assistant asks you for a new one on its own.
 
-Devices appear as a hub for the M-SERV, one device per Ampio module, and one device per Ampio object under its module. An object device takes its name and its area from the Ampio app when Home Assistant creates it, and the integration never moves it afterwards. Home Assistant builds each entity id from the area name, the device name and the entity name, once, when it first registers the entity. The Entity ID format setting under Settings, then System, decides which of those parts take part. An id does not follow a later rename. See [docs/devices.md](docs/devices.md) for the names, the areas, and what a change in Ampio Designer does.
+Devices appear as a hub for the M-SERV, one device per Ampio module, and one device per Ampio object under its module. An object device takes its name and its area from the Ampio app when Home Assistant creates it, and the integration never moves it afterwards. Home Assistant builds each entity id once, when it first registers the entity, by default from the area name, the device name and the entity name in that order, and it leaves out any part that is empty. The Entity ID format setting under Settings, then System, can leave out the area or add the floor, and it cannot leave out the device name or the entity name. An id does not follow a later rename. See [docs/devices.md](docs/devices.md) for the names, the areas, and what a change in Ampio Designer does.
 
 One M-SERV per Home Assistant. Object ids are unique per server only, so the integration allows one entry.
 
@@ -126,9 +126,9 @@ One M-SERV per Home Assistant. Object ids are unique per server only, so the int
 
 Every `0.0.x` release is beta. None of them carries a migration, so an update can change device names or the entity set with no upgrade path. Take a backup before you update, and read the release note. It leads with the breaking changes and the upgrade steps.
 
-Home Assistant stores an entity id against the entity's unique id, so your ids survive an update unless the release note says otherwise. The exception is a release that changes what a device record is keyed on. Those devices are built again under the new key, Home Assistant treats each one as a new device, and every object under a module has its entities held back until you submit the leftover-records repair on the Settings page. On a normal install that is most of the entities this integration provides, and only the M-SERV's own objects carry on, because their devices hang under the hub rather than under a module. [docs/faq.md](docs/faq.md) walks through that repair.
+Home Assistant stores an entity id against the entity's unique id, so your ids survive an update unless the release note says otherwise. The exception is a release that changes what a device record is keyed on. Those devices are built again under the new key, Home Assistant treats each one as a new device, and every object under a module has its entities held back until you submit the repair on the Settings page titled "Ampio records to clean up", or "Ampio records to check" on a standard account. On a normal install that is most of the entities this integration provides, and only the M-SERV's own objects carry on, because their devices hang under the hub rather than under a module. [docs/faq.md](docs/faq.md#most-ampio-entities-are-unavailable-and-my-module-devices-lost-their-names) walks through that repair.
 
-If an update leaves you with missing entities or entities that stay unavailable, remove the integration and add it again. It is the supported first step here, so reach for it early. Home Assistant remembers a removed entity for 30 days, so a re-add restores your entity ids, your renames, and your areas.
+If an update leaves you with missing entities or entities that stay unavailable, look for an Ampio repair on the Settings page first, and follow [docs/faq.md](docs/faq.md#entities-are-missing-or-stay-unavailable-after-an-update) from there. Removing the integration and adding it again comes after that. Home Assistant remembers a removed entity for 30 days, so a re-add restores your entity ids, your renames, and your areas.
 
 If something else looks wrong, see [docs/faq.md](docs/faq.md). Each answer there tells you how to check whether it affects you, and how to fix it.
 

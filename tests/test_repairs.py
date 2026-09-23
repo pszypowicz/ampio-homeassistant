@@ -398,6 +398,7 @@ async def test_fix_flow_removes_the_stale_records(
     _leave_records_behind(mock_client)
     await _reload(hass, mock_config_entry)
     assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is not None
+    assert entity_registry.async_get(SCENE_ENTITY_ID) is not None
 
     await _submit_fix(hass, hass_client, ISSUE_ID)
 
@@ -732,6 +733,9 @@ async def test_admin_only_fix_leaves_the_other_records_alone(
     _leave_records_behind(mock_client)
     set_access_tier(mock_client, AccessTier.RESTRICTED)
     await _reload(hass, mock_config_entry)
+    assert (
+        entity_registry.async_get_entity_id("button", DOMAIN, IDENTIFY_KEY) is not None
+    )
 
     await _submit_fix(hass, hass_client, ADMIN_ISSUE_ID)
 
