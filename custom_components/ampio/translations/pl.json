@@ -1,0 +1,432 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Urządzenie jest już skonfigurowane",
+            "reauth_successful": "Ponowne uwierzytelnienie się powiodło",
+            "reconfigure_successful": "Ponowna konfiguracja się powiodła"
+        },
+        "error": {
+            "admin_login_name": "Wpisana nazwa użytkownika wskazuje na inny rodzaj konta niż ten, który zgłasza serwer Ampio. Konto administratora loguje się nazwą admin, zapisaną małymi literami i bez żadnych dodatków, a każde inne konto loguje się nazwą nadaną mu w aplikacji Ampio. Integracja rozróżnia te konta tylko po nazwie, więc encje administratora dla poszczególnych modułów są dostępne tylko przy dokładnym dopasowaniu.",
+            "cannot_connect": "Nie można nawiązać połączenia",
+            "invalid_auth": "Niepoprawne uwierzytelnienie",
+            "unknown": "Nieoczekiwany błąd"
+        },
+        "step": {
+            "confirm_server": {
+                "description": "Serwer pod adresem {host} nie jest tym, z którym skonfigurowano tę integrację. Zgłasza adres CAN {mac}.\n\nKontynuuj tylko wtedy, gdy wymieniono M-SERV albo gdy celowo kierujesz tę integrację na inny serwer. Twoje urządzenia i encje zachowają identyfikatory, obszary i nazwy nadane im przez Ciebie. Zostaną powiązane z obiektami projektu Ampio Designer na nowym serwerze.",
+                "title": "Inny serwer Ampio"
+            },
+            "reauth_confirm": {
+                "data": {
+                    "host": "Host",
+                    "password": "Hasło",
+                    "username": "Nazwa użytkownika"
+                },
+                "data_description": {
+                    "host": "Nazwa hosta lub adres IP serwera Ampio (M-SERV).",
+                    "password": "Hasło do Twojego konta Ampio.",
+                    "username": "Nazwa użytkownika Twojego konta Ampio."
+                },
+                "description": "Serwer Ampio odrzucił zapisane dane logowania dla {name}. Wprowadź dane logowania, których chcesz użyć.",
+                "title": "Ponowne uwierzytelnienie Ampio"
+            },
+            "reconfigure": {
+                "data": {
+                    "host": "Host",
+                    "password": "Hasło",
+                    "username": "Nazwa użytkownika"
+                },
+                "data_description": {
+                    "host": "Nazwa hosta lub adres IP serwera Ampio (M-SERV).",
+                    "password": "Hasło do Twojego konta Ampio.",
+                    "username": "Nazwa użytkownika Twojego konta Ampio."
+                },
+                "description": "Zmień adres lub konto, którego używa ta integracja. Twoje urządzenia i encje zachowają identyfikatory, obszary i nazwy nadane im przez Ciebie.",
+                "title": "Ponowna konfiguracja Ampio"
+            },
+            "user": {
+                "data": {
+                    "host": "Host",
+                    "password": "Hasło",
+                    "username": "Nazwa użytkownika"
+                },
+                "data_description": {
+                    "host": "Nazwa hosta lub adres IP serwera Ampio (M-SERV).",
+                    "password": "Hasło do Twojego konta Ampio.",
+                    "username": "Nazwa użytkownika Twojego konta Ampio."
+                },
+                "description": "Wprowadź adres i dane logowania Twojego serwera Ampio. Zalecane jest konto zwykłego użytkownika. Konto administratora daje dodatkowo informacje o każdym module i szybsze aktualizacje stanów.",
+                "title": "Połącz z Ampio"
+            }
+        }
+    },
+    "device": {
+        "module": {
+            "name": "Moduł Ampio {mac}"
+        },
+        "object": {
+            "name": "Obiekt {id}"
+        }
+    },
+    "entity": {
+        "binary_sensor": {
+            "alarm": {
+                "name": "Alarm"
+            },
+            "alarm_alarmed": {
+                "name": "Wyzwolony"
+            },
+            "alarm_armed": {
+                "name": "Uzbrojony"
+            },
+            "blocks_closing": {
+                "name": "Blokada zamykania"
+            },
+            "blocks_opening": {
+                "name": "Blokada otwierania"
+            },
+            "input": {
+                "name": "Wejście"
+            }
+        },
+        "button": {
+            "bell": {
+                "name": "Dzwonek"
+            },
+            "unlock_touch": {
+                "name": "Odblokuj pola dotykowe"
+            }
+        },
+        "light": {
+            "backlight": {
+                "name": "Podświetlenie"
+            },
+            "status_light": {
+                "name": "LED statusu"
+            }
+        },
+        "number": {
+            "analog_flag": {
+                "name": "Flaga liniowa"
+            },
+            "analog_flag_16bit": {
+                "name": "Flaga liniowa (16-bitowa)"
+            }
+        },
+        "sensor": {
+            "co2": {
+                "name": "CO2"
+            },
+            "loudness": {
+                "name": "Poziom hałasu"
+            },
+            "pressure_abs": {
+                "name": "Ciśnienie bezwzględne"
+            },
+            "pressure_rel": {
+                "name": "Ciśnienie względne"
+            },
+            "pulse_time": {
+                "name": "Czas włączenia"
+            },
+            "supply_voltage": {
+                "name": "Napięcie zasilania"
+            }
+        },
+        "siren": {
+            "buzzer": {
+                "name": "Brzęczyk"
+            }
+        },
+        "switch": {
+            "flag": {
+                "name": "Flaga"
+            }
+        }
+    },
+    "exceptions": {
+        "backlight_command_failed": {
+            "message": "Serwer Ampio nie potwierdził koloru podświetlenia, więc Home Assistant nie wie, czy panel go przyjął."
+        },
+        "buzz_duration_too_long": {
+            "message": "Krok sekwencji brzęczyka nie może trwać dłużej niż {maximum} s."
+        },
+        "buzzer_command_failed": {
+            "message": "Serwer Ampio nie potwierdził polecenia brzęczyka."
+        },
+        "buzzer_stop_failed": {
+            "message": "Serwer Ampio nie potwierdził zatrzymania brzęczyka, więc panel może nadal wydawać dźwięk."
+        },
+        "cannot_connect": {
+            "message": "Nie można połączyć się z serwerem Ampio."
+        },
+        "cover_blocked_closing": {
+            "message": "Zamykanie tej rolety jest zablokowane. Moduł odrzuca każde polecenie w tym kierunku, także dla lamelek, dopóki blokada nie zostanie zwolniona. Aby zwolnić blokadę, użyj w Ampio Designer warunku, który ją ustawił, albo akcji „Ampio: Ustaw blokadę rolety”."
+        },
+        "cover_blocked_opening": {
+            "message": "Otwieranie tej rolety jest zablokowane. Moduł odrzuca każde polecenie w tym kierunku, także dla lamelek, dopóki blokada nie zostanie zwolniona. Aby zwolnić blokadę, użyj w Ampio Designer warunku, który ją ustawił, albo akcji „Ampio: Ustaw blokadę rolety”."
+        },
+        "cover_lock_failed": {
+            "message": "Serwer Ampio nie potwierdził zmiany blokady rolety. Jeśli wybrano oba kierunki, zmiana dla kierunku otwierania mogła już zostać zastosowana."
+        },
+        "cover_lock_not_admin": {
+            "message": "Tylko konto administratora Ampio może ustawić lub zwolnić blokadę rolety. Ta integracja loguje się jako użytkownik aplikacji, a M-SERV nie udostępnia temu kontu drzewa zapisu CAN."
+        },
+        "cover_lock_not_configured": {
+            "message": "Tej rolecie nie odpowiada dokładnie jeden wiersz modułu. W Ampio Designer przywróć brakujący wiersz modułu albo nadaj każdemu urządzeniu własny MAC. Zapisz zmiany."
+        },
+        "cover_lock_not_swept": {
+            "message": "Moduł nie odpowiedział na żądanie opisów od uruchomienia integracji. Upewnij się, że moduł jest dostępny. Wczytaj ponownie integrację Ampio, aby jeszcze raz poprosić o jego opisy."
+        },
+        "cover_lock_object_missing": {
+            "message": "Serwer Ampio nie ma już tej rolety na liście. Przywróć roletę w Ampio Designer albo wybierz dla tej akcji istniejącą roletę."
+        },
+        "cover_lock_unsupported": {
+            "message": "Moduł tej rolety nie obsługuje blokady rolety."
+        },
+        "discovery_timeout": {
+            "message": "Połączono z serwerem Ampio, ale serwer nie dokończył przesyłania swojej konfiguracji."
+        },
+        "identify_failed": {
+            "message": "Serwer Ampio nie potwierdził polecenia identyfikacji, więc dioda LED modułu może się nie zaświecić."
+        },
+        "invalid_auth": {
+            "message": "Serwer Ampio odrzucił zapisane dane logowania."
+        },
+        "module_not_addressable": {
+            "message": "Temu modułowi nie odpowiada dokładnie jeden wiersz modułu. W Ampio Designer przywróć brakujący wiersz modułu albo nadaj każdemu urządzeniu własny MAC. Zapisz zmiany."
+        },
+        "not_a_panel_backlight": {
+            "message": "To światło nie steruje podświetleniem panelu dotykowego. Wskaż encję „Podświetlenie” panelu, którego kolor chcesz zmienić."
+        },
+        "not_a_panel_status_light": {
+            "message": "To światło nie steruje LED statusu panelu dotykowego. Wskaż encję „LED statusu” panelu, którego kolor chcesz zmienić."
+        },
+        "not_a_touch_panel": {
+            "message": "Ten przycisk nie steruje panelem dotykowym. Wskaż przycisk „Odblokuj pola dotykowe” panelu, który chcesz zablokować."
+        },
+        "not_loaded": {
+            "message": "Integracja Ampio nie jest wczytana, więc nie ma serwera, do którego można wysłać wiadomość."
+        },
+        "notification_failed": {
+            "message": "Nie udało się połączyć z serwerem Ampio, więc powiadomienie nie zostało wysłane."
+        },
+        "notification_rejected": {
+            "message": "Serwer Ampio nie może przekazać tej wiadomości. Wiadomość nie może być pusta ani zawierać ukośnika."
+        },
+        "panel_field_out_of_range": {
+            "message": "Numer pola {field} jest poza zakresem pól dotykowych tego panelu, od 1 do {count}."
+        },
+        "panel_no_fields": {
+            "message": "Nie wskazano żadnych pól dotykowych, więc to wywołanie nie zmieniłoby żadnego koloru na panelu."
+        },
+        "read_only_object": {
+            "message": "Ten obiekt jest oznaczony w Ampio Designer jako tylko do odczytu, a serwer odrzuca każdy zapis do niego."
+        },
+        "records_unavailable": {
+            "message": "Połączono z serwerem Ampio, ale serwer nie odpowiedział na żądanie opisów modułów."
+        },
+        "status_light_command_failed": {
+            "message": "Serwer Ampio nie potwierdził koloru LED statusu, więc Home Assistant nie wie, czy panel go przyjął."
+        },
+        "touch_lock_failed": {
+            "message": "Serwer Ampio nie potwierdził blokady pól dotykowych, więc Home Assistant nie wie, czy panel jest zablokowany."
+        },
+        "touch_unlock_failed": {
+            "message": "Serwer Ampio nie potwierdził odblokowania pól dotykowych, więc panel może ignorować dotyk, dopóki blokada nie wygaśnie."
+        }
+    },
+    "issues": {
+        "admin_only_records": {
+            "title": "Encje Ampio tylko dla administratora",
+            "fix_flow": {
+                "abort": {
+                    "not_loaded": "Integracja Ampio nie jest wczytana. Wczytaj ją i spróbuj ponownie."
+                },
+                "step": {
+                    "confirm": {
+                        "title": "Usuń encje Ampio dostępne tylko dla administratora",
+                        "description": "Home Assistant nadal ma na liście encje Ampio, które serwer Ampio udostępnia tylko kontu administratora, a ta integracja używa konta zwykłego użytkownika:\n\n{names}\n\nEncje te wrócą same, z tymi samymi identyfikatorami encji, jeśli ponownie skierujesz integrację na konto administratora. Zatwierdzenie usuwa zamiast tego te wpisy z Home Assistant. Automatyzacje i dashboardy, które się do nich odwołują, przestaną działać. Na serwerze Ampio nic się nie zmienia."
+                    }
+                }
+            }
+        },
+        "not_configured_both": {
+            "title": "Wiersze Ampio Designer, których ta integracja nie może użyć",
+            "fix_flow": {
+                "step": {
+                    "confirm": {
+                        "title": "Popraw te wiersze w Ampio Designer",
+                        "description": "Serwer Ampio udostępnia wiersze z Ampio Designer, których ta integracja nie może użyć, więc pominęła je wszystkie.\n\nNiektóre obiekty nie wskazują żadnego wyjścia modułu. Ta integracja steruje obiektem przez to wskazanie, więc nie może ich odczytać ani nimi sterować, a ich encje zniknęły z Home Assistant.\n\nIdentyfikatory obiektów Ampio ({object_count}):\n\n{objects}\n\nAmpio Designer usuwa to wskazanie po odznaczeniu pola wyboru Matter obiektu i zapisaniu zmian, a przywraca je po zaznaczeniu pola i zapisaniu zmian. Otwórz w Ampio Designer każdy obiekt z listy powyżej, zaznacz jego pole Matter i zapisz. Jeśli typ encji się nie zmienił, encja wraca w ciągu kilku sekund z poprzednim identyfikatorem, nazwą i obszarem, bo Home Assistant zachował jej wpis. Zaznaczenie pola powoduje też ponowny odczyt typu obiektu z rekordu modułu, więc przekaźnik może wrócić jako światło, choć był przełącznikiem, albo jako przełącznik, choć był światłem. Taka encja rejestruje się w nowym typie jako nowa encja, z nowym identyfikatorem i bez historii.\n\nNiektóre adresy MAC ma więcej niż jeden moduł. Każda ramka na magistrali Ampio jest adresowana tym MAC, więc ta integracja nie odróżnia tych modułów i pomija je na swojej liście modułów.\n\nWspólne adresy MAC ({module_count}), każdy z identyfikatorami urządzeń w Ampio Designer, które go mają:\n\n{modules}\n\nOtwórz w Ampio Designer każde z tych urządzeń, wpisz w polu „Własny MAC” unikalny adres i zapisz. Dopasowuj urządzenia po adresie MAC, a nie po pozycji, bo Ampio Designer numeruje wiersze listy urządzeń według pozycji, a usunięte urządzenie sprawia, że każdy numer poniżej luki jest o jeden mniejszy od rzeczywistego identyfikatora urządzenia.\n\nZatwierdzenie zamyka ten komunikat i niczego nie zmienia, ani w Home Assistant, ani na serwerze Ampio. Dopóki projekt w Ampio Designer wygląda tak samo, komunikat wróci przy następnym uruchomieniu Home Assistant lub ponownym wczytaniu integracji, a także przy każdej zmianie zestawu wierszy, które wymienia."
+                    }
+                }
+            }
+        },
+        "not_configured_modules": {
+            "title": "Moduły Ampio ze wspólnym adresem MAC",
+            "fix_flow": {
+                "step": {
+                    "confirm": {
+                        "title": "Nadaj każdemu modułowi Ampio własny MAC",
+                        "description": "Serwer Ampio udostępnia adresy MAC, które ma więcej niż jeden moduł. Każda ramka na magistrali Ampio jest adresowana tym MAC, więc ta integracja nie odróżnia tych modułów i pomija je na swojej liście modułów. Od następnego uruchomienia lub ponownego wczytania integracji te moduły nie mają w Home Assistant nazwy, modelu ani wersji oprogramowania z Ampio Designer. Do tego czasu moduł zachowuje to, co pokazywał, zanim jego MAC stał się wspólny. Polecenia wysyłane przez elementy sterujące samym modułem, takie jak przycisk „Zidentyfikuj”, brzęczyk i światła panelu, są od razu odrzucane.\n\nWspólne adresy MAC ({module_count}), każdy z identyfikatorami urządzeń w Ampio Designer, które go mają:\n\n{modules}\n\nOtwórz w Ampio Designer każde z tych urządzeń, wpisz w polu „Własny MAC” unikalny adres i zapisz. Dopasowuj urządzenia po adresie MAC, a nie po pozycji, bo Ampio Designer numeruje wiersze listy urządzeń według pozycji, a usunięte urządzenie sprawia, że każdy numer poniżej luki jest o jeden mniejszy od rzeczywistego identyfikatora urządzenia. Potem odśwież stronę Ampio Designer i sprawdź, czy nowy MAC został zapisany, bo Ampio Designer potrafi bez komunikatu pominąć zmianę MAC.\n\nZatwierdzenie zamyka ten komunikat i niczego nie zmienia, ani w Home Assistant, ani na serwerze Ampio. Dopóki projekt w Ampio Designer wygląda tak samo, komunikat wróci przy następnym uruchomieniu Home Assistant lub ponownym wczytaniu integracji, a także przy każdej zmianie zestawu wierszy, które wymienia."
+                    }
+                }
+            }
+        },
+        "not_configured_objects": {
+            "title": "Obiekty Ampio bez wyjścia modułu",
+            "fix_flow": {
+                "step": {
+                    "confirm": {
+                        "title": "Przywróć te obiekty Ampio w Ampio Designer",
+                        "description": "Serwer Ampio udostępnia obiekty, które nie wskazują żadnego wyjścia modułu. Ta integracja steruje obiektem przez to wskazanie, więc nie może ich odczytać ani nimi sterować, a ich encje zniknęły z Home Assistant.\n\nIdentyfikatory obiektów Ampio ({object_count}):\n\n{objects}\n\nAmpio Designer usuwa to wskazanie po odznaczeniu pola wyboru Matter obiektu i zapisaniu zmian, a przywraca je po zaznaczeniu pola i zapisaniu zmian. Otwórz w Ampio Designer każdy obiekt z listy powyżej, zaznacz jego pole Matter i zapisz. Jeśli typ encji się nie zmienił, encja wraca w ciągu kilku sekund z poprzednim identyfikatorem, nazwą i obszarem, bo Home Assistant zachował jej wpis. Zaznaczenie pola powoduje też ponowny odczyt typu obiektu z rekordu modułu, więc przekaźnik może wrócić jako światło, choć był przełącznikiem, albo jako przełącznik, choć był światłem. Taka encja rejestruje się w nowym typie jako nowa encja, z nowym identyfikatorem i bez historii, więc sprawdź wszystko, co odwoływało się do starej.\n\nJeśli obiekt miał zniknąć, usuń go zamiast tego w Ampio Designer. Ten komunikat przestanie go wymieniać, gdy serwer Ampio prześle kolejną zmianę albo przy następnym uruchomieniu Home Assistant, a naprawa o tytule „Wpisy Ampio do wyczyszczenia” lub, na koncie zwykłego użytkownika, „Wpisy Ampio do sprawdzenia” zaproponuje wtedy usunięcie wpisów, które po nim zostały.\n\nZatwierdzenie zamyka ten komunikat i niczego nie zmienia, ani w Home Assistant, ani na serwerze Ampio. Dopóki projekt w Ampio Designer wygląda tak samo, komunikat wróci przy następnym uruchomieniu Home Assistant lub ponownym wczytaniu integracji, a także przy każdej zmianie zestawu wierszy, które wymienia."
+                    }
+                }
+            }
+        },
+        "stale_records_deleted": {
+            "title": "Wpisy Ampio do wyczyszczenia",
+            "fix_flow": {
+                "abort": {
+                    "not_loaded": "Integracja Ampio nie jest wczytana. Wczytaj ją i spróbuj ponownie."
+                },
+                "step": {
+                    "confirm": {
+                        "title": "Usuń nieaktualne wpisy Ampio",
+                        "description": "Home Assistant nadal ma na liście urządzenia lub encje Ampio, które nie odpowiadają już danym udostępnianym przez serwer Ampio:\n\n{names}\n\nZatwierdź, aby usunąć te wpisy z Home Assistant. Na serwerze Ampio nic się nie zmienia. Po ponownym wczytaniu, które nastąpi potem, urządzenie, którego obiekt serwer Ampio nadal udostępnia, wróci pod moduł, do którego teraz należy, z tymi samymi identyfikatorami encji. Automatyzacje i dashboardy, które odwołują się do pozostałych wpisów, przestaną działać."
+                    }
+                }
+            }
+        },
+        "stale_records_not_served": {
+            "title": "Wpisy Ampio do sprawdzenia",
+            "fix_flow": {
+                "abort": {
+                    "not_loaded": "Integracja Ampio nie jest wczytana. Wczytaj ją i spróbuj ponownie."
+                },
+                "step": {
+                    "confirm": {
+                        "title": "Usuń nieaktualne wpisy Ampio",
+                        "description": "Home Assistant nadal ma na liście urządzenia lub encje Ampio, które nie odpowiadają już danym udostępnianym przez serwer Ampio kontu używanemu przez tę integrację:\n\n{names}\n\nZatwierdź, aby usunąć te wpisy z Home Assistant. Na serwerze Ampio nic się nie zmienia. Po ponownym wczytaniu, które nastąpi potem, urządzenie, którego obiekt serwer Ampio nadal udostępnia, wróci pod moduł, do którego teraz należy, z tymi samymi identyfikatorami encji. Automatyzacje i dashboardy, które odwołują się do pozostałych wpisów, przestaną działać.\n\nJeśli dostęp konta został ograniczony w aplikacji Ampio, nie zatwierdzaj. Przywróć dostęp w aplikacji i wczytaj ponownie integrację, a wpisy objęte tym dostępem wrócą."
+                    }
+                }
+            }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Opcje Ampio",
+                "data": {
+                    "blend_white": "Mieszaj kanał biały z kolorem"
+                },
+                "data_description": {
+                    "blend_white": "Pokazuj każde światło RGBW tylko z wyborem koloru, bez osobnego suwaka bieli. Integracja ustawia kanał biały na podstawie tej części koloru, która jest wspólna dla czerwonego, zielonego i niebieskiego. Scena lub automatyzacja, która ustawia rgbw_color, nadal działa, ale światło pokazuje najbliższy kolor z tej mieszanki, więc poziom bieli ustawiony osobno od koloru nie zostanie zachowany. Podświetlenie panelu dotykowego zachowuje osobny kanał biały."
+                }
+            }
+        }
+    },
+    "selector": {
+        "roller_lock_direction": {
+            "options": {
+                "opening": "Otwieranie",
+                "closing": "Zamykanie",
+                "both": "Oba kierunki"
+            }
+        }
+    },
+    "services": {
+        "buzz_pattern": {
+            "name": "Odtwórz sekwencję brzęczyka",
+            "description": "Odtwarza dwukrokową sekwencję na brzęczyku panelu. Każdy cykl odtwarza pierwszy ton, a potem drugi. Ton 0 to cisza, więc trzy krótkie sygnały to jeden ton, jeden krok ciszy i trzy cykle.",
+            "fields": {
+                "tone": {
+                    "name": "Ton",
+                    "description": "Wysokość dźwięku pierwszego kroku, od 0 do 31. Ton 6 jest najgłośniejszy, a ton 0 to cisza."
+                },
+                "seconds": {
+                    "name": "Czas trwania",
+                    "description": "Jak długo trwa pierwszy krok, w sekundach, maksymalnie 655,35."
+                },
+                "tone2": {
+                    "name": "Drugi ton",
+                    "description": "Wysokość dźwięku drugiego kroku. Zostaw 0, aby uzyskać przerwę."
+                },
+                "seconds2": {
+                    "name": "Czas trwania drugiego kroku",
+                    "description": "Jak długo trwa drugi krok, w sekundach, maksymalnie 655,35."
+                },
+                "cycles": {
+                    "name": "Liczba cykli",
+                    "description": "Ile razy powtórzyć oba kroki, maksymalnie 254. Ustaw 0, aby powtarzać je do wyłączenia syreny."
+                },
+                "delay": {
+                    "name": "Opóźnienie",
+                    "description": "Jak długo czekać przed pierwszym krokiem, w sekundach, maksymalnie 655,35."
+                }
+            }
+        },
+        "lock_touch": {
+            "name": "Zablokuj pola dotykowe panelu",
+            "description": "Sprawia, że panel dotykowy Ampio przez pewien czas ignoruje każdy dotyk. Zablokowane pole nie zgłasza niczego, nawet naciśnięcia. Każda blokada wygasa, a najdłuższa pojedyncza blokada trwa 655,35 sekundy.",
+            "fields": {
+                "seconds": {
+                    "name": "Czas trwania",
+                    "description": "Jak długo panel ignoruje dotyk, w sekundach, od 0,01 do 655,35."
+                }
+            }
+        },
+        "send_notification": {
+            "name": "Wyślij powiadomienie do aplikacji Ampio",
+            "description": "Wysyła wiadomość do każdego użytkownika aplikacji mobilnej Ampio w tej instalacji. Serwer Ampio nie publikuje odpowiedzi w żadnym temacie, więc udane wywołanie oznacza tylko, że wiadomość została wysłana, a nie że dotarła. Wiadomość nie może zawierać ukośnika, bo serwer odczytuje tekst po nim jako nazwę użytkownika i odrzuca resztę.",
+            "fields": {
+                "message": {
+                    "name": "Wiadomość",
+                    "description": "Tekst, który pokazuje aplikacja. Spacje i znaki diakrytyczne docierają bez zmian, ale ukośnik jest niedozwolony."
+                }
+            }
+        },
+        "set_backlight_fields": {
+            "name": "Ustaw kolor podświetlenia pól dotykowych",
+            "description": "Ustawia kolor podświetlenia ikon tylko na wskazanych polach dotykowych panelu Ampio, a nie na całej powierzchni. Encja „Podświetlenie” panelu nadal zgłasza kolor, który miała wcześniej.",
+            "fields": {
+                "fields": {
+                    "name": "Pola",
+                    "description": "Numery pól dotykowych do pokolorowania, liczone od 1."
+                },
+                "rgbw_color": {
+                    "name": "Kolor",
+                    "description": "Kolor RGBW do wysłania na wskazane pola."
+                }
+            }
+        },
+        "set_roller_lock": {
+            "name": "Ustaw blokadę rolety",
+            "description": "Ustawia lub zwalnia blokadę rolety w jednym lub obu kierunkach. Może ją wysłać tylko konto administratora Ampio, bo ramka blokady przechodzi przez surowe drzewo CAN.",
+            "fields": {
+                "direction": {
+                    "name": "Kierunek",
+                    "description": "Kierunek ruchu do zablokowania lub zwolnienia: otwieranie, zamykanie lub oba."
+                },
+                "blocked": {
+                    "name": "Zablokowane",
+                    "description": "Włączone, aby zablokować kierunek, wyłączone, aby go zwolnić."
+                }
+            }
+        },
+        "set_status_fields": {
+            "name": "Ustaw kolor LED statusu pól dotykowych",
+            "description": "Ustawia kolor wskaźnika statusu tylko na wskazanych polach dotykowych panelu Ampio, a nie na całej powierzchni. Encja „LED statusu” panelu nadal zgłasza kolor, który miała wcześniej.",
+            "fields": {
+                "fields": {
+                    "name": "Pola",
+                    "description": "Numery pól dotykowych do pokolorowania, liczone od 1."
+                },
+                "rgb_color": {
+                    "name": "Kolor",
+                    "description": "Kolor RGB do wysłania na wskazane pola."
+                }
+            }
+        }
+    }
+}

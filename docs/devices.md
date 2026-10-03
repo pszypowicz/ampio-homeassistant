@@ -18,7 +18,7 @@ One M-SERV per Home Assistant. Object ids are unique per server only, so the int
 
 ## Names
 
-An object device takes the name you gave the object in the Ampio app. A module takes the name you gave it in Ampio Designer. When your account is not an administrator one, a module reads `Ampio module <MAC>` instead, for example `Ampio module 0xCB8F`, with the address written in hex the way Designer's MAC field shows it. A module whose Designer device row you deleted reads the same on an administrator account, because no row is left to name it. The hub is always `M-SERV`.
+An object device takes the name you gave the object in the Ampio app. A module takes the name you gave it in Ampio Designer. When your account is not an administrator one, a module reads `Ampio module <MAC>` instead, for example `Ampio module 0xCB8F`, with the address written in hex the way Designer's MAC field shows it. That name follows your Home Assistant language, so it reads `Moduł Ampio 0xCB8F` in Polish, and an unnamed object reads `Obiekt 44` in place of `Object 44`. A module whose Designer device row you deleted reads the same on an administrator account, because no row is left to name it. The hub is always `M-SERV`.
 
 A rename in Designer or in the app does not reach Home Assistant straight away. The integration watches the catalogue fields that decide which entities exist and which module they hang under, and a name is none of them, so a save that changes only a name leaves the devices as they are until they register again, on a reload or a restart. A name you typed yourself in Home Assistant wins over whatever arrives then, so rename the device here when you want the name to stay put. Entity ids are settled at first registration either way, so neither rename moves one.
 
@@ -61,6 +61,8 @@ The Entity ID format setting under Settings, then System, can leave out the area
 Two objects that carry the same name in Ampio Designer and share a room, or share having none, cannot share an id, so one of the two takes Home Assistant's `_2` suffix and reads `button.dzwonek_2` beside `button.dzwonek`. The same two names in different rooms read `button.salon_dzwonek` and `button.kuchnia_dzwonek`, and nothing collides. Give a colliding pair distinct names in Designer if you want to tell them apart by their ids.
 
 An install from an earlier release keeps the ids it already has, because an id is stored against the entity's unique id, and a release changes those only where the release note says it does. To rebuild one from the names you have now, open the entity, select the cog icon, and use Home Assistant's control for regenerating an entity id. It works on an entity from an earlier release as well as on a fresh one.
+
+The entity names come in your Home Assistant language, and in some languages Home Assistant composes the id from them too. Polish is one of them, so on a Polish install the Identify button above reads `button.m_sens_salon_zidentyfikuj`. After a change of language, reload the Ampio integration or restart Home Assistant to see the names in the new language. The registered ids stay as they are.
 
 Neither an Ampio account tier change nor an M-SERV replacement moves an id.
 
