@@ -61,6 +61,9 @@
         }
     },
     "device": {
+        "module": {
+            "name": "Ampio module {mac}"
+        },
         "object": {
             "name": "Object {id}"
         }

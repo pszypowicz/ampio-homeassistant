@@ -24,6 +24,7 @@ from custom_components.ampio import _build_client, async_remove_config_entry_dev
 from custom_components.ampio.const import DOMAIN
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntryState
 from homeassistant.const import (
+    ATTR_FRIENDLY_NAME,
     CONF_HOST,
     CONF_PASSWORD,
     CONF_USERNAME,
@@ -349,6 +350,32 @@ async def test_restricted_account_groups_by_module_mac(
         assert child.parent_device_id == expected
 
     assert len([entity for entity in entities if entity.domain == "scene"]) == 1
+
+
+async def test_a_polish_install_reads_polish_names(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    """Home Assistant set to Polish names devices and entities from pl.json."""
+    hass.config.language = "pl"
+    set_access_tier(mock_client, AccessTier.RESTRICTED)
+
+    await setup_integration(hass, mock_config_entry)
+
+    module = device_registry.async_get_device_by_identifier(
+        MSENS_IDENTIFIER, mock_config_entry.entry_id
+    )
+    assert module is not None
+    assert module.name == "Moduł Ampio 0xCB8F"
+    # Polish is a language Home Assistant composes entity ids in, so a
+    # fresh install mints them from the translated names.
+    entity_id = entity_id_of(hass, "sensor", unique_id(44))
+    assert entity_id == "sensor.obiekt_44_cisnienie_bezwzgledne"
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert state.attributes[ATTR_FRIENDLY_NAME] == "Obiekt 44 Ciśnienie bezwzględne"
 
 
 async def test_empty_catalogue_moves_no_device_or_entity_id(

@@ -343,28 +343,6 @@ class AmpioData:
             (module for module in admin.modules.values() if module.mac == mac), None
         )
 
-    def _module_name(self, mac: int, module: AmpioModule | None) -> str:
-        """The installer's name when the catalogue has one, else the mac.
-
-        ``nazwa_urzadzenia`` comes from the module catalogue, which answers
-        the administrator login alone, so this name follows the account
-        tier.
-
-        Home Assistant composes an entity id once, at first registration,
-        from the device name as it stands then. A mac the catalogue has no
-        row for keeps this fallback on both tiers, so its module entities
-        compose from ``Ampio module <mac>``. ``ensure_module_device``
-        returns early once the mac is already in the tree, so a row served
-        later renames the device only the next time setup or a reload
-        builds it fresh, and the registered ids stay where they are.
-
-        The row is passed in rather than looked up, because the caller
-        holds it to decorate the device with.
-        """
-        if module is not None and module.nazwa_urzadzenia:
-            return module.nazwa_urzadzenia
-        return f"Ampio module {format_mac(mac)}"
-
     @callback
     def ensure_module_device(self, obj: AmpioObject) -> int | None:
         """Create the module device of the object's module, unless it exists.
@@ -386,16 +364,32 @@ class AmpioData:
         if obj.is_server_owned or mac in self.module_device_ids:
             return None
         module = self.module_row_for(mac)
-        device = dr.async_get(self.hass).async_get_or_create(
-            config_entry_id=self.entry.entry_id,
+        device_info = dr.DeviceInfo(
             identifiers={module_identifier(mac)},
-            name=self._module_name(mac, module),
             manufacturer="Ampio",
             via_device_id=self.hub_device_id,
             model=module.model if module else None,
             sw_version=str(module.wersja_softu) if module else None,
             hw_version=str(module.wersja_pcb) if module else None,
             serial_number=str(module.mac_global) if module else None,
+        )
+        # ``nazwa_urzadzenia`` comes from the module catalogue, which answers
+        # the administrator login alone, so the name follows the account
+        # tier. A mac the catalogue has no row for reads a translated
+        # placeholder with the mac in it, on both tiers.
+        #
+        # Home Assistant composes an entity id once, at first registration,
+        # from the device name as it stands then. This method returns early
+        # once the mac is in the tree, so a row served later renames the
+        # device only when setup or a reload builds it fresh, and the
+        # registered ids stay where they are.
+        if module is not None and module.nazwa_urzadzenia:
+            device_info["name"] = module.nazwa_urzadzenia
+        else:
+            device_info["translation_key"] = "module"
+            device_info["translation_placeholders"] = {"mac": format_mac(mac)}
+        device = dr.async_get(self.hass).async_get_or_create(
+            config_entry_id=self.entry.entry_id, **device_info
         )
         self.module_device_ids[mac] = device.id
         return mac

@@ -2,7 +2,8 @@
 
 ``translations/en.json`` mirrors ``strings.json``. A person maintains it by
 hand, expanding each ``[%key:...%]`` reference to its English text.
-hassfest does not compare the two files. These tests do.
+hassfest does not compare the two files. These tests do. Every other
+language file is held to the same keys and placeholders.
 
 Source contracts also require declarations for literal entity, device,
 and exception keys. File comparisons cannot catch a key missing from both
@@ -12,19 +13,38 @@ files, which leaves entities or errors without their intended text.
 import ast
 import json
 from pathlib import Path
+import string
 from typing import Any
+
+import pytest
 
 from custom_components.ampio.const import PLATFORMS
 
 ROOT = Path(__file__).parent.parent
 STRINGS = ROOT / "custom_components/ampio/strings.json"
-ENGLISH = ROOT / "custom_components/ampio/translations/en.json"
+TRANSLATIONS = ROOT / "custom_components/ampio/translations"
+ENGLISH = TRANSLATIONS / "en.json"
 PLATFORM_DIR = ROOT / "custom_components/ampio"
 
 # A value of this shape points at a Home Assistant common string. The
 # hand-maintained file carries the resolved English text, so the two
 # legitimately differ there and nowhere else.
 REFERENCE_PREFIX = "[%key:"
+
+# Each language beside English, with the keys whose text reads the same as
+# the English text. Any other value left identical is English copied in
+# without a translation.
+LANGUAGES: dict[str, frozenset[str]] = {
+    "pl": frozenset(
+        {
+            "config.step.reauth_confirm.data.host",
+            "config.step.reconfigure.data.host",
+            "config.step.user.data.host",
+            "entity.binary_sensor.alarm.name",
+            "entity.sensor.co2.name",
+        }
+    ),
+}
 
 
 def _flatten(source: dict[str, Any], prefix: str = "") -> dict[str, str]:
@@ -46,6 +66,17 @@ def _flatten(source: dict[str, Any], prefix: str = "") -> dict[str, str]:
 def _load(path: Path) -> dict[str, str]:
     """One translation file, flattened."""
     return _flatten(json.loads(path.read_text(encoding="utf-8")))
+
+
+def _placeholders(value: str) -> set[str]:
+    """The field names Home Assistant reads from a value.
+
+    The parser is the one Home Assistant validates a translation with, so
+    an escaped ``{{name}}`` names no field, and a stray brace raises.
+    """
+    return {
+        field for _, field, _, _ in string.Formatter().parse(value) if field is not None
+    }
 
 
 def test_the_generated_translation_carries_every_key() -> None:
@@ -102,6 +133,95 @@ def test_the_generated_translation_resolves_every_reference() -> None:
         f"{ENGLISH} still carries the raw reference for {unexpanded}; edit "
         f"it in place and expand the [%key:...%] reference to its English "
         f"text"
+    )
+
+
+def test_every_translation_file_is_under_contract() -> None:
+    """Each language file is English or a language the tests below check."""
+    shipped = {path.stem for path in TRANSLATIONS.glob("*.json")}
+
+    assert shipped == {"en", *LANGUAGES}, (
+        f"{TRANSLATIONS} holds {sorted(shipped)}; add each language to "
+        f"LANGUAGES so its keys and placeholders are checked"
+    )
+
+
+@pytest.mark.parametrize("language", sorted(LANGUAGES))
+def test_a_translation_carries_every_key(language: str) -> None:
+    """A language file holds exactly the keys that strings.json declares."""
+    path = TRANSLATIONS / f"{language}.json"
+    strings = _load(STRINGS)
+    translated = _load(path)
+
+    missing = sorted(set(strings) - set(translated))
+    extra = sorted(set(translated) - set(strings))
+
+    assert not missing, f"{path} is missing {missing}; translate them"
+    assert not extra, (
+        f"{path} carries {extra}, which {STRINGS} does not declare; remove them"
+    )
+
+
+@pytest.mark.parametrize("language", sorted(LANGUAGES))
+def test_a_translation_keeps_every_placeholder(language: str) -> None:
+    """A translated value names the same placeholders as the English one."""
+    path = TRANSLATIONS / f"{language}.json"
+    english = _load(ENGLISH)
+    translated = _load(path)
+
+    drifted = sorted(
+        key
+        for key, value in translated.items()
+        if key in english and _placeholders(value) != _placeholders(english[key])
+    )
+
+    assert not drifted, (
+        f"{path} names other placeholders than {ENGLISH} on {drifted}; keep "
+        f"each {{name}} exactly as the English text spells it"
+    )
+
+
+@pytest.mark.parametrize("language", sorted(LANGUAGES))
+def test_a_translation_resolves_every_reference(language: str) -> None:
+    """A language file carries no raw common-string reference."""
+    path = TRANSLATIONS / f"{language}.json"
+
+    unexpanded = sorted(
+        key for key, value in _load(path).items() if REFERENCE_PREFIX in value
+    )
+
+    assert not unexpanded, (
+        f"{path} still carries a raw [%key:...%] reference for {unexpanded}; "
+        f"write out the translated text, because Home Assistant does not "
+        f"resolve references in a custom integration"
+    )
+
+
+@pytest.mark.parametrize("language", sorted(LANGUAGES))
+def test_a_translation_translates_every_value(language: str) -> None:
+    """A value reads like the English text only where the language agrees."""
+    path = TRANSLATIONS / f"{language}.json"
+    english = _load(ENGLISH)
+    translated = _load(path)
+
+    copied = sorted(
+        key
+        for key, value in translated.items()
+        if english.get(key) == value and key not in LANGUAGES[language]
+    )
+    stale = sorted(
+        key
+        for key in LANGUAGES[language]
+        if key not in translated or translated[key] != english.get(key)
+    )
+
+    assert not copied, (
+        f"{path} copies the English text for {copied}; translate it, or list "
+        f"the key in LANGUAGES if the language spells it the same way"
+    )
+    assert not stale, (
+        f"LANGUAGES lists {stale} for {language}, but {path} translates them "
+        f"or lacks them; remove them from the list"
     )
 
 

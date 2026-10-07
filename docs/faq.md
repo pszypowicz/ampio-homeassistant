@@ -193,7 +193,7 @@ A repair on the Settings page lists whichever of these entities your account wit
 
 ## My module devices are named "Ampio module 0xCB8F"
 
-You see this on a standard Ampio account most of the time. The names you gave your modules in Ampio Designer are served to the administrator login alone, so a module falls back to its address on the Ampio bus, written in hex the way Designer's MAC field shows it. It is the same device and the same module either way. On an administrator account a module reads this way when you deleted its device row in Designer and left its objects behind, because no row is left to name it. With the device row in place, an administrator account shows the Designer name.
+In Polish the name reads "Moduł Ampio 0xCB8F". You see this on a standard Ampio account most of the time. The names you gave your modules in Ampio Designer are served to the administrator login alone, so a module falls back to its address on the Ampio bus, written in hex the way Designer's MAC field shows it. It is the same device and the same module either way. On an administrator account a module reads this way when you deleted its device row in Designer and left its objects behind, because no row is left to name it. With the device row in place, an administrator account shows the Designer name.
 
 If the names you typed yourself are gone as well, along with your areas and your labels, see [My module devices lost their names, areas and labels](#my-module-devices-lost-their-names-areas-and-labels) above.
 

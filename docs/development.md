@@ -41,7 +41,7 @@ docker run --rm -v "$PWD":/github/workspace ghcr.io/home-assistant/hassfest
 
 ## The secrets hook
 
-`betterleaks` scans the staged changes for hardcoded secrets. `.gitleaks.toml` exempts the two translation files, the test suite, and the test snapshots. Home Assistant's translation schema fixes the `password` field key and its English label, and the tests carry throwaway account literals. Neither is a credential. Every other path is scanned in full.
+`betterleaks` scans the staged changes for hardcoded secrets. `.gitleaks.toml` exempts the translation files, the test suite, and the test snapshots. Home Assistant's translation schema fixes the `password` field key and its English label, and the tests carry throwaway account literals. Neither is a credential. Every other path is scanned in full.
 
 ## The local paths hook
 
@@ -50,3 +50,5 @@ docker run --rm -v "$PWD":/github/workspace ghcr.io/home-assistant/hassfest
 ## The translation guard
 
 `custom_components/ampio/translations/en.json` is hand-maintained. Edit it in place, keep the four-space indentation, and expand every `[%key:...%]` reference to its English text. `tests/test_translations.py` checks the pair for matching keys, for literal values copied through unchanged, and for a reference left unexpanded, but it cannot check whether an expanded reference carries the right English text.
+
+`custom_components/ampio/translations/pl.json` is hand-maintained as well, so a change to `strings.json` needs both files. Write the Polish text out in full, because Home Assistant does not resolve a `[%key:...%]` reference in a custom integration. For a Home Assistant common string, take the text the core integrations ship in their own `pl.json`. For an Ampio term, take the word Ampio Designer or the Ampio UNI app shows, such as `flaga liniowa` for an analog flag and `Własny MAC` for the override MAC field. The tests check every language in `LANGUAGES` for the same keys as `strings.json`, the same `{placeholder}` names as the English text, no raw reference, and no value copied from English unless `LANGUAGES` lists its key. A new language file fails the tests until it is added to `LANGUAGES`.
