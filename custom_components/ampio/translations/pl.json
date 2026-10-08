@@ -3,7 +3,8 @@
         "abort": {
             "already_configured": "Urządzenie jest już skonfigurowane",
             "reauth_successful": "Ponowne uwierzytelnienie się powiodło",
-            "reconfigure_successful": "Ponowna konfiguracja się powiodła"
+            "reconfigure_successful": "Ponowna konfiguracja się powiodła",
+            "wrong_device": "Serwer Ampio pod tym adresem to nie ten sam M-SERV, z którym skonfigurowano tę integrację. Aby wymienić M-SERV, usuń integrację i dodaj ją ponownie."
         },
         "error": {
             "admin_login_name": "Wpisana nazwa użytkownika wskazuje na inny rodzaj konta niż ten, który zgłasza serwer Ampio. Konto administratora loguje się nazwą admin, zapisaną małymi literami i bez żadnych dodatków, a każde inne konto loguje się nazwą nadaną mu w aplikacji Ampio. Integracja rozróżnia te konta tylko po nazwie, więc encje administratora dla poszczególnych modułów są dostępne tylko przy dokładnym dopasowaniu.",
@@ -12,10 +13,6 @@
             "unknown": "Nieoczekiwany błąd"
         },
         "step": {
-            "confirm_server": {
-                "description": "Serwer pod adresem {host} nie jest tym, z którym skonfigurowano tę integrację. Zgłasza adres CAN {mac}.\n\nKontynuuj tylko wtedy, gdy wymieniono M-SERV albo gdy celowo kierujesz tę integrację na inny serwer. Twoje urządzenia i encje zachowają identyfikatory, obszary i nazwy nadane im przez Ciebie. Zostaną powiązane z obiektami projektu Ampio Designer na nowym serwerze.",
-                "title": "Inny serwer Ampio"
-            },
             "reauth_confirm": {
                 "data": {
                     "host": "Host",
@@ -234,6 +231,9 @@
         },
         "touch_unlock_failed": {
             "message": "Serwer Ampio nie potwierdził odblokowania pól dotykowych, więc panel może ignorować dotyk, dopóki blokada nie wygaśnie."
+        },
+        "unexpected_device": {
+            "message": "Serwer Ampio pod skonfigurowanym adresem to nie ten sam M-SERV, z którym skonfigurowano tę integrację. Aby wymienić M-SERV, usuń integrację i dodaj ją ponownie."
         }
     },
     "issues": {

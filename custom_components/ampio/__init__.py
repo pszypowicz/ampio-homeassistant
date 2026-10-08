@@ -17,7 +17,6 @@ from ampio_mqtt import (
     AvailabilityChanged,
     ConnectionDied,
     NotConfigured,
-    format_mac,
 )
 import voluptuous as vol
 
@@ -30,6 +29,7 @@ from homeassistant.const import (
 from homeassistant.core import Event, HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
+    ConfigEntryError,
     ConfigEntryNotReady,
     HomeAssistantError,
     ServiceValidationError,
@@ -164,19 +164,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
         raise ConfigEntryNotReady(
             translation_domain=DOMAIN, translation_key="discovery_timeout"
         )
-    # Every identity the integration writes is server-free, so a different
-    # server answering at the stored host re-keys nothing. With one entry
-    # allowed, it is a replacement or the user's own re-pointing, and the
-    # entry takes the new server as its own.
+    # Object ids repeat across M-SERVs, so a different server at the stored
+    # host would bind the stored entities to its own objects.
     if info.server_key != entry.unique_id:
-        _LOGGER.warning(
-            "The Ampio server at %s reports mac %s; this entry was set up "
-            "under server key %s, and is taking the new server over",
-            entry.data[CONF_HOST],
-            format_mac(info.mac),
-            entry.unique_id,
+        raise ConfigEntryError(
+            translation_domain=DOMAIN, translation_key="unexpected_device"
         )
-        hass.config_entries.async_update_entry(entry, unique_id=info.server_key)
 
     # From here to the subscriptions below, nothing awaits. The library
     # dispatches what its admission door refuses as an event, and an event

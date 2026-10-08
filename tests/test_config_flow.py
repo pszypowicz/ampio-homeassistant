@@ -16,13 +16,7 @@ from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
-from .conftest import (
-    MSERV_MAC,
-    OTHER_MSERV_MAC,
-    OTHER_SERVER_INFO,
-    SERVER_INFO,
-    USER_INPUT,
-)
+from .conftest import MSERV_MAC, OTHER_SERVER_INFO, SERVER_INFO, USER_INPUT
 
 pytestmark = pytest.mark.usefixtures("mock_setup_entry")
 
@@ -176,6 +170,25 @@ async def test_second_entry_is_refused(
 
 
 @pytest.mark.usefixtures("mock_client_class")
+async def test_add_flow_leaves_an_entry_added_meanwhile(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """An add dialog that finishes after another one aborts without writing."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    mock_config_entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {**USER_INPUT, CONF_PASSWORD: "other"}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert dict(mock_config_entry.data) == USER_INPUT
+
+
+@pytest.mark.usefixtures("mock_client_class")
 async def test_reauth_flow_replaces_the_credentials(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry
 ) -> None:
@@ -317,94 +330,27 @@ async def test_credentials_flow_errors_and_recovers(
     assert dict(mock_config_entry.data) == rotated
 
 
-@pytest.mark.parametrize(
-    ("source", "reason"),
-    [
-        ("reauth", "reauth_successful"),
-        ("reconfigure", "reconfigure_successful"),
-    ],
-    ids=["reauth", "reconfigure"],
-)
-async def test_mismatched_server_is_confirmed_then_taken_over(
+@pytest.mark.parametrize("source", ["reauth", "reconfigure"])
+async def test_different_server_is_refused(
     hass: HomeAssistant,
     mock_client_class: MagicMock,
     mock_config_entry: MockConfigEntry,
     source: str,
-    reason: str,
 ) -> None:
-    """A host that answers with other hardware is confirmed before the re-key."""
+    """A host that answers with other M-SERV hardware aborts and writes nothing."""
     mock_config_entry.add_to_hass(hass)
     mock_client_class.check_connection.return_value = OTHER_SERVER_INFO
-    moved = {**USER_INPUT, CONF_HOST: "ampio2.test"}
 
     result = await _start_credentials_flow(hass, mock_config_entry, source)
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], moved)
-
-    assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "confirm_server"
-    # The description reads these two. A reauth-sourced flow also carries the
-    # entry title under "name", which this step's text never references.
-    placeholders = result["description_placeholders"]
-    assert placeholders is not None
-    assert placeholders["host"] == "ampio2.test"
-    assert placeholders["mac"] == "0xCEFE"
-    # Nothing is written before the user submits the confirmation.
-    assert dict(mock_config_entry.data) == USER_INPUT
-    assert mock_config_entry.unique_id == MSERV_MAC
-
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
-
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == reason
-    assert dict(mock_config_entry.data) == moved
-    assert mock_config_entry.title == "ampio2.test"
-    assert mock_config_entry.unique_id == OTHER_MSERV_MAC
-
-
-async def test_abandoned_server_confirmation_writes_nothing(
-    hass: HomeAssistant,
-    mock_client_class: MagicMock,
-    mock_config_entry: MockConfigEntry,
-) -> None:
-    """A closed confirmation dialog leaves the entry as it stands."""
-    mock_config_entry.add_to_hass(hass)
-    mock_client_class.check_connection.return_value = OTHER_SERVER_INFO
-
-    result = await mock_config_entry.start_reconfigure_flow(hass)
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {**USER_INPUT, CONF_HOST: "ampio2.test"}
     )
-    assert result["step_id"] == "confirm_server"
 
-    hass.config_entries.flow.async_abort(result["flow_id"])
-    await hass.async_block_till_done()
-
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "wrong_device"
     assert dict(mock_config_entry.data) == USER_INPUT
     assert mock_config_entry.title == USER_INPUT[CONF_HOST]
     assert mock_config_entry.unique_id == MSERV_MAC
-
-
-async def test_entry_without_a_key_adopts_the_reported_one(
-    hass: HomeAssistant, mock_client_class: MagicMock
-) -> None:
-    """An entry with no stored identity has nothing to disagree with."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        title=USER_INPUT[CONF_HOST],
-        data=USER_INPUT,
-        unique_id=None,
-    )
-    entry.add_to_hass(hass)
-    mock_client_class.check_connection.return_value = OTHER_SERVER_INFO
-
-    result = await entry.start_reconfigure_flow(hass)
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], USER_INPUT
-    )
-
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "reconfigure_successful"
-    assert entry.unique_id == OTHER_MSERV_MAC
 
 
 @pytest.mark.parametrize("stored", [{}, {CONF_BLEND_WHITE: True}])
