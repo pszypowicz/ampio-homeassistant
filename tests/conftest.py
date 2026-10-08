@@ -112,9 +112,7 @@ SERVER_INFO = AmpioServerInfo(
     device_id="0011223344556677",
 )
 
-# A second M-SERV, for the flow that re-points an entry at other hardware.
-# 52990 is 0xCEFE, which is what the confirmation step prints.
-OTHER_MSERV_MAC = "52990"
+# A second M-SERV, which setup and the credential flows refuse.
 OTHER_SERVER_INFO = replace(SERVER_INFO, mac=52990)
 
 

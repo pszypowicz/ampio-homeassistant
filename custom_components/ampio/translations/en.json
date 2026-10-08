@@ -3,7 +3,8 @@
         "abort": {
             "already_configured": "Device is already configured",
             "reauth_successful": "Re-authentication was successful",
-            "reconfigure_successful": "Reconfiguration was successful"
+            "reconfigure_successful": "Reconfiguration was successful",
+            "wrong_device": "The Ampio server at this address is not the M-SERV this integration was set up with. To replace your M-SERV, delete the integration and add it again."
         },
         "error": {
             "admin_login_name": "The Ampio server and the name entered disagree about which account this is. The administrator account signs in with the name admin, in lowercase and nothing else, and every other account signs in under the name the Ampio app gave it. The integration tells the two apart by that name alone, so only an exact match reaches the administrator's per-module entities.",
@@ -12,10 +13,6 @@
             "unknown": "Unexpected error"
         },
         "step": {
-            "confirm_server": {
-                "description": "The server at {host} is not the one this integration was set up with. It reports CAN address {mac}.\n\nContinue only if you replaced your M-SERV, or if you meant to point this integration at another one. Your devices and your entities keep their ids, their areas, and any name you gave them yourself. They bind to the objects of the new server's Designer project.",
-                "title": "A different Ampio server"
-            },
             "reauth_confirm": {
                 "data": {
                     "host": "Host",
@@ -234,6 +231,9 @@
         },
         "touch_unlock_failed": {
             "message": "The Ampio server did not confirm the touch unlock, so the panel may ignore a touch until the lock runs out."
+        },
+        "unexpected_device": {
+            "message": "The Ampio server at the configured address is not the M-SERV this integration was set up with. To replace your M-SERV, delete the integration and add it again."
         }
     },
     "issues": {

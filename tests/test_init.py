@@ -49,7 +49,6 @@ from .conftest import (
     MSENS_DEVICE_NAME,
     MSENS_IDENTIFIER,
     MSENS_ROW_NAME,
-    MSERV_MAC,
     USER_INPUT,
     emit,
     entity_id_of,
@@ -236,27 +235,24 @@ async def test_setup_failure_stops_client(
     mock_client.disconnect.assert_awaited_once()
 
 
-@pytest.mark.usefixtures("mock_client")
-async def test_server_swap_rekeys_the_entry(
-    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+async def test_different_server_is_refused(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    device_registry: dr.DeviceRegistry,
+    entity_registry: er.EntityRegistry,
 ) -> None:
-    """A different server at the stored host is taken over, with a warning.
-
-    Every identity the integration writes is server-free, so a replaced
-    M-SERV changes no id. The entry takes the new server key as its own.
-    """
+    """A different M-SERV at the stored host fails setup and writes nothing."""
     entry = MockConfigEntry(domain=DOMAIN, data=USER_INPUT, unique_id="99999")
 
     await setup_integration(hass, entry)
 
-    assert entry.state is ConfigEntryState.LOADED
-    assert entry.unique_id == MSERV_MAC
-    swap_warnings = [
-        record
-        for record in caplog.records
-        if record.levelname == "WARNING" and "99999" in record.getMessage()
-    ]
-    assert len(swap_warnings) == 1
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    assert entry.error_reason_translation_key == "unexpected_device"
+    assert entry.unique_id == "99999"
+    assert dict(entry.data) == USER_INPUT
+    mock_client.disconnect.assert_awaited_once()
+    assert not dr.async_entries_for_config_entry(device_registry, entry.entry_id)
+    assert not er.async_entries_for_config_entry(entity_registry, entry.entry_id)
 
 
 @pytest.mark.usefixtures("mock_client")

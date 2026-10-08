@@ -64,7 +64,7 @@ An install from an earlier release keeps the ids it already has, because an id i
 
 The entity names come in your Home Assistant language, and in some languages Home Assistant composes the id from them too. Polish is one of them, so on a Polish install the Identify button above reads `button.m_sens_salon_zidentyfikuj`. After a change of language, reload the Ampio integration or restart Home Assistant to see the names in the new language. The registered ids stay as they are.
 
-Neither an Ampio account tier change nor an M-SERV replacement moves an id.
+An Ampio account tier change does not move an id. An M-SERV replacement does not move one either, if you delete the entry and add it again within 30 days, as described in [faq.md](faq.md#i-replaced-my-m-serv).
 
 See [faq.md](faq.md) for what an update does to an entity id, and for the reset procedure.
 

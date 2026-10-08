@@ -10,12 +10,10 @@ from ampio_mqtt import (
     AmpioClient,
     AmpioConnectionError,
     AmpioServerInfo,
-    format_mac,
 )
 import voluptuous as vol
 
 from homeassistant.config_entries import (
-    SOURCE_REAUTH,
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
@@ -42,11 +40,6 @@ OPTIONS_SCHEMA = vol.Schema({vol.Optional(CONF_BLEND_WHITE, default=False): bool
 
 class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Ampio."""
-
-    # Carried from the credentials step to the server confirmation.
-    _pending_input: dict[str, Any]
-    _pending_key: str
-    _pending_mac: int
 
     @staticmethod
     @callback
@@ -106,7 +99,7 @@ class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
             info, errors = await self._async_check(user_input)
             if info is not None:
                 await self.async_set_unique_id(info.server_key)
-                self._abort_if_unique_id_configured(updates=user_input)
+                self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=user_input[CONF_HOST], data=user_input
                 )
@@ -129,47 +122,37 @@ class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Take the credentials to use after a rejection."""
-        return await self._async_step_credentials(user_input, "reauth_confirm")
+        return await self._async_step_credentials(
+            user_input, "reauth_confirm", self._get_reauth_entry()
+        )
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Take a new address or a new account for the entry."""
-        return await self._async_step_credentials(user_input, "reconfigure")
-
-    def _entry_for_source(self) -> ConfigEntry:
-        """The entry this flow belongs to, per its source.
-
-        Both core helpers raise when the source does not match, so the
-        branch is what keeps them apart.
-        """
-        if self.source == SOURCE_REAUTH:
-            return self._get_reauth_entry()
-        return self._get_reconfigure_entry()
+        return await self._async_step_credentials(
+            user_input, "reconfigure", self._get_reconfigure_entry()
+        )
 
     async def _async_step_credentials(
-        self, user_input: dict[str, Any] | None, step_id: str
+        self, user_input: dict[str, Any] | None, step_id: str, entry: ConfigEntry
     ) -> ConfigFlowResult:
         """Point the entry at a host and an account, from one shared form.
 
         The reauth dialog and the reconfigure dialog differ in their step
         id alone, which is what gives each its own title and description.
         The entry id does not move, so the reload keeps every device
-        record and every entity record.
+        record and every entity record. A host that answers with a
+        different M-SERV aborts the flow.
         """
-        entry = self._entry_for_source()
         errors: dict[str, str] = {}
         if user_input is not None:
             info, errors = await self._async_check(user_input)
             if info is not None:
-                if entry.unique_id is not None and entry.unique_id != info.server_key:
-                    self._pending_input = user_input
-                    self._pending_key = info.server_key
-                    self._pending_mac = info.mac
-                    return await self.async_step_confirm_server()
+                await self.async_set_unique_id(info.server_key)
+                self._abort_if_unique_id_mismatch(reason="wrong_device")
                 return self.async_update_reload_and_abort(
                     entry,
-                    unique_id=info.server_key,
                     data_updates=user_input,
                     title=user_input[CONF_HOST],
                 )
@@ -187,32 +170,6 @@ class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
                 STEP_USER_DATA_SCHEMA, suggested
             ),
             errors=errors,
-        )
-
-    async def async_step_confirm_server(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Confirm a re-key before the entry follows another M-SERV.
-
-        The entry's identities carry no server mac, so the records all
-        survive and bind to the objects of the new server's Designer
-        project. The step names the new mac alone: the stored one is only
-        held as ``server_key``, whose format must not be parsed.
-        """
-        if user_input is None:
-            return self.async_show_form(
-                step_id="confirm_server",
-                data_schema=vol.Schema({}),
-                description_placeholders={
-                    "host": self._pending_input[CONF_HOST],
-                    "mac": format_mac(self._pending_mac),
-                },
-            )
-        return self.async_update_reload_and_abort(
-            self._entry_for_source(),
-            unique_id=self._pending_key,
-            data_updates=self._pending_input,
-            title=self._pending_input[CONF_HOST],
         )
 
 
