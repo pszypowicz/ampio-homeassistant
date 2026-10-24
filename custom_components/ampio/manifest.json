@@ -17,7 +17,7 @@
   ],
   "quality_scale": "bronze",
   "requirements": [
-    "ampio-mqtt @ https://github.com/pszypowicz/ampio-mqtt/archive/63dc21692f9b6c8a768e47cb010726ac15b0912c.zip"
+    "ampio-mqtt @ https://github.com/pszypowicz/ampio-mqtt/archive/ae4b0720422adaa963153845a86df803cfcb416a.zip"
   ],
   "single_config_entry": true,
   "version": "0.0.54.dev0"
