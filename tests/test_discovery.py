@@ -1175,6 +1175,7 @@ async def test_an_unload_lets_a_parked_removal_finish(
     """
     mock_client.modules[40] = AmpioModule(
         id=40,
+        mac_group=0,
         mac=NEW_MAC,
         mac_global=100000 + NEW_MAC,
         nazwa_urzadzenia="m-dot taras",

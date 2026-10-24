@@ -444,6 +444,7 @@ HIDDEN_LEAFLESS_ROW = {
 DEFAULT_MODULES = (
     AmpioModule(
         id=17,
+        mac_group=0,
         mac=52111,
         mac_global=152111,
         nazwa_urzadzenia="m-sens salon",
@@ -453,6 +454,7 @@ DEFAULT_MODULES = (
     ),
     AmpioModule(
         id=3,
+        mac_group=0,
         mac=48770,
         mac_global=148770,
         nazwa_urzadzenia="MREL 3",
@@ -462,6 +464,7 @@ DEFAULT_MODULES = (
     ),
     AmpioModule(
         id=1,
+        mac_group=0,
         mac=1,
         mac_global=47846,
         nazwa_urzadzenia="MSERV",
