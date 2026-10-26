@@ -142,17 +142,16 @@ class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
         The reauth dialog and the reconfigure dialog differ in their step
         id alone, which is what gives each its own title and description.
         The entry id does not move, so the reload keeps every device
-        record and every entity record. A host that answers with a
-        different M-SERV aborts the flow.
+        record and every entity record. The entry takes the key of the
+        M-SERV that answers, so a replaced M-SERV keeps the entry.
         """
         errors: dict[str, str] = {}
         if user_input is not None:
             info, errors = await self._async_check(user_input)
             if info is not None:
-                await self.async_set_unique_id(info.server_key)
-                self._abort_if_unique_id_mismatch(reason="wrong_device")
                 return self.async_update_reload_and_abort(
                     entry,
+                    unique_id=info.server_key,
                     data_updates=user_input,
                     title=user_input[CONF_HOST],
                 )

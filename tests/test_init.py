@@ -49,6 +49,8 @@ from .conftest import (
     MSENS_DEVICE_NAME,
     MSENS_IDENTIFIER,
     MSENS_ROW_NAME,
+    MSERV_MAC,
+    OTHER_SERVER_INFO,
     USER_INPUT,
     emit,
     entity_id_of,
@@ -235,24 +237,28 @@ async def test_setup_failure_stops_client(
     mock_client.disconnect.assert_awaited_once()
 
 
-async def test_different_server_is_refused(
+async def test_different_server_loads_the_entry(
     hass: HomeAssistant,
     mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
     device_registry: dr.DeviceRegistry,
     entity_registry: er.EntityRegistry,
 ) -> None:
-    """A different M-SERV at the stored host fails setup and writes nothing."""
-    entry = MockConfigEntry(domain=DOMAIN, data=USER_INPUT, unique_id="99999")
+    """A different M-SERV at the stored host loads the entry with its records.
 
-    await setup_integration(hass, entry)
+    The entry keeps the key it was stored under.
+    """
+    await setup_integration(hass, mock_config_entry)
+    before = _registry_ids(device_registry, entity_registry, mock_config_entry)
+    mock_client.server_info = OTHER_SERVER_INFO
 
-    assert entry.state is ConfigEntryState.SETUP_ERROR
-    assert entry.error_reason_translation_key == "unexpected_device"
-    assert entry.unique_id == "99999"
-    assert dict(entry.data) == USER_INPUT
-    mock_client.disconnect.assert_awaited_once()
-    assert not dr.async_entries_for_config_entry(device_registry, entry.entry_id)
-    assert not er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+    await hass.config_entries.async_reload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert mock_config_entry.state is ConfigEntryState.LOADED
+    assert mock_config_entry.unique_id == MSERV_MAC
+    assert dict(mock_config_entry.data) == USER_INPUT
+    assert _registry_ids(device_registry, entity_registry, mock_config_entry) == before
 
 
 @pytest.mark.usefixtures("mock_client")
