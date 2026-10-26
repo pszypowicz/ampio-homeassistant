@@ -3,8 +3,7 @@
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
       "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]",
-      "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]",
-      "wrong_device": "The Ampio server at this address is not the M-SERV this integration was set up with. To replace your M-SERV, delete the integration and add it again."
+      "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]"
     },
     "error": {
       "admin_login_name": "The Ampio server and the name entered disagree about which account this is. The administrator account signs in with the name admin, in lowercase and nothing else, and every other account signs in under the name the Ampio app gave it. The integration tells the two apart by that name alone, so only an exact match reaches the administrator's per-module entities.",
@@ -231,9 +230,6 @@
     },
     "touch_unlock_failed": {
       "message": "The Ampio server did not confirm the touch unlock, so the panel may ignore a touch until the lock runs out."
-    },
-    "unexpected_device": {
-      "message": "The Ampio server at the configured address is not the M-SERV this integration was set up with. To replace your M-SERV, delete the integration and add it again."
     }
   },
   "issues": {

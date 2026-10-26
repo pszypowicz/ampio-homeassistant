@@ -29,7 +29,6 @@ from homeassistant.const import (
 from homeassistant.core import Event, HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
-    ConfigEntryError,
     ConfigEntryNotReady,
     HomeAssistantError,
     ServiceValidationError,
@@ -163,12 +162,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     if not discovered or (info := client.server_info) is None:
         raise ConfigEntryNotReady(
             translation_domain=DOMAIN, translation_key="discovery_timeout"
-        )
-    # Object ids repeat across M-SERVs, so a different server at the stored
-    # host would bind the stored entities to its own objects.
-    if info.server_key != entry.unique_id:
-        raise ConfigEntryError(
-            translation_domain=DOMAIN, translation_key="unexpected_device"
         )
 
     # From here to the subscriptions below, nothing awaits. The library

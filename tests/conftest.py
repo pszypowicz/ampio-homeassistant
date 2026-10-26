@@ -112,7 +112,7 @@ SERVER_INFO = AmpioServerInfo(
     device_id="0011223344556677",
 )
 
-# A second M-SERV, which setup and the credential flows refuse.
+# A second M-SERV, which stands in for a replacement unit.
 OTHER_SERVER_INFO = replace(SERVER_INFO, mac=52990)
 
 

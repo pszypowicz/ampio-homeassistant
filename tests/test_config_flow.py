@@ -330,27 +330,43 @@ async def test_credentials_flow_errors_and_recovers(
     assert dict(mock_config_entry.data) == rotated
 
 
-@pytest.mark.parametrize("source", ["reauth", "reconfigure"])
-async def test_different_server_is_refused(
+@pytest.mark.parametrize(
+    ("source", "reason"),
+    [
+        ("reauth", "reauth_successful"),
+        ("reconfigure", "reconfigure_successful"),
+    ],
+    ids=["reauth", "reconfigure"],
+)
+async def test_different_server_takes_over_the_entry(
     hass: HomeAssistant,
     mock_client_class: MagicMock,
     mock_config_entry: MockConfigEntry,
+    mock_setup_entry: MagicMock,
     source: str,
+    reason: str,
 ) -> None:
-    """A host that answers with other M-SERV hardware aborts and writes nothing."""
+    """A host that answers with other M-SERV hardware re-keys the entry and reloads it."""
     mock_config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert mock_setup_entry.call_count == 1
     mock_client_class.check_connection.return_value = OTHER_SERVER_INFO
+    moved = {**USER_INPUT, CONF_HOST: "ampio2.test"}
 
-    result = await _start_credentials_flow(hass, mock_config_entry, source)
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {**USER_INPUT, CONF_HOST: "ampio2.test"}
-    )
+    with patch("custom_components.ampio.async_unload_entry", return_value=True):
+        result = await _start_credentials_flow(hass, mock_config_entry, source)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], moved
+        )
+        await hass.async_block_till_done()
 
     assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "wrong_device"
-    assert dict(mock_config_entry.data) == USER_INPUT
-    assert mock_config_entry.title == USER_INPUT[CONF_HOST]
-    assert mock_config_entry.unique_id == MSERV_MAC
+    assert result["reason"] == reason
+    assert dict(mock_config_entry.data) == moved
+    assert mock_config_entry.title == "ampio2.test"
+    assert mock_config_entry.unique_id == OTHER_SERVER_INFO.server_key
+    assert mock_setup_entry.call_count == 2
 
 
 @pytest.mark.parametrize("stored", [{}, {CONF_BLEND_WHITE: True}])

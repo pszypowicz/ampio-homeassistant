@@ -69,23 +69,15 @@ For a change of account or address, Reconfigure is the way to do it without remo
 
 A different account changes what the server serves you. An app-created user receives the objects granted to it in the Ampio app, so an object outside that grant loses its entities. The repair on the Settings page lists them. Read the list before you submit it. If you move to a standard account, a second repair lists the administrator-only entities it withheld, such as the Identify buttons, the module sensors, the buzzer, the Unlock touch buttons, and the Backlight and Status light entities, and that one is explained under "The administrator-only entities are gone".
 
-Reconfigure accepts only the M-SERV that the entry was set up with. If the address you enter answers with a different M-SERV, the flow stops and changes nothing. For new M-SERV hardware, see [I replaced my M-SERV](#i-replaced-my-m-serv).
+If the address you enter answers with new M-SERV hardware, the entry follows it. See [I replaced my M-SERV](#i-replaced-my-m-serv).
 
 ## I replaced my M-SERV
 
-**Check:** Open Settings, then Devices and services. The Ampio entry fails to start, and the reason underneath reads "The Ampio server at the configured address is not the M-SERV this integration was set up with." Reconfigure stops with the same words. The integration recognizes an M-SERV by the CAN address of its hardware. So it refuses a new M-SERV, even one that runs your restored Designer project.
+Restore your Ampio Designer project onto the new M-SERV from its backup. The integration keys your devices and your entities on ids that live in that project, and the backup carries them over, so they keep their entity ids, their names, their areas and their labels.
 
-**Fix:** Delete the entry, then add it again. Home Assistant remembers the records of a deleted entry for 30 days. An add inside that window restores the entity ids, names, areas, labels, and disabled state of each object that keeps its id in the project.
+If the new M-SERV answers at the address of the old one, nothing else is needed. The entry connects to it on its own.
 
-1. Take a backup, as described above.
-2. Restore your Ampio Designer project onto the new M-SERV.
-3. Open Settings, then Devices and services, then Ampio, and delete the entry.
-4. Add the Ampio integration again, with the address of the new M-SERV.
-5. If you used the option "Blend the white channel into the color", open the entry, select Configure, and set it again.
-
-Do steps 3 and 4 within 30 days of each other. After 30 days, Home Assistant forgets the records, and every entity comes back with a new id and none of your settings.
-
-The entry is new, so its options start at their defaults, and it has a new entry id. An automation that names the old entry id, for example in a `homeassistant.reload_config_entry` action, needs the new one.
+If the new M-SERV has a different address, open the entry, choose Reconfigure from its menu, and enter the new address. If the new M-SERV rejects the stored password, Home Assistant asks you to sign in again, as described under [I changed my Ampio password](#i-changed-my-ampio-password).
 
 ## My entity ids look different from the ones in the docs
 
