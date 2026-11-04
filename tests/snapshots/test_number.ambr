@@ -1,5 +1,5 @@
 # serializer version: 1
-# name: test_all_entities[number.korekta_temperatury-entry]
+# name: test_all_entities[number.m_sens_salon_korekta_temperatury-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -12,13 +12,13 @@
       <NumberEntityCapabilityAttribute.STEP: 'step'>: 1,
     }),
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_165')]>,
     'disabled_by': None,
     'domain': 'number',
     'entity_category': None,
-    'entity_id': 'number.korekta_temperatury',
+    'entity_id': 'number.m_sens_salon_korekta_temperatury',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -41,7 +41,7 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[number.korekta_temperatury-state]
+# name: test_all_entities[number.m_sens_salon_korekta_temperatury-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Korekta temperatury',
@@ -51,14 +51,14 @@
       <NumberEntityCapabilityAttribute.STEP: 'step'>: 1,
     }),
     'context': <ANY>,
-    'entity_id': 'number.korekta_temperatury',
+    'entity_id': 'number.m_sens_salon_korekta_temperatury',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': '-44',
   })
 # ---
-# name: test_all_entities[number.poziom_jasnosci-entry]
+# name: test_all_entities[number.m_sens_salon_poziom_jasnosci-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -71,13 +71,13 @@
       <NumberEntityCapabilityAttribute.STEP: 'step'>: 1,
     }),
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_164')]>,
     'disabled_by': None,
     'domain': 'number',
     'entity_category': None,
-    'entity_id': 'number.poziom_jasnosci',
+    'entity_id': 'number.m_sens_salon_poziom_jasnosci',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -100,7 +100,7 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[number.poziom_jasnosci-state]
+# name: test_all_entities[number.m_sens_salon_poziom_jasnosci-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Poziom jasnosci',
@@ -110,7 +110,7 @@
       <NumberEntityCapabilityAttribute.STEP: 'step'>: 1,
     }),
     'context': <ANY>,
-    'entity_id': 'number.poziom_jasnosci',
+    'entity_id': 'number.m_sens_salon_poziom_jasnosci',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,

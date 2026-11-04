@@ -23,10 +23,7 @@ from ampio_mqtt import (
     parse_module_address,
 )
 import pytest
-from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
-    async_fire_time_changed,
-)
+from pytest_homeassistant.common import MockConfigEntry, async_fire_time_changed
 from syrupy.assertion import SnapshotAssertion
 
 from custom_components.ampio import async_remove_config_entry_device
@@ -1429,12 +1426,13 @@ async def test_an_unnamed_object_takes_its_device_translation(
     await hass.async_block_till_done()
 
     # No name and no app room, so the child device falls to the ``object``
-    # device translation and the id starts from that rather than from Home
-    # Assistant's ``<platform>_<unique id>`` fallback.
+    # device translation, and a child with no area of its own puts its
+    # module's name ahead of it. The id composes from those rather than
+    # from Home Assistant's ``<platform>_<unique id>`` fallback.
     registry = er.async_get(hass)
     entity_id = registry.async_get_entity_id("sensor", DOMAIN, unique_id(43))
     assert entity_id is not None
-    assert entity_id.startswith("sensor.object_43")
+    assert entity_id.startswith("sensor.m_sens_salon_object_43")
     assert entity_id != f"sensor.ampio_{unique_id(43)}"
 
 

@@ -384,12 +384,12 @@ class AmpioData:
         # device only when setup or a reload builds it fresh, and the
         # registered ids stay where they are.
         if module is not None and module.nazwa_urzadzenia:
-            device_info["name"] = module.nazwa_urzadzenia
+            device_info.name = module.nazwa_urzadzenia
         else:
-            device_info["translation_key"] = "module"
-            device_info["translation_placeholders"] = {"mac": format_mac(mac)}
-        device = dr.async_get(self.hass).async_get_or_create(
-            config_entry_id=self.entry.entry_id, **device_info
+            device_info.translation_key = "module"
+            device_info.translation_placeholders = {"mac": format_mac(mac)}
+        device = dr.async_get(self.hass).async_get_or_create_from_info(
+            config_entry_id=self.entry.entry_id, device_info=device_info
         )
         self.module_device_ids[mac] = device.id
         return mac

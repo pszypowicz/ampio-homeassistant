@@ -1,5 +1,5 @@
 # serializer version: 1
-# name: test_all_entities[cover.roleta_kuchnia-entry]
+# name: test_all_entities[cover.m_sens_salon_roleta_kuchnia-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -7,13 +7,13 @@
     'area_id': None,
     'capabilities': None,
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_82')]>,
     'disabled_by': None,
     'domain': 'cover',
     'entity_category': None,
-    'entity_id': 'cover.roleta_kuchnia',
+    'entity_id': 'cover.m_sens_salon_roleta_kuchnia',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -36,7 +36,7 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[cover.roleta_kuchnia-state]
+# name: test_all_entities[cover.m_sens_salon_roleta_kuchnia-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <CoverEntityStateAttribute.CURRENT_POSITION: 'current_position'>: 35,
@@ -46,7 +46,62 @@
       <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <CoverEntityFeature: 15>,
     }),
     'context': <ANY>,
-    'entity_id': 'cover.roleta_kuchnia',
+    'entity_id': 'cover.m_sens_salon_roleta_kuchnia',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'open',
+  })
+# ---
+# name: test_all_entities[cover.m_sens_salon_zaluzja_goscinny-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': None,
+    'config_entry_id': <ANY>,
+    'config_subentry_id': None,
+    'device_class': None,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_83')]>,
+    'disabled_by': None,
+    'domain': 'cover',
+    'entity_category': None,
+    'entity_id': 'cover.m_sens_salon_zaluzja_goscinny',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': None,
+    'options': dict({
+    }),
+    'original_device_class': <CoverDeviceClass.BLIND: 'blind'>,
+    'original_icon': None,
+    'original_name': None,
+    'platform': 'ampio',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': <CoverEntityFeature: 255>,
+    'translation_key': None,
+    'unique_id': 'obj_83',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_all_entities[cover.m_sens_salon_zaluzja_goscinny-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      <CoverEntityStateAttribute.CURRENT_POSITION: 'current_position'>: 70,
+      <CoverEntityStateAttribute.CURRENT_TILT_POSITION: 'current_tilt_position'>: 40,
+      <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'blind',
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Zaluzja Goscinny',
+      <CoverEntityStateAttribute.IS_CLOSED: 'is_closed'>: False,
+      <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <CoverEntityFeature: 255>,
+    }),
+    'context': <ANY>,
+    'entity_id': 'cover.m_sens_salon_zaluzja_goscinny',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
@@ -61,9 +116,9 @@
     'area_id': None,
     'capabilities': None,
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_81')]>,
     'disabled_by': None,
     'domain': 'cover',
     'entity_category': None,
@@ -104,60 +159,5 @@
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'unknown',
-  })
-# ---
-# name: test_all_entities[cover.zaluzja_goscinny-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': None,
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'cover',
-    'entity_category': None,
-    'entity_id': 'cover.zaluzja_goscinny',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': None,
-    'options': dict({
-    }),
-    'original_device_class': <CoverDeviceClass.BLIND: 'blind'>,
-    'original_icon': None,
-    'original_name': None,
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
-    'supported_features': <CoverEntityFeature: 255>,
-    'translation_key': None,
-    'unique_id': 'obj_83',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[cover.zaluzja_goscinny-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <CoverEntityStateAttribute.CURRENT_POSITION: 'current_position'>: 70,
-      <CoverEntityStateAttribute.CURRENT_TILT_POSITION: 'current_tilt_position'>: 40,
-      <EntityStateAttribute.DEVICE_CLASS: 'device_class'>: 'blind',
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Zaluzja Goscinny',
-      <CoverEntityStateAttribute.IS_CLOSED: 'is_closed'>: False,
-      <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <CoverEntityFeature: 255>,
-    }),
-    'context': <ANY>,
-    'entity_id': 'cover.zaluzja_goscinny',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'open',
   })
 # ---

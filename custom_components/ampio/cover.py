@@ -11,7 +11,7 @@ from ampio_mqtt import (
     AmpioValueError,
     OutputKind,
 )
-import voluptuous as vol
+import probatio
 
 from homeassistant.components.cover import (
     ATTR_POSITION,
@@ -36,8 +36,8 @@ PARALLEL_UPDATES = 0
 # shorthand and expands to one call per direction rather than riding the
 # wire as a third value.
 SET_ROLLER_LOCK_SCHEMA: VolDictType = {
-    vol.Required("direction"): vol.In(("opening", "closing", "both")),
-    vol.Required("blocked"): cv.boolean,
+    probatio.Required("direction"): probatio.In(("opening", "closing", "both")),
+    probatio.Required("blocked"): cv.boolean,
 }
 
 

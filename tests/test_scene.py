@@ -5,10 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from ampio_mqtt import AmpioTimeoutError
 import pytest
-from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
-    snapshot_platform,
-)
+from pytest_homeassistant.common import MockConfigEntry, snapshot_platform
 from syrupy.assertion import SnapshotAssertion
 
 from homeassistant.components.scene import DOMAIN as SCENE_DOMAIN

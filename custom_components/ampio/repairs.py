@@ -1,6 +1,6 @@
 """Repair flows for the Ampio integration."""
 
-import voluptuous as vol
+import probatio
 
 from homeassistant.components.repairs import RepairsFlow, RepairsFlowResult
 from homeassistant.config_entries import ConfigEntryState
@@ -63,7 +63,7 @@ class StaleRecordsRepairFlow(RepairsFlow):
         issue = ir.async_get(self.hass).async_get_issue(DOMAIN, self.issue_id)
         return self.async_show_form(
             step_id="confirm",
-            data_schema=vol.Schema({}),
+            data_schema=probatio.Schema({}),
             description_placeholders=issue.translation_placeholders if issue else None,
         )
 
@@ -98,7 +98,7 @@ class NotConfiguredRepairFlow(RepairsFlow):
         issue = ir.async_get(self.hass).async_get_issue(DOMAIN, self.issue_id)
         return self.async_show_form(
             step_id="confirm",
-            data_schema=vol.Schema({}),
+            data_schema=probatio.Schema({}),
             description_placeholders=issue.translation_placeholders if issue else None,
         )
 

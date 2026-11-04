@@ -11,7 +11,7 @@ from ampio_mqtt import (
     AmpioConnectionError,
     AmpioServerInfo,
 )
-import voluptuous as vol
+import probatio
 
 from homeassistant.config_entries import (
     ConfigEntry,
@@ -27,15 +27,17 @@ from .const import ADMIN_USERNAME, CONF_BLEND_WHITE, DEFAULT_HOST, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-STEP_USER_DATA_SCHEMA = vol.Schema(
+STEP_USER_DATA_SCHEMA = probatio.Schema(
     {
-        vol.Required(CONF_HOST): str,
-        vol.Required(CONF_USERNAME): str,
-        vol.Required(CONF_PASSWORD): str,
+        probatio.Required(CONF_HOST): str,
+        probatio.Required(CONF_USERNAME): str,
+        probatio.Required(CONF_PASSWORD): str,
     }
 )
 
-OPTIONS_SCHEMA = vol.Schema({vol.Optional(CONF_BLEND_WHITE, default=False): bool})
+OPTIONS_SCHEMA = probatio.Schema(
+    {probatio.Optional(CONF_BLEND_WHITE, default=False): bool}
+)
 
 
 class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):

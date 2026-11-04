@@ -15,14 +15,14 @@ from ampio_mqtt import (
     ModuleFunction,
     ObjectAdded,
 )
+import probatio
 import pytest
-from pytest_homeassistant_custom_component.common import (
+from pytest_homeassistant.common import (
     MockConfigEntry,
     async_fire_time_changed,
     snapshot_platform,
 )
 from syrupy.assertion import SnapshotAssertion
-import voluptuous as vol
 
 from custom_components.ampio.button import IDENTIFY_HOLD_SECONDS
 from custom_components.ampio.const import DOMAIN
@@ -587,7 +587,7 @@ async def test_lock_touch_rejects_a_value_off_the_wire(
     with_key_lock(mock_client)
     await setup_integration(hass, mock_config_entry)
 
-    with pytest.raises(vol.Invalid):
+    with pytest.raises(probatio.Invalid):
         await _lock(hass, UNLOCK_TOUCH_ENTITY_ID(hass), seconds)
     mock_client.lock_panel.assert_not_awaited()
 

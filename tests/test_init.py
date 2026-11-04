@@ -18,7 +18,7 @@ from ampio_mqtt import (
     parse_module_address,
 )
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.ampio import _build_client, async_remove_config_entry_device
 from custom_components.ampio.const import DOMAIN
@@ -372,9 +372,10 @@ async def test_a_polish_install_reads_polish_names(
     assert module is not None
     assert module.name == "Moduł Ampio 0xCB8F"
     # Polish is a language Home Assistant composes entity ids in, so a
-    # fresh install mints them from the translated names.
+    # fresh install mints them from the translated names, the module's
+    # included.
     entity_id = entity_id_of(hass, "sensor", unique_id(44))
-    assert entity_id == "sensor.obiekt_44_cisnienie_bezwzgledne"
+    assert entity_id == "sensor.modul_ampio_0xcb8f_obiekt_44_cisnienie_bezwzgledne"
     state = hass.states.get(entity_id)
     assert state is not None
     assert state.attributes[ATTR_FRIENDLY_NAME] == "Obiekt 44 Ciśnienie bezwzględne"
@@ -394,8 +395,8 @@ async def test_empty_catalogue_moves_no_device_or_entity_id(
     catalogue mid-session while a visible object still points at it. The
     catalogue names the device and decorates the model, so the name follows
     the catalogue in both directions, but the device and every entity id
-    hold still regardless, because the integration pins the id and no name
-    composes it.
+    hold still regardless, because Home Assistant composes an id once, at
+    first registration, and a later rename moves none.
     """
     admin_modules = mock_client.modules
     admin_mserv = mock_client.mserv
@@ -506,7 +507,7 @@ async def test_a_record_an_older_release_pinned_keeps_its_id(
     assert hass.states.get("light.ampio_obj_71") is not None
 
 
-async def test_an_object_discovered_after_a_rename_composes_from_its_own_device(
+async def test_an_object_discovered_after_a_rename_composes_from_the_renamed_module(
     hass: HomeAssistant,
     mock_client: MagicMock,
     mock_config_entry: MockConfigEntry,
@@ -514,12 +515,12 @@ async def test_an_object_discovered_after_a_rename_composes_from_its_own_device(
     entity_registry: er.EntityRegistry,
     area_registry: ar.AreaRegistry,
 ) -> None:
-    """A later object composes from its own child device, not the renamed module.
+    """A later object composes from the module's user name and area, then its own device.
 
-    The module's user rename and area move reach the composed id only
-    through the effective area a child with none of its own inherits from
-    its parent. The device name in the composition is the object's own
-    child device, named from the object, never the module's.
+    A child device with no area of its own inherits its parent's effective
+    area and puts its parent's name ahead of its own, so the module's user
+    rename and area move both reach the id of an object discovered after
+    them.
     """
     await setup_integration(hass, mock_config_entry)
     module = device_registry.async_get_device_by_identifier(
@@ -539,7 +540,7 @@ async def test_an_object_discovered_after_a_rename_composes_from_its_own_device(
 
     assert (
         entity_registry.async_get_entity_id("sensor", DOMAIN, unique_id(500))
-        == "sensor.kuchnia_nowy"
+        == "sensor.kuchnia_sufit_kuchnia_nowy"
     )
 
 

@@ -31,5 +31,5 @@ extend-ignore = [
 # Core's [lint.isort] test overrides (known-first-party/known-third-party/
 # forced-separate for "tests") are deliberately not ported: this repo's
 # tests never do absolute `tests.*` imports (relative imports, or
-# pytest_homeassistant_custom_component instead of core's own tests
+# pytest_homeassistant instead of core's own tests
 # helpers), so there is nothing here for those overrides to affect.

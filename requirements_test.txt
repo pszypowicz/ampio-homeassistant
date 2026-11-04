@@ -3,13 +3,12 @@
 # Bump these deliberately. Nothing resolves them for you, so a Home Assistant
 # release never changes a build on its own.
 #
-# The two lines move together. The plugin pins one exact Home Assistant
-# release, so a mismatched pair cannot install. To move to a newer core, find
-# the plugin release that pins it and change both.
+# The two lines move together. pytest-homeassistant is core's own test
+# package, released under the same version as core, and each release pins
+# that exact core release, so a mismatched pair cannot install.
 #
-# The plugin cannot be left unpinned. Its newest release tracks the next core
-# beta, and an exact pre-release pin inside a dependency overrides pip's
-# refusal to install pre-releases.
+# The test package cannot be left unpinned, because the resolver would pick a
+# release of its own, which can pin a different core release or none at all.
 #
 # ampio-mqtt is deliberately absent. It is pinned in
 # custom_components/ampio/manifest.json, which is what HACS and Home Assistant
@@ -18,6 +17,6 @@
 #
 # mypy is pinned here because the type gate runs from this venv, locally and
 # in CI. ruff is not: its pre-commit hook pins the version by itself.
-homeassistant==2026.9.0
-pytest-homeassistant-custom-component==0.13.363
+homeassistant==2026.11.0b6
+pytest-homeassistant==2026.11.0b6
 mypy==2.3.1

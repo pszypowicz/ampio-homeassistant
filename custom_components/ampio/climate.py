@@ -58,7 +58,7 @@ class AmpioClimate(AmpioEntity, ClimateEntity):
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.PRESET_MODE
     )
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
 
     @property
     def _thermostat(self) -> ThermostatState | None:
@@ -93,7 +93,7 @@ class AmpioClimate(AmpioEntity, ClimateEntity):
 
     @property
     @override
-    def current_temperature(self) -> float | None:
+    def native_current_temperature(self) -> float | None:
         """The measured temperature from the readback."""
         if (thermostat := self._thermostat) is None:
             return None
@@ -101,7 +101,7 @@ class AmpioClimate(AmpioEntity, ClimateEntity):
 
     @property
     @override
-    def target_temperature(self) -> float | None:
+    def native_target_temperature(self) -> float | None:
         """The setpoint from the readback."""
         if (thermostat := self._thermostat) is None:
             return None

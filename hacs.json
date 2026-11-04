@@ -1,6 +1,6 @@
 {
   "name": "Ampio",
   "content_in_root": false,
-  "homeassistant": "2026.9.0",
+  "homeassistant": "2026.11.0",
   "zip_release": false
 }

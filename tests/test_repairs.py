@@ -6,11 +6,8 @@ from http import HTTPStatus
 from unittest.mock import MagicMock
 
 from ampio_mqtt import AccessTier, AmpioConnectionError, RecordSweep
-from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
-    async_fire_time_changed,
-)
-from pytest_homeassistant_custom_component.typing import ClientSessionGenerator
+from pytest_homeassistant.common import MockConfigEntry, async_fire_time_changed
+from pytest_homeassistant.typing import ClientSessionGenerator
 
 from custom_components.ampio.const import DOMAIN
 from custom_components.ampio.stale import (

@@ -6,10 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from ampio_mqtt import ObjectRemoved, ObjectUpdated
 import pytest
-from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
-    snapshot_platform,
-)
+from pytest_homeassistant.common import MockConfigEntry, snapshot_platform
 from syrupy.assertion import SnapshotAssertion
 
 from homeassistant.components.number import (

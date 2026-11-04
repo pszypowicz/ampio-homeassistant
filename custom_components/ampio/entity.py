@@ -1,5 +1,6 @@
 """Base entity for the Ampio integration."""
 
+from dataclasses import replace
 from typing import override
 
 from ampio_mqtt import (
@@ -107,15 +108,15 @@ class AmpioEntity(AmpioBaseEntity):
         # reads a translated placeholder, and its entity keeps the
         # platform's kind name.
         if obj.name:
-            device_info["name"] = obj.name
+            device_info.name = obj.name
             self._attr_name = None
         else:
-            device_info["translation_key"] = "object"
-            device_info["translation_placeholders"] = {"id": str(obj.id)}
+            device_info.translation_key = "object"
+            device_info.translation_placeholders = {"id": str(obj.id)}
         # The app room seeds the area once, at the device's first creation.
         # The registry never moves a device on a later suggestion.
         if (room := data.rooms.get(obj.id)) is not None:
-            device_info["suggested_area"] = room
+            device_info.suggested_area = room
         self._child_device_info = device_info
 
     @property
@@ -133,11 +134,10 @@ class AmpioEntity(AmpioBaseEntity):
         awaited add, and a child deleted in between must not come back
         under the parent it was deleted from.
         """
-        device_info = self._child_device_info.copy()
-        device_info["parent_device_id"] = self._data.registered_parent_for(
-            self._snapshot
+        return replace(
+            self._child_device_info,
+            parent_device_id=self._data.registered_parent_for(self._snapshot),
         )
-        return device_info
 
     @override
     async def async_added_to_hass(self) -> None:

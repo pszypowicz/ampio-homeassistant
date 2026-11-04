@@ -13,7 +13,7 @@ from ampio_mqtt import (
     ModuleFunction,
     format_mac,
 )
-import voluptuous as vol
+import probatio
 
 from homeassistant.components.siren import (
     ATTR_DURATION,
@@ -47,21 +47,23 @@ MAX_STEP_SECONDS: Final = MAX_WIRE_SECONDS
 # The sequence frame's own fields, at the ranges the wire accepts. Tone 0 is
 # a silent rest, which is what makes a pip pattern one frame.
 BUZZ_PATTERN_SCHEMA: VolDictType = {
-    vol.Required("tone"): vol.All(vol.Coerce(int), vol.Range(min=0, max=31)),
-    vol.Required("seconds"): vol.All(
-        vol.Coerce(float), vol.Range(min=0, max=MAX_STEP_SECONDS)
+    probatio.Required("tone"): probatio.All(
+        probatio.Coerce(int), probatio.Range(min=0, max=31)
     ),
-    vol.Optional("tone2", default=0): vol.All(
-        vol.Coerce(int), vol.Range(min=0, max=31)
+    probatio.Required("seconds"): probatio.All(
+        probatio.Coerce(float), probatio.Range(min=0, max=MAX_STEP_SECONDS)
     ),
-    vol.Optional("seconds2", default=0.0): vol.All(
-        vol.Coerce(float), vol.Range(min=0, max=MAX_STEP_SECONDS)
+    probatio.Optional("tone2", default=0): probatio.All(
+        probatio.Coerce(int), probatio.Range(min=0, max=31)
     ),
-    vol.Optional("cycles", default=1): vol.All(
-        vol.Coerce(int), vol.Range(min=0, max=254)
+    probatio.Optional("seconds2", default=0.0): probatio.All(
+        probatio.Coerce(float), probatio.Range(min=0, max=MAX_STEP_SECONDS)
     ),
-    vol.Optional("delay", default=0.0): vol.All(
-        vol.Coerce(float), vol.Range(min=0, max=MAX_STEP_SECONDS)
+    probatio.Optional("cycles", default=1): probatio.All(
+        probatio.Coerce(int), probatio.Range(min=0, max=254)
+    ),
+    probatio.Optional("delay", default=0.0): probatio.All(
+        probatio.Coerce(float), probatio.Range(min=0, max=MAX_STEP_SECONDS)
     ),
 }
 
