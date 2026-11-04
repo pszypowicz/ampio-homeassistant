@@ -6,7 +6,7 @@ The rules a change must follow live in [`AGENTS.md`](../AGENTS.md) in the reposi
 
 ## Build the gate venv
 
-The type check and the test suite run from a virtual environment at `.venv`. Two files pin what goes into it. `requirements_test.txt` holds the Home Assistant release, the test plugin that pins it, and mypy. `custom_components/ampio/manifest.json` holds the `ampio-mqtt` release that HACS installs.
+The type check and the test suite run from a virtual environment at `.venv`. Two files pin what goes into it. `requirements_test.txt` holds the Home Assistant release, the `pytest-homeassistant` release of the same version, and mypy. `custom_components/ampio/manifest.json` holds the `ampio-mqtt` release that Home Assistant installs with the integration.
 
 1. Install [uv](https://docs.astral.sh/uv/) and `jq`.
 2. Run these commands in the repository root:
@@ -33,7 +33,7 @@ Each commit now runs the hooks on the staged files. The first run builds the hoo
 pre-commit run --all-files
 ```
 
-The CI workflow also runs `hassfest` and the HACS validation. Neither one is a pre-commit hook. To run hassfest locally:
+The CI workflow also runs `hassfest` and the `hacs` job, which validates `hacs.json` and the repository layout the Marketplace reads. Neither one is a pre-commit hook. To run hassfest locally:
 
 ```sh
 docker run --rm -v "$PWD":/github/workspace ghcr.io/home-assistant/hassfest

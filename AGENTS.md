@@ -1,6 +1,6 @@
 # Working instructions for the Ampio integration
 
-This repo is the Ampio integration for Home Assistant, distributed through HACS. It is the authoritative source. `home-assistant/core` PR #179548 is a possible future destination, not a constraint on today's design.
+This repo is the Ampio integration for Home Assistant, distributed as a custom repository through the Home Assistant Marketplace. It is the authoritative source. `home-assistant/core` PR #179548 is a possible future destination, not a constraint on today's design.
 
 If you are about to make a change, read this whole file first.
 
@@ -13,7 +13,7 @@ If you are about to make a change, read this whole file first.
 
 ## Quality rules
 
-These are not negotiable, and no HACS-only shortcut earns an exception:
+These are not negotiable, and no shortcut open only to a custom repository earns an exception:
 
 - No synchronous I/O in setup. Everything on the event loop is async.
 - Every platform ships tests at the sensor suite's depth, snapshots included.
@@ -85,18 +85,18 @@ One trap the rename introduced: `stop` moved from the client lifecycle to the co
 1. Branch off `main`. It is the protected default branch: PRs only, with the three CI checks (`pre-commit`, `hassfest`, `hacs`) required.
 2. Add `custom_components/ampio/<platform>.py` and `tests/test_<platform>.py`, following `sensor.py` patterns.
 3. Add `Platform.<NEW>` to `PLATFORMS` in `custom_components/ampio/const.py`.
-4. Bump `version` in `manifest.json`, then release. Users install through HACS and report back.
+4. Bump `version` in `manifest.json`, then release. Users install through the Marketplace and report back.
 
 ## Release
 
-`manifest.json` carries `version`, which HACS requires. Bump it in the feature PR, or in a small release PR when a feature PR forgets. Then tag and publish:
+`manifest.json` carries `version`, which the Marketplace requires. Bump it in the feature PR, or in a small release PR when a feature PR forgets. Then tag and publish:
 
 ```sh
 git tag vX.Y.Z <merge-sha> && git push origin vX.Y.Z
 gh release create vX.Y.Z --title "vX.Y.Z" --notes-file <file>
 ```
 
-The title must equal the tag: HACS prints the tag as the heading of the update dialog and appends the title when the two differ. Tag first. `gh release create --target` rejects a short SHA and reuses an existing tag silently, so check `git ls-remote origin "refs/tags/vX.Y.Z"` by output before tagging.
+The title must equal the tag, because the Marketplace prints the tag as the heading of the update notes and appends the title when the two differ. Tag first. `gh release create --target` rejects a short SHA and reuses an existing tag silently, so check `git ls-remote origin "refs/tags/vX.Y.Z"` by output before tagging.
 
 Release notes are user-facing prose for the person about to press update, so they read as an explanation rather than a list of commits. Lead with what breaks and what the reader has to do about it.
 
@@ -112,13 +112,13 @@ A release that leaves an install unable to recover on its own carries manual ste
 
 - Bugs in this integration: file and fix here.
 - Bugs in the protocol layer or the models: file against `ampio-mqtt` and fix there. Working around a library bug in this repo does not count as fixing it.
-- HACS packaging (manifest, CI, README, install): here.
+- Marketplace packaging (`hacs.json`, manifest, CI, README, install): here. The Marketplace reads `hacs.json`, and the `hacs` CI check validates it.
 
 ## Tools and commands
 
 - Gate venv: `./.venv` (uv-managed, gitignored). The mypy and pytest hooks start through `uv run --no-project`, which finds `.venv` in the checkout or in a parent directory, so a worktree inside the checkout needs nothing; a worktree elsewhere sets `VIRTUAL_ENV`. Install the hook with `pre-commit install` (a pre-commit from outside the venv); ruff and betterleaks come from their own pre-commit hooks, not the venv.
 - Recreate the venv from the same two sources CI reads: `uv venv .venv --python 3.14 && uv pip install -p .venv -r requirements_test.txt "$(jq -r '.requirements[0]' custom_components/ampio/manifest.json)"`. mypy is pinned in `requirements_test.txt`.
-- **Two pins, two files, both explicit. Nothing resolves a version at run time.** `requirements_test.txt` holds the Home Assistant release and the `pytest-homeassistant` release of the same version. That is core's own test package, and each release pins its exact core release, so the pair moves together. `custom_components/ampio/manifest.json` holds `ampio-mqtt`, so the gates test the version HACS installs. Never leave the test package unpinned, because the resolver would pick a release of its own, which can pin a different core release or none at all. Python 3.14.2 or newer is required, because the pinned Home Assistant release requires it, and the exact pin makes an install on an older Python fail.
+- **Two pins, two files, both explicit. Nothing resolves a version at run time.** `requirements_test.txt` holds the Home Assistant release and the `pytest-homeassistant` release of the same version. That is core's own test package, and each release pins its exact core release, so the pair moves together. `custom_components/ampio/manifest.json` holds `ampio-mqtt`, so the gates test the version the Marketplace installs. Never leave the test package unpinned, because the resolver would pick a release of its own, which can pin a different core release or none at all. Python 3.14.2 or newer is required, because the pinned Home Assistant release requires it, and the exact pin makes an install on an older Python fail.
 - Keep local filesystem paths out of tracked Markdown and Python files. The `no-local-paths` hook in `.pre-commit-config.yaml` rejects them.
 
 ## When in doubt

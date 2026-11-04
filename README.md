@@ -1,6 +1,6 @@
 # Ampio for Home Assistant
 
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![Marketplace custom repository](https://img.shields.io/badge/Marketplace-custom_repository-41BDF5.svg)](https://www.home-assistant.io/integrations/marketplace)
 [![GitHub Release](https://img.shields.io/github/v/release/pszypowicz/ampio-homeassistant)](https://github.com/pszypowicz/ampio-homeassistant/releases)
 [![CI](https://github.com/pszypowicz/ampio-homeassistant/actions/workflows/ci.yaml/badge.svg)](https://github.com/pszypowicz/ampio-homeassistant/actions/workflows/ci.yaml)
 [![License](https://img.shields.io/github/license/pszypowicz/ampio-homeassistant)](LICENSE)
@@ -98,15 +98,17 @@ The Ampio server answers on no topic, so a successful call means the message was
 
 ## Installation
 
-[![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=pszypowicz&repository=ampio-homeassistant&category=integration)
+Ampio installs through the Marketplace that comes with Home Assistant. It is not in the Marketplace catalog, so you add it as a custom repository, and adding one needs a GitHub connection. The Marketplace asks you to connect GitHub when you add the repository, and you confirm the connection with a code on GitHub, so your GitHub password never goes into Home Assistant.
 
-Click the badge, confirm the repository in HACS, install "Ampio", and restart Home Assistant.
+[![Open your Home Assistant instance and open this repository in the Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=pszypowicz&repository=ampio-homeassistant&category=integration)
+
+Click the badge and confirm "Add custom repository". Then select Install on Ampio, and restart Home Assistant when the Marketplace asks.
 
 Manual steps:
 
-1. Open HACS in Home Assistant.
-2. Add `https://github.com/pszypowicz/ampio-homeassistant` as a custom repository (type: Integration).
-3. Install "Ampio" and restart Home Assistant.
+1. Open Settings, then Marketplace. The first time, read the warning and select "I understand the risks and agree".
+2. Select "Add from link", enter `https://github.com/pszypowicz/ampio-homeassistant` as the GitHub link, and pick Integration as the type if the Marketplace asks for one.
+3. Open Ampio, select Install, and restart Home Assistant when the Marketplace asks.
 
 Requires Home Assistant 2026.11.0 or newer. `ampio-mqtt` is installed automatically.
 
