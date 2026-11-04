@@ -20,8 +20,8 @@ jobs:
             requirements_test.txt
             custom_components/ampio/manifest.json
       # The same two sources the local gate venv is built from, so the gate
-      # tests the Home Assistant release the plugin pins and the ampio-mqtt
-      # release HACS installs.
+      # tests the pinned Home Assistant release and the ampio-mqtt release
+      # Home Assistant installs with the integration.
       - name: Create the gate venv
         run: |
           uv venv .venv --python 3.14

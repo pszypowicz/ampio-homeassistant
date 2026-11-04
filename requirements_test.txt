@@ -11,9 +11,9 @@
 # release of its own, which can pin a different core release or none at all.
 #
 # ampio-mqtt is deliberately absent. It is pinned in
-# custom_components/ampio/manifest.json, which is what HACS and Home Assistant
-# core install, and the gates read it from there so the tested version is
-# always the shipped version.
+# custom_components/ampio/manifest.json, which is what the Marketplace and
+# Home Assistant core install, and the gates read it from there so the tested
+# version is always the shipped version.
 #
 # mypy is pinned here because the type gate runs from this venv, locally and
 # in CI. ruff is not: its pre-commit hook pins the version by itself.
