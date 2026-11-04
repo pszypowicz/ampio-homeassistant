@@ -18,7 +18,7 @@ from ampio_mqtt import (
     ConnectionDied,
     NotConfigured,
 )
-import voluptuous as vol
+import probatio
 
 from homeassistant.const import (
     CONF_HOST,
@@ -92,7 +92,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN,
         SERVICE_SEND_NOTIFICATION,
         send_notification,
-        schema=vol.Schema({vol.Required(ATTR_MESSAGE): cv.string}),
+        schema=probatio.Schema({probatio.Required(ATTR_MESSAGE): cv.string}),
     )
     return True
 

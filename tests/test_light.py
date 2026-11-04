@@ -14,7 +14,7 @@ from ampio_mqtt import (
     ObjectUpdated,
 )
 import pytest
-from pytest_homeassistant_custom_component.common import (
+from pytest_homeassistant.common import (
     MockConfigEntry,
     mock_restore_cache_with_extra_data,
     snapshot_platform,
@@ -1616,11 +1616,12 @@ async def test_rgbw_memory_survives_a_restart(
 ) -> None:
     """The last lit channels come back from the restore cache."""
     mock_restore_cache_with_extra_data(
-        hass, [(State("light.salon_rgbw", STATE_OFF), {"rgbw": [5, 0, 0, 0]})]
+        hass,
+        [(State("light.m_sens_salon_salon_rgbw", STATE_OFF), {"rgbw": [5, 0, 0, 0]})],
     )
     mock_client.objects[72] = replace(mock_client.objects[72], state="0")
     await setup_integration(hass, mock_config_entry)
-    assert RGBW_ENTITY_ID(hass) == "light.salon_rgbw"
+    assert RGBW_ENTITY_ID(hass) == "light.m_sens_salon_salon_rgbw"
 
     await hass.services.async_call(
         LIGHT_DOMAIN,
@@ -1726,11 +1727,11 @@ async def test_cct_memory_survives_a_restart(
 ) -> None:
     """The last lit power comes back from the restore cache."""
     mock_restore_cache_with_extra_data(
-        hass, [(State("light.sypialnia_cct", STATE_OFF), {"level": 60})]
+        hass, [(State("light.m_sens_salon_sypialnia_cct", STATE_OFF), {"level": 60})]
     )
     mock_client.objects[76] = replace(mock_client.objects[76], state=str(85 << 8))
     await setup_integration(hass, mock_config_entry)
-    assert CCT_ENTITY_ID(hass) == "light.sypialnia_cct"
+    assert CCT_ENTITY_ID(hass) == "light.m_sens_salon_sypialnia_cct"
 
     await hass.services.async_call(
         LIGHT_DOMAIN,

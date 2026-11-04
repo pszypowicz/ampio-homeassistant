@@ -14,10 +14,7 @@ from ampio_mqtt import (
     ObjectUpdated,
 )
 import pytest
-from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
-    snapshot_platform,
-)
+from pytest_homeassistant.common import MockConfigEntry, snapshot_platform
 from syrupy.assertion import SnapshotAssertion
 
 from custom_components.ampio.binary_sensor import BINARY_SENSOR_DESCRIPTIONS

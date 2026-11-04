@@ -5,10 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from ampio_mqtt import AmpioAuthError, AmpioConnectionError, AmpioTimeoutError
 import pytest
-from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
-    get_schema_suggested_value,
-)
+from pytest_homeassistant.common import MockConfigEntry, get_schema_suggested_value
 
 from custom_components.ampio.const import CONF_BLEND_WHITE, DOMAIN
 from homeassistant.config_entries import SOURCE_USER, ConfigFlowResult

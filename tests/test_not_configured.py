@@ -14,10 +14,7 @@ from ampio_mqtt import (
 )
 from ampio_mqtt.testing import AmpioStore, apply_reply, build_store
 import pytest
-from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
-    async_fire_time_changed,
-)
+from pytest_homeassistant.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.ampio.const import (
     DOMAIN,

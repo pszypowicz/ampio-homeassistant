@@ -14,7 +14,7 @@ from ampio_mqtt import (
     ModuleFunction,
     format_mac,
 )
-import voluptuous as vol
+import probatio
 
 from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
 from homeassistant.const import EntityCategory
@@ -48,8 +48,9 @@ MIN_LOCK_SECONDS: Final = 0.01
 MAX_LOCK_SECONDS: Final = MAX_WIRE_SECONDS
 
 LOCK_TOUCH_SCHEMA: VolDictType = {
-    vol.Required("seconds"): vol.All(
-        vol.Coerce(float), vol.Range(min=MIN_LOCK_SECONDS, max=MAX_LOCK_SECONDS)
+    probatio.Required("seconds"): probatio.All(
+        probatio.Coerce(float),
+        probatio.Range(min=MIN_LOCK_SECONDS, max=MAX_LOCK_SECONDS),
     ),
 }
 

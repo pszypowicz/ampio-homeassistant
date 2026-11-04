@@ -2,6 +2,10 @@
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# Home Assistant installs its httpx alias at import, which fails once respx's
+# pytest plugin has imported httpx. pytest-homeassistant imports respx itself.
+addopts = "-p no:respx"
 
 # Ruff config mirrors Home Assistant core's pyproject.toml so the integration
 # files (byte-identical to core) lint clean here. This root config (select,

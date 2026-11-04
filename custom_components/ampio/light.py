@@ -17,7 +17,7 @@ from ampio_mqtt import (
     ObjectUpdated,
     OutputKind,
 )
-import voluptuous as vol
+import probatio
 
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
@@ -114,17 +114,17 @@ def _coldness_from_kelvin(kelvin: int, minimum: int, maximum: int) -> int:
 # The touch field numbers a per-field call colors. Validated against the
 # panel's own count in _AmpioPanelLight.async_set_fields, not here, because
 # the count comes from the administrator's capability map.
-_FIELDS_VALIDATOR = vol.All(cv.ensure_list, [vol.Coerce(int)])
+_FIELDS_VALIDATOR = probatio.All(cv.ensure_list, [probatio.Coerce(int)])
 SET_BACKLIGHT_FIELDS_SCHEMA: VolDictType = {
-    vol.Required("fields"): _FIELDS_VALIDATOR,
-    vol.Required(ATTR_RGBW_COLOR): vol.All(
-        vol.Coerce(tuple), vol.ExactSequence((cv.byte,) * 4)
+    probatio.Required("fields"): _FIELDS_VALIDATOR,
+    probatio.Required(ATTR_RGBW_COLOR): probatio.All(
+        probatio.Coerce(tuple), probatio.ExactSequence((cv.byte,) * 4)
     ),
 }
 SET_STATUS_FIELDS_SCHEMA: VolDictType = {
-    vol.Required("fields"): _FIELDS_VALIDATOR,
-    vol.Required(ATTR_RGB_COLOR): vol.All(
-        vol.Coerce(tuple), vol.ExactSequence((cv.byte,) * 3)
+    probatio.Required("fields"): _FIELDS_VALIDATOR,
+    probatio.Required(ATTR_RGB_COLOR): probatio.All(
+        probatio.Coerce(tuple), probatio.ExactSequence((cv.byte,) * 3)
     ),
 }
 

@@ -1,5 +1,5 @@
 # serializer version: 1
-# name: test_all_entities[button.dzwonek-entry]
+# name: test_all_entities[button.m_sens_salon_dzwonek-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -7,13 +7,13 @@
     'area_id': None,
     'capabilities': None,
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_150')]>,
     'disabled_by': None,
     'domain': 'button',
     'entity_category': None,
-    'entity_id': 'button.dzwonek',
+    'entity_id': 'button.m_sens_salon_dzwonek',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -36,20 +36,20 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[button.dzwonek-state]
+# name: test_all_entities[button.m_sens_salon_dzwonek-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Dzwonek',
     }),
     'context': <ANY>,
-    'entity_id': 'button.dzwonek',
+    'entity_id': 'button.m_sens_salon_dzwonek',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'unknown',
   })
 # ---
-# name: test_all_entities[button.dzwonek_2-entry]
+# name: test_all_entities[button.m_sens_salon_dzwonek_2-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -57,13 +57,13 @@
     'area_id': None,
     'capabilities': None,
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_151')]>,
     'disabled_by': None,
     'domain': 'button',
     'entity_category': None,
-    'entity_id': 'button.dzwonek_2',
+    'entity_id': 'button.m_sens_salon_dzwonek_2',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -86,13 +86,13 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[button.dzwonek_2-state]
+# name: test_all_entities[button.m_sens_salon_dzwonek_2-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Dzwonek',
     }),
     'context': <ANY>,
-    'entity_id': 'button.dzwonek_2',
+    'entity_id': 'button.m_sens_salon_dzwonek_2',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
@@ -107,9 +107,9 @@
     'area_id': None,
     'capabilities': None,
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <DeviceEntry identifiers=[('ampio', 'module_mac:0xCB8F')]>,
     'disabled_by': None,
     'domain': 'button',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
@@ -150,6 +150,56 @@
     'state': 'unknown',
   })
 # ---
+# name: test_all_entities[button.m_sens_salon_object_149_bell-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': None,
+    'config_entry_id': <ANY>,
+    'config_subentry_id': None,
+    'device_class': None,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_149')]>,
+    'disabled_by': None,
+    'domain': 'button',
+    'entity_category': None,
+    'entity_id': 'button.m_sens_salon_object_149_bell',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': 'Bell',
+    'options': dict({
+    }),
+    'original_device_class': None,
+    'original_icon': None,
+    'original_name': 'Bell',
+    'platform': 'ampio',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': 0,
+    'translation_key': 'bell',
+    'unique_id': 'obj_149',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_all_entities[button.m_sens_salon_object_149_bell-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Object 149 Bell',
+    }),
+    'context': <ANY>,
+    'entity_id': 'button.m_sens_salon_object_149_bell',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'unknown',
+  })
+# ---
 # name: test_all_entities[button.m_sens_salon_unlock_touch-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
@@ -158,9 +208,9 @@
     'area_id': None,
     'capabilities': None,
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <DeviceEntry identifiers=[('ampio', 'module_mac:0xCB8F')]>,
     'disabled_by': None,
     'domain': 'button',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
@@ -194,56 +244,6 @@
     }),
     'context': <ANY>,
     'entity_id': 'button.m_sens_salon_unlock_touch',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'unknown',
-  })
-# ---
-# name: test_all_entities[button.object_149_bell-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': None,
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'button',
-    'entity_category': None,
-    'entity_id': 'button.object_149_bell',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': 'Bell',
-    'options': dict({
-    }),
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': 'Bell',
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
-    'supported_features': 0,
-    'translation_key': 'bell',
-    'unique_id': 'obj_149',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[button.object_149_bell-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Object 149 Bell',
-    }),
-    'context': <ANY>,
-    'entity_id': 'button.object_149_bell',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,

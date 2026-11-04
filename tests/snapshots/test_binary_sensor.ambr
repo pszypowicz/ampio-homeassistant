@@ -1,5 +1,5 @@
 # serializer version: 1
-# name: test_all_entities[binary_sensor.alarm_naruszenie_parter-entry]
+# name: test_all_entities[binary_sensor.m_sens_salon_alarm_naruszenie_parter-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -7,13 +7,13 @@
     'area_id': None,
     'capabilities': None,
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_167')]>,
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': None,
-    'entity_id': 'binary_sensor.alarm_naruszenie_parter',
+    'entity_id': 'binary_sensor.m_sens_salon_alarm_naruszenie_parter',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -36,20 +36,20 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[binary_sensor.alarm_naruszenie_parter-state]
+# name: test_all_entities[binary_sensor.m_sens_salon_alarm_naruszenie_parter-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Alarm naruszenie parter',
     }),
     'context': <ANY>,
-    'entity_id': 'binary_sensor.alarm_naruszenie_parter',
+    'entity_id': 'binary_sensor.m_sens_salon_alarm_naruszenie_parter',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'off',
   })
 # ---
-# name: test_all_entities[binary_sensor.alarm_strefa_parter-entry]
+# name: test_all_entities[binary_sensor.m_sens_salon_alarm_strefa_parter-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -57,13 +57,13 @@
     'area_id': None,
     'capabilities': None,
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_166')]>,
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': None,
-    'entity_id': 'binary_sensor.alarm_strefa_parter',
+    'entity_id': 'binary_sensor.m_sens_salon_alarm_strefa_parter',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -86,20 +86,20 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[binary_sensor.alarm_strefa_parter-state]
+# name: test_all_entities[binary_sensor.m_sens_salon_alarm_strefa_parter-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Alarm strefa parter',
     }),
     'context': <ANY>,
-    'entity_id': 'binary_sensor.alarm_strefa_parter',
+    'entity_id': 'binary_sensor.m_sens_salon_alarm_strefa_parter',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'on',
   })
 # ---
-# name: test_all_entities[binary_sensor.przycisk_kino-entry]
+# name: test_all_entities[binary_sensor.m_sens_salon_przycisk_kino-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -107,13 +107,13 @@
     'area_id': None,
     'capabilities': None,
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_146')]>,
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': None,
-    'entity_id': 'binary_sensor.przycisk_kino',
+    'entity_id': 'binary_sensor.m_sens_salon_przycisk_kino',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -136,20 +136,20 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[binary_sensor.przycisk_kino-state]
+# name: test_all_entities[binary_sensor.m_sens_salon_przycisk_kino-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Przycisk kino',
     }),
     'context': <ANY>,
-    'entity_id': 'binary_sensor.przycisk_kino',
+    'entity_id': 'binary_sensor.m_sens_salon_przycisk_kino',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'off',
   })
 # ---
-# name: test_all_entities[binary_sensor.roleta_kuchnia_closing_lock-entry]
+# name: test_all_entities[binary_sensor.m_sens_salon_roleta_kuchnia_closing_lock-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -157,13 +157,13 @@
     'area_id': None,
     'capabilities': None,
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_82')]>,
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
-    'entity_id': 'binary_sensor.roleta_kuchnia_closing_lock',
+    'entity_id': 'binary_sensor.m_sens_salon_roleta_kuchnia_closing_lock',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -186,20 +186,20 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[binary_sensor.roleta_kuchnia_closing_lock-state]
+# name: test_all_entities[binary_sensor.m_sens_salon_roleta_kuchnia_closing_lock-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Roleta Kuchnia Closing lock',
     }),
     'context': <ANY>,
-    'entity_id': 'binary_sensor.roleta_kuchnia_closing_lock',
+    'entity_id': 'binary_sensor.m_sens_salon_roleta_kuchnia_closing_lock',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
     'state': 'unknown',
   })
 # ---
-# name: test_all_entities[binary_sensor.roleta_kuchnia_opening_lock-entry]
+# name: test_all_entities[binary_sensor.m_sens_salon_roleta_kuchnia_opening_lock-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -207,13 +207,13 @@
     'area_id': None,
     'capabilities': None,
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_82')]>,
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
-    'entity_id': 'binary_sensor.roleta_kuchnia_opening_lock',
+    'entity_id': 'binary_sensor.m_sens_salon_roleta_kuchnia_opening_lock',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -236,13 +236,113 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[binary_sensor.roleta_kuchnia_opening_lock-state]
+# name: test_all_entities[binary_sensor.m_sens_salon_roleta_kuchnia_opening_lock-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Roleta Kuchnia Opening lock',
     }),
     'context': <ANY>,
-    'entity_id': 'binary_sensor.roleta_kuchnia_opening_lock',
+    'entity_id': 'binary_sensor.m_sens_salon_roleta_kuchnia_opening_lock',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'unknown',
+  })
+# ---
+# name: test_all_entities[binary_sensor.m_sens_salon_zaluzja_goscinny_closing_lock-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': None,
+    'config_entry_id': <ANY>,
+    'config_subentry_id': None,
+    'device_class': None,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_83')]>,
+    'disabled_by': None,
+    'domain': 'binary_sensor',
+    'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
+    'entity_id': 'binary_sensor.m_sens_salon_zaluzja_goscinny_closing_lock',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': 'Closing lock',
+    'options': dict({
+    }),
+    'original_device_class': None,
+    'original_icon': None,
+    'original_name': 'Closing lock',
+    'platform': 'ampio',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': 0,
+    'translation_key': 'blocks_closing',
+    'unique_id': 'obj_83_blocks_closing',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_all_entities[binary_sensor.m_sens_salon_zaluzja_goscinny_closing_lock-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Zaluzja Goscinny Closing lock',
+    }),
+    'context': <ANY>,
+    'entity_id': 'binary_sensor.m_sens_salon_zaluzja_goscinny_closing_lock',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'unknown',
+  })
+# ---
+# name: test_all_entities[binary_sensor.m_sens_salon_zaluzja_goscinny_opening_lock-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': None,
+    'config_entry_id': <ANY>,
+    'config_subentry_id': None,
+    'device_class': None,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_83')]>,
+    'disabled_by': None,
+    'domain': 'binary_sensor',
+    'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
+    'entity_id': 'binary_sensor.m_sens_salon_zaluzja_goscinny_opening_lock',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': 'Opening lock',
+    'options': dict({
+    }),
+    'original_device_class': None,
+    'original_icon': None,
+    'original_name': 'Opening lock',
+    'platform': 'ampio',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': 0,
+    'translation_key': 'blocks_opening',
+    'unique_id': 'obj_83_blocks_opening',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_all_entities[binary_sensor.m_sens_salon_zaluzja_goscinny_opening_lock-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Zaluzja Goscinny Opening lock',
+    }),
+    'context': <ANY>,
+    'entity_id': 'binary_sensor.m_sens_salon_zaluzja_goscinny_opening_lock',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
@@ -257,9 +357,9 @@
     'area_id': None,
     'capabilities': None,
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_81')]>,
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
@@ -307,9 +407,9 @@
     'area_id': None,
     'capabilities': None,
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_81')]>,
     'disabled_by': None,
     'domain': 'binary_sensor',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
@@ -343,106 +443,6 @@
     }),
     'context': <ANY>,
     'entity_id': 'binary_sensor.sypialnia_roleta_sypialnia_opening_lock',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'unknown',
-  })
-# ---
-# name: test_all_entities[binary_sensor.zaluzja_goscinny_closing_lock-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': None,
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'binary_sensor',
-    'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
-    'entity_id': 'binary_sensor.zaluzja_goscinny_closing_lock',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': 'Closing lock',
-    'options': dict({
-    }),
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': 'Closing lock',
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
-    'supported_features': 0,
-    'translation_key': 'blocks_closing',
-    'unique_id': 'obj_83_blocks_closing',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[binary_sensor.zaluzja_goscinny_closing_lock-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Zaluzja Goscinny Closing lock',
-    }),
-    'context': <ANY>,
-    'entity_id': 'binary_sensor.zaluzja_goscinny_closing_lock',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'unknown',
-  })
-# ---
-# name: test_all_entities[binary_sensor.zaluzja_goscinny_opening_lock-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': None,
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'binary_sensor',
-    'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
-    'entity_id': 'binary_sensor.zaluzja_goscinny_opening_lock',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': 'Opening lock',
-    'options': dict({
-    }),
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': 'Opening lock',
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
-    'supported_features': 0,
-    'translation_key': 'blocks_opening',
-    'unique_id': 'obj_83_blocks_opening',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[binary_sensor.zaluzja_goscinny_opening_lock-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Zaluzja Goscinny Opening lock',
-    }),
-    'context': <ANY>,
-    'entity_id': 'binary_sensor.zaluzja_goscinny_opening_lock',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,

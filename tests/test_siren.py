@@ -11,12 +11,9 @@ from ampio_mqtt import (
     AmpioValueError,
     AvailabilityChanged,
 )
+import probatio
 import pytest
-from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
-    async_fire_time_changed,
-)
-import voluptuous as vol
+from pytest_homeassistant.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.ampio.const import DOMAIN
 from custom_components.ampio.siren import MAX_STEP_SECONDS
@@ -418,7 +415,7 @@ async def test_buzz_pattern_rejects_a_value_off_the_wire(
     with_buzzer(mock_client)
     await setup_integration(hass, mock_config_entry)
 
-    with pytest.raises(vol.Invalid):
+    with pytest.raises(probatio.Invalid):
         await hass.services.async_call(
             DOMAIN,
             "buzz_pattern",

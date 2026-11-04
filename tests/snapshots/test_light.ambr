@@ -1,63 +1,4 @@
 # serializer version: 1
-# name: test_all_entities[light.kinkiet-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': dict({
-      <LightEntityCapabilityAttribute.SUPPORTED_COLOR_MODES: 'supported_color_modes'>: list([
-        <ColorMode.ONOFF: 'onoff'>,
-      ]),
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'light',
-    'entity_category': None,
-    'entity_id': 'light.kinkiet',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': None,
-    'options': dict({
-    }),
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': None,
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
-    'supported_features': 0,
-    'translation_key': None,
-    'unique_id': 'obj_73',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[light.kinkiet-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <LightEntityStateAttribute.COLOR_MODE: 'color_mode'>: None,
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Kinkiet',
-      <LightEntityCapabilityAttribute.SUPPORTED_COLOR_MODES: 'supported_color_modes'>: list([
-        <ColorMode.ONOFF: 'onoff'>,
-      ]),
-      <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <LightEntityFeature: 0>,
-    }),
-    'context': <ANY>,
-    'entity_id': 'light.kinkiet',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'off',
-  })
-# ---
 # name: test_all_entities[light.m_sens_salon_backlight-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
@@ -70,9 +11,9 @@
       ]),
     }),
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <DeviceEntry identifiers=[('ampio', 'module_mac:0xCB8F')]>,
     'disabled_by': None,
     'domain': 'light',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
@@ -138,6 +79,144 @@
     'state': 'on',
   })
 # ---
+# name: test_all_entities[light.m_sens_salon_kinkiet-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': dict({
+      <LightEntityCapabilityAttribute.SUPPORTED_COLOR_MODES: 'supported_color_modes'>: list([
+        <ColorMode.ONOFF: 'onoff'>,
+      ]),
+    }),
+    'config_entry_id': <ANY>,
+    'config_subentry_id': None,
+    'device_class': None,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_73')]>,
+    'disabled_by': None,
+    'domain': 'light',
+    'entity_category': None,
+    'entity_id': 'light.m_sens_salon_kinkiet',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': None,
+    'options': dict({
+    }),
+    'original_device_class': None,
+    'original_icon': None,
+    'original_name': None,
+    'platform': 'ampio',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': 0,
+    'translation_key': None,
+    'unique_id': 'obj_73',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_all_entities[light.m_sens_salon_kinkiet-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      <LightEntityStateAttribute.COLOR_MODE: 'color_mode'>: None,
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Kinkiet',
+      <LightEntityCapabilityAttribute.SUPPORTED_COLOR_MODES: 'supported_color_modes'>: list([
+        <ColorMode.ONOFF: 'onoff'>,
+      ]),
+      <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <LightEntityFeature: 0>,
+    }),
+    'context': <ANY>,
+    'entity_id': 'light.m_sens_salon_kinkiet',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'off',
+  })
+# ---
+# name: test_all_entities[light.m_sens_salon_salon_rgbw-entry]
+  EntityRegistryEntrySnapshot({
+    'aliases': list([
+      None,
+    ]),
+    'area_id': None,
+    'capabilities': dict({
+      <LightEntityCapabilityAttribute.SUPPORTED_COLOR_MODES: 'supported_color_modes'>: list([
+        <ColorMode.RGBW: 'rgbw'>,
+      ]),
+    }),
+    'config_entry_id': <ANY>,
+    'config_subentry_id': None,
+    'device_class': None,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_72')]>,
+    'disabled_by': None,
+    'domain': 'light',
+    'entity_category': None,
+    'entity_id': 'light.m_sens_salon_salon_rgbw',
+    'has_entity_name': True,
+    'hidden_by': None,
+    'icon': None,
+    'id': <ANY>,
+    'labels': set({
+    }),
+    'name': None,
+    'object_id_base': None,
+    'options': dict({
+    }),
+    'original_device_class': None,
+    'original_icon': None,
+    'original_name': None,
+    'platform': 'ampio',
+    'previous_unique_id': None,
+    'suggested_object_id': None,
+    'supported_features': 0,
+    'translation_key': None,
+    'unique_id': 'obj_72',
+    'unit_of_measurement': None,
+  })
+# ---
+# name: test_all_entities[light.m_sens_salon_salon_rgbw-state]
+  StateSnapshot({
+    'attributes': ReadOnlyDict({
+      <LightEntityStateAttribute.BRIGHTNESS: 'brightness'>: 240,
+      <LightEntityStateAttribute.COLOR_MODE: 'color_mode'>: <ColorMode.RGBW: 'rgbw'>,
+      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Salon RGBW',
+      <LightEntityStateAttribute.HS_COLOR: 'hs_color'>: tuple(
+        209.589,
+        28.627,
+      ),
+      <LightEntityStateAttribute.RGB_COLOR: 'rgb_color'>: tuple(
+        182,
+        219,
+        255,
+      ),
+      <LightEntityStateAttribute.RGBW_COLOR: 'rgbw_color'>: tuple(
+        64,
+        128,
+        191,
+        255,
+      ),
+      <LightEntityCapabilityAttribute.SUPPORTED_COLOR_MODES: 'supported_color_modes'>: list([
+        <ColorMode.RGBW: 'rgbw'>,
+      ]),
+      <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <LightEntityFeature: 0>,
+      <LightEntityStateAttribute.XY_COLOR: 'xy_color'>: tuple(
+        0.256,
+        0.288,
+      ),
+    }),
+    'context': <ANY>,
+    'entity_id': 'light.m_sens_salon_salon_rgbw',
+    'last_changed': <ANY>,
+    'last_reported': <ANY>,
+    'last_updated': <ANY>,
+    'state': 'on',
+  })
+# ---
 # name: test_all_entities[light.m_sens_salon_status_light-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
@@ -150,9 +229,9 @@
       ]),
     }),
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <DeviceEntry identifiers=[('ampio', 'module_mac:0xCB8F')]>,
     'disabled_by': None,
     'domain': 'light',
     'entity_category': <EntityCategory.DIAGNOSTIC: 'diagnostic'>,
@@ -212,86 +291,7 @@
     'state': 'on',
   })
 # ---
-# name: test_all_entities[light.salon_rgbw-entry]
-  EntityRegistryEntrySnapshot({
-    'aliases': list([
-      None,
-    ]),
-    'area_id': None,
-    'capabilities': dict({
-      <LightEntityCapabilityAttribute.SUPPORTED_COLOR_MODES: 'supported_color_modes'>: list([
-        <ColorMode.RGBW: 'rgbw'>,
-      ]),
-    }),
-    'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
-    'device_class': None,
-    'device_id': <ANY>,
-    'disabled_by': None,
-    'domain': 'light',
-    'entity_category': None,
-    'entity_id': 'light.salon_rgbw',
-    'has_entity_name': True,
-    'hidden_by': None,
-    'icon': None,
-    'id': <ANY>,
-    'labels': set({
-    }),
-    'name': None,
-    'object_id_base': None,
-    'options': dict({
-    }),
-    'original_device_class': None,
-    'original_icon': None,
-    'original_name': None,
-    'platform': 'ampio',
-    'previous_unique_id': None,
-    'suggested_object_id': None,
-    'supported_features': 0,
-    'translation_key': None,
-    'unique_id': 'obj_72',
-    'unit_of_measurement': None,
-  })
-# ---
-# name: test_all_entities[light.salon_rgbw-state]
-  StateSnapshot({
-    'attributes': ReadOnlyDict({
-      <LightEntityStateAttribute.BRIGHTNESS: 'brightness'>: 240,
-      <LightEntityStateAttribute.COLOR_MODE: 'color_mode'>: <ColorMode.RGBW: 'rgbw'>,
-      <EntityStateAttribute.FRIENDLY_NAME: 'friendly_name'>: 'Salon RGBW',
-      <LightEntityStateAttribute.HS_COLOR: 'hs_color'>: tuple(
-        209.589,
-        28.627,
-      ),
-      <LightEntityStateAttribute.RGB_COLOR: 'rgb_color'>: tuple(
-        182,
-        219,
-        255,
-      ),
-      <LightEntityStateAttribute.RGBW_COLOR: 'rgbw_color'>: tuple(
-        64,
-        128,
-        191,
-        255,
-      ),
-      <LightEntityCapabilityAttribute.SUPPORTED_COLOR_MODES: 'supported_color_modes'>: list([
-        <ColorMode.RGBW: 'rgbw'>,
-      ]),
-      <EntityStateAttribute.SUPPORTED_FEATURES: 'supported_features'>: <LightEntityFeature: 0>,
-      <LightEntityStateAttribute.XY_COLOR: 'xy_color'>: tuple(
-        0.256,
-        0.288,
-      ),
-    }),
-    'context': <ANY>,
-    'entity_id': 'light.salon_rgbw',
-    'last_changed': <ANY>,
-    'last_reported': <ANY>,
-    'last_updated': <ANY>,
-    'state': 'on',
-  })
-# ---
-# name: test_all_entities[light.sypialnia_cct-entry]
+# name: test_all_entities[light.m_sens_salon_sypialnia_cct-entry]
   EntityRegistryEntrySnapshot({
     'aliases': list([
       None,
@@ -305,13 +305,13 @@
       ]),
     }),
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_76')]>,
     'disabled_by': None,
     'domain': 'light',
     'entity_category': None,
-    'entity_id': 'light.sypialnia_cct',
+    'entity_id': 'light.m_sens_salon_sypialnia_cct',
     'has_entity_name': True,
     'hidden_by': None,
     'icon': None,
@@ -334,7 +334,7 @@
     'unit_of_measurement': None,
   })
 # ---
-# name: test_all_entities[light.sypialnia_cct-state]
+# name: test_all_entities[light.m_sens_salon_sypialnia_cct-state]
   StateSnapshot({
     'attributes': ReadOnlyDict({
       <LightEntityStateAttribute.BRIGHTNESS: 'brightness'>: 84,
@@ -362,7 +362,7 @@
       ),
     }),
     'context': <ANY>,
-    'entity_id': 'light.sypialnia_cct',
+    'entity_id': 'light.m_sens_salon_sypialnia_cct',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,
@@ -381,9 +381,9 @@
       ]),
     }),
     'config_entry_id': <ANY>,
-    'config_subentry_id': <ANY>,
+    'config_subentry_id': None,
     'device_class': None,
-    'device_id': <ANY>,
+    'device_id': <ChildDeviceEntry identifiers=[('ampio', 'obj_71')]>,
     'disabled_by': None,
     'domain': 'light',
     'entity_category': None,
@@ -454,7 +454,7 @@
       ),
     }),
     'context': <ANY>,
-    'entity_id': 'light.salon_rgbw',
+    'entity_id': 'light.m_sens_salon_salon_rgbw',
     'last_changed': <ANY>,
     'last_reported': <ANY>,
     'last_updated': <ANY>,

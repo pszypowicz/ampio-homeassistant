@@ -26,7 +26,7 @@ A Home Assistant integration for the [Ampio Smart Home](https://ampio.com/) syst
 
 ## Actions
 
-Every entity id below is an example. Home Assistant composes each id when it first registers the entity, by default from the area name, the device name and the entity name, so your install has ids of its own. Look them up under Settings, then Devices and services, then Entities.
+Every entity id below is an example. Home Assistant composes each id when it first registers the entity, by default from the area name, the module name for an object with no room, the device name and the entity name, so your install has ids of its own. Look them up under Settings, then Devices and services, then Entities.
 
 `ampio.buzz_pattern` plays a two-step sequence on a panel's buzzer. The siren entity covers a single tone for a single length, and this action reaches the rest of what the hardware frame carries.
 
@@ -108,7 +108,7 @@ Manual steps:
 2. Add `https://github.com/pszypowicz/ampio-homeassistant` as a custom repository (type: Integration).
 3. Install "Ampio" and restart Home Assistant.
 
-Requires Home Assistant 2026.9.0 or newer. `ampio-mqtt` is installed automatically.
+Requires Home Assistant 2026.11.0 or newer. `ampio-mqtt` is installed automatically.
 
 ## Configuration
 
@@ -146,7 +146,7 @@ If something else looks wrong, see [docs/faq.md](docs/faq.md). Each answer there
 
 - Scenes are read once at setup. A scene added in the app needs a reload.
 - A module you add in Ampio Designer while the integration runs gets its capability map from another description sweep. When the module has capability data after that sweep, its buzzer, its Unlock touch button, and its Backlight and Status light appear within seconds. When it has none, the module gets its sensors and its Identify button only, and a warning in the log says that the module has no capability data and that a reload sweeps again.
-- Two objects that carry the same name in Ampio Designer and share a room, or share having none, cannot share an entity id, so one of the two takes Home Assistant's `_2` suffix. Give such a pair distinct names in Designer if you want to tell them apart by their ids.
+- Two objects that carry the same name in Ampio Designer and share a room, or that have no room and sit on one module, cannot share an entity id, so one of the two takes Home Assistant's `_2` suffix. Give such a pair distinct names in Designer if you want to tell them apart by their ids.
 
 ## Relationship to home-assistant/core
 
