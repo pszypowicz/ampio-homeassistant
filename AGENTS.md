@@ -100,6 +100,8 @@ gh release create vX.Y.Z --title "vX.Y.Z" --notes-file <file>
 
 The title must equal the tag, because the Marketplace prints the tag as the heading of the update notes and appends the title when the two differ. Tag first. `gh release create --target` rejects a short SHA and reuses an existing tag silently, so check `git ls-remote origin "refs/tags/vX.Y.Z"` by output before tagging.
 
+The Marketplace installs a release from its `ampio.zip` asset, which `hacs.json` names, and not from the repository archive. GitHub counts the asset's downloads, and the README badge shows that count. Publishing the release starts `.github/workflows/release.yaml`, which archives `custom_components/ampio` at the tag and attaches it. A release without the asset fails to install, so confirm it landed with `gh release view vX.Y.Z --json assets --jq '.assets[].name'`, and re-run the workflow if it did not.
+
 Release notes are user-facing prose for the person about to press update, so they read as an explanation rather than a list of commits. Lead with what breaks and what the reader has to do about it.
 
 A release that leaves an install unable to recover on its own carries manual steps, and those steps go in `docs/faq.md` under a symptom someone would search for. The release notes link to that section rather than repeating it. This keeps one copy of an instruction that gets refined after real people follow it, and it means a reader who meets the symptom six months later finds the answer without knowing which release caused it. The release page is the only place a version transition is discussed at all, because the code carries nothing for it.
