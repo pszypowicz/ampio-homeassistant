@@ -450,6 +450,8 @@ DEFAULT_MODULES = (
         typ_urzadzenia=44,
         wersja_softu=63,
         wersja_pcb=7,
+        mac_group=0,
+        parent="",
     ),
     AmpioModule(
         id=3,
@@ -459,6 +461,8 @@ DEFAULT_MODULES = (
         typ_urzadzenia=4,
         wersja_softu=11000,
         wersja_pcb=2,
+        mac_group=0,
+        parent="",
     ),
     AmpioModule(
         id=1,
@@ -468,6 +472,8 @@ DEFAULT_MODULES = (
         typ_urzadzenia=10,
         wersja_softu=11639,
         wersja_pcb=7,
+        mac_group=0,
+        parent="",
     ),
 )
 

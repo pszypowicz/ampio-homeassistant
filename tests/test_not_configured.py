@@ -1,6 +1,8 @@
 """Tests for catalogue admission and the installer repair."""
 
 from datetime import timedelta
+import json
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from ampio_mqtt import (
@@ -20,6 +22,7 @@ from custom_components.ampio.const import (
     DOMAIN,
     NOT_CONFIGURED_ISSUE,
     STALE_RECORDS_ISSUE,
+    UNRECOGNIZED_OBJECTS_ISSUE,
 )
 from custom_components.ampio.stale import find_stale_records
 from homeassistant.config_entries import ConfigEntryState
@@ -47,6 +50,8 @@ from .conftest import (
     with_buzzer,
 )
 
+MANIFEST = Path(__file__).parent.parent / "custom_components/ampio/manifest.json"
+
 # A module mac no seeded object carries, so the objects put on it here are
 # the only ones that resolve to its device.
 PUMP_MAC = 53257
@@ -55,16 +60,31 @@ PUMP_OBJECT = make_object(
     300, "przekaznik", 0, leaf_id="0_d009_257_2_1", funkcja=30, name="Pompa", state="0"
 )
 
+# A relay on an Ampio LoRa device. Its leaf starts with the LoRa group, a
+# shape the library does not read, so the door refuses the row alone.
+UNRECOGNIZED_ROW = {
+    **LEAFLESS_ALARM_ROW,
+    "id": 170,
+    "typ_komponentu": "przekaznik",
+    "funkcja": 30,
+    "leafId": "1_1a2b_257_2_0",
+    "opis_menu": "Przekaznik ogrod",
+}
 
-def _refuse(client: MagicMock, object_id: int) -> None:
+
+def _refuse(client: MagicMock, object_id: int, *, unrecognized: bool = False) -> None:
     """Take a row out of the catalogue the way the admission door does.
 
     The door serves every other row with the connection up, so the
-    connect raises and setup runs on what was served.
+    connect raises and setup runs on what was served. The row is refused
+    as leafless, or as unrecognized when asked.
     """
-    refused = client.objects.pop(object_id)
-    client.connect.side_effect = AmpioNotConfigured(
-        objects=((refused.id, refused.name),)
+    obj = client.objects.pop(object_id)
+    refused = ((obj.id, obj.name),)
+    client.connect.side_effect = (
+        AmpioNotConfigured(unrecognized=refused)
+        if unrecognized
+        else AmpioNotConfigured(leafless=refused)
     )
 
 
@@ -103,6 +123,19 @@ def refused_catalogue() -> AmpioStore:
     return store
 
 
+@pytest.fixture
+def unrecognized_catalogue() -> AmpioStore:
+    """Read a row with a leaf outside the CAN group through the library door."""
+    store = build_store(AmpioClient)
+    apply_reply(
+        store,
+        "params_devices",
+        {"List": [{"id": UNRECOGNIZED_ROW["id"], "params": 0, "czas": 0, "url": ""}]},
+    )
+    apply_reply(store, "data_devices", {"List": [UNRECOGNIZED_ROW]})
+    return store
+
+
 @pytest.mark.parametrize("tier", [AccessTier.ADMIN, AccessTier.RESTRICTED])
 async def test_leafless_alarm_raises_repair_without_an_entity(
     hass: HomeAssistant,
@@ -115,10 +148,10 @@ async def test_leafless_alarm_raises_repair_without_an_entity(
 ) -> None:
     """An empty leaf leaves other entities loaded and reports only the refused id."""
     set_access_tier(mock_client, tier)
-    refused = refused_catalogue.not_configured
+    refused = refused_catalogue.leafless
     assert refused == ((168, "Alarm strefa garaz"),)
     assert refused_catalogue.objects == {}
-    mock_client.connect.side_effect = AmpioNotConfigured(objects=refused)
+    mock_client.connect.side_effect = AmpioNotConfigured(leafless=refused)
 
     await setup_integration(hass, mock_config_entry)
 
@@ -134,6 +167,164 @@ async def test_leafless_alarm_raises_repair_without_an_entity(
         "modules": "",
     }
     assert "Alarm strefa garaz" not in caplog.text
+
+
+@pytest.mark.parametrize("tier", [AccessTier.ADMIN, AccessTier.RESTRICTED])
+async def test_unrecognized_leaf_raises_the_report_repair(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    issue_registry: ir.IssueRegistry,
+    unrecognized_catalogue: AmpioStore,
+    tier: AccessTier,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A leaf the library cannot read raises the report repair, not the Designer one.
+
+    The repair names the refused id, offers no fix flow, and links the
+    issue tracker the manifest declares. Neither the repair nor the log
+    repeats the row's Designer name.
+    """
+    set_access_tier(mock_client, tier)
+    refused = unrecognized_catalogue.unrecognized
+    assert refused == ((170, "Przekaznik ogrod"),)
+    assert unrecognized_catalogue.objects == {}
+    mock_client.connect.side_effect = AmpioNotConfigured(unrecognized=refused)
+
+    await setup_integration(hass, mock_config_entry)
+
+    assert mock_config_entry.state is ConfigEntryState.LOADED
+    assert hass.states.get(entity_id_of(hass, "sensor", unique_id(36))) is not None
+    assert issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE) is None
+    issue = issue_registry.async_get_issue(DOMAIN, UNRECOGNIZED_OBJECTS_ISSUE)
+    assert issue is not None
+    assert issue.translation_key == "unrecognized_objects"
+    assert issue.is_fixable is False
+    assert (
+        issue.learn_more_url
+        == json.loads(MANIFEST.read_text(encoding="utf-8"))["issue_tracker"]
+    )
+    assert issue.translation_placeholders == {"object_count": "1", "objects": "- 170"}
+    assert any(
+        record.levelname == "WARNING" and "[170]" in record.getMessage()
+        for record in caplog.records
+    )
+    assert "Przekaznik ogrod" not in caplog.text
+
+
+async def test_the_door_event_raises_and_clears_the_report_repair(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """An unrecognized row that appears while the entry runs raises the repair, and the recovery clears it."""
+    await setup_integration(hass, mock_config_entry)
+    assert issue_registry.async_get_issue(DOMAIN, UNRECOGNIZED_OBJECTS_ISSUE) is None
+
+    emit(mock_client, NotConfigured(unrecognized=((170, "Przekaznik ogrod"),)))
+    await hass.async_block_till_done()
+    assert issue_registry.async_get_issue(DOMAIN, UNRECOGNIZED_OBJECTS_ISSUE)
+
+    emit(mock_client, NotConfigured())
+    await hass.async_block_till_done()
+    assert mock_config_entry.runtime_data.not_configured is None
+    assert issue_registry.async_get_issue(DOMAIN, UNRECOGNIZED_OBJECTS_ISSUE) is None
+
+
+async def test_each_refusal_repair_follows_its_own_side(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """A leafless and an unrecognized row raise one repair each, and each names its own row.
+
+    When the unrecognized side empties, its repair goes and the Designer
+    repair stays.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    emit(
+        mock_client,
+        NotConfigured(
+            leafless=((168, "Alarm strefa garaz"),),
+            unrecognized=((170, "Przekaznik ogrod"),),
+        ),
+    )
+    await hass.async_block_till_done()
+
+    designer = issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE)
+    assert designer is not None
+    assert designer.translation_key == "not_configured_objects"
+    assert designer.translation_placeholders == {
+        "object_count": "1",
+        "objects": "- 168",
+        "module_count": "0",
+        "modules": "",
+    }
+    report = issue_registry.async_get_issue(DOMAIN, UNRECOGNIZED_OBJECTS_ISSUE)
+    assert report is not None
+    assert report.translation_placeholders == {"object_count": "1", "objects": "- 170"}
+
+    emit(mock_client, NotConfigured(leafless=((168, "Alarm strefa garaz"),)))
+    await hass.async_block_till_done()
+
+    assert issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE) is not None
+    assert issue_registry.async_get_issue(DOMAIN, UNRECOGNIZED_OBJECTS_ISSUE) is None
+
+
+async def test_removing_the_entry_clears_both_refusal_repairs(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """Neither refusal repair outlives the entry it was raised for."""
+    mock_client.connect.side_effect = AmpioNotConfigured(
+        leafless=((168, "Alarm strefa garaz"),),
+        unrecognized=((170, "Przekaznik ogrod"),),
+    )
+    await setup_integration(hass, mock_config_entry)
+    assert issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE) is not None
+    assert issue_registry.async_get_issue(DOMAIN, UNRECOGNIZED_OBJECTS_ISSUE)
+
+    await hass.config_entries.async_remove(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE) is None
+    assert issue_registry.async_get_issue(DOMAIN, UNRECOGNIZED_OBJECTS_ISSUE) is None
+
+
+async def test_an_unrecognized_row_keeps_its_records_out_of_the_stale_offer(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    device_registry: dr.DeviceRegistry,
+) -> None:
+    """The stale repair offers neither an unrecognized row's child nor its entity.
+
+    The server still serves the row, so its records are what the entities
+    come back under once the library reads its leaf.
+    """
+    mock_client.objects[PUMP_OBJECT.id] = PUMP_OBJECT
+    await setup_integration(hass, mock_config_entry)
+    entry_id = mock_config_entry.entry_id
+
+    _refuse(mock_client, PUMP_OBJECT.id, unrecognized=True)
+    await _reload(hass, mock_config_entry)
+
+    held = device_registry.async_get_device_by_identifier(PUMP_IDENTIFIER, entry_id)
+    child = device_registry.async_get_child_device_by_identifier(
+        (DOMAIN, unique_id(PUMP_OBJECT.id)), entry_id
+    )
+    assert held is not None
+    assert child is not None
+    stale = find_stale_records(hass, mock_config_entry)
+    assert {device.id for device in stale.devices}.isdisjoint({held.id, child.id})
+    assert unique_id(PUMP_OBJECT.id) not in {
+        entity.unique_id for entity in stale.entities
+    }
 
 
 # sfId 8 is a placeholder with unknown wire provenance. System rows are
@@ -174,7 +365,7 @@ async def test_system_rows_do_not_enter_the_integration_catalogue(
     )
     apply_reply(store, "data_devices", {"List": rows})
     assert set(store.objects) == {36}
-    assert store.not_configured == ()
+    assert store.leafless == ()
     mock_client.objects = dict(store.objects)
 
     await setup_integration(hass, mock_config_entry)
@@ -197,7 +388,7 @@ async def test_the_door_event_clears_the_repair_without_an_object_event(
     run and the event alone is what cleared the repair.
     """
     mock_client.connect.side_effect = AmpioNotConfigured(
-        objects=refused_catalogue.not_configured
+        leafless=refused_catalogue.leafless
     )
 
     await setup_integration(hass, mock_config_entry)
@@ -231,7 +422,7 @@ async def test_the_door_event_raises_the_repair_for_both_faults(
     emit(
         mock_client,
         NotConfigured(
-            objects=((168, "Alarm strefa garaz"),), collisions=((52111, (17, 18)),)
+            leafless=((168, "Alarm strefa garaz"),), collisions=((52111, (17, 18)),)
         ),
     )
     await hass.async_block_till_done()
@@ -263,7 +454,7 @@ async def test_the_door_event_raises_the_repair_for_an_object_fault_alone(
     await setup_integration(hass, mock_config_entry)
     assert issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE) is None
 
-    emit(mock_client, NotConfigured(objects=((168, "Alarm strefa garaz"),)))
+    emit(mock_client, NotConfigured(leafless=((168, "Alarm strefa garaz"),)))
     await hass.async_block_till_done()
 
     issue = issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE)
@@ -370,7 +561,7 @@ async def test_a_refusal_during_setup_reaches_the_repair(
         emit(mock_client, ObjectRemoved(object=PUMP_OBJECT))
         emit(
             mock_client,
-            NotConfigured(objects=((PUMP_OBJECT.id, PUMP_OBJECT.name),)),
+            NotConfigured(leafless=((PUMP_OBJECT.id, PUMP_OBJECT.name),)),
         )
         return {}
 
@@ -380,7 +571,12 @@ async def test_a_refusal_during_setup_reaches_the_repair(
     assert mock_config_entry.state is ConfigEntryState.LOADED
     issue = issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE)
     assert issue is not None
-    assert issue.translation_placeholders["objects"] == f"- {PUMP_OBJECT.id}"
+    assert issue.translation_placeholders == {
+        "object_count": "1",
+        "objects": f"- {PUMP_OBJECT.id}",
+        "module_count": "0",
+        "modules": "",
+    }
     held = device_registry.async_get_device_by_identifier(PUMP_IDENTIFIER, entry_id)
     assert held is not None
     stale = find_stale_records(hass, mock_config_entry)
@@ -415,10 +611,12 @@ async def test_a_refusal_takes_the_module_controls_down(
     # and reports the door change beside it.
     del mock_client.objects[PUMP_OBJECT.id]
     emit(mock_client, ObjectRemoved(object=PUMP_OBJECT))
-    emit(mock_client, NotConfigured(objects=((PUMP_OBJECT.id, PUMP_OBJECT.name),)))
+    emit(mock_client, NotConfigured(leafless=((PUMP_OBJECT.id, PUMP_OBJECT.name),)))
     await _settle(hass)
 
-    assert hass.states.get(button_id).attributes.get(ATTR_RESTORED) is True
+    button = hass.states.get(button_id)
+    assert button is not None
+    assert button.attributes.get(ATTR_RESTORED) is True
     held = device_registry.async_get_device_by_identifier(
         PUMP_IDENTIFIER, mock_config_entry.entry_id
     )
@@ -466,7 +664,9 @@ async def test_deleting_a_refused_row_surfaces_its_records(
     assert child.id in {device.id for device in stale.devices}
     issue = issue_registry.async_get_issue(DOMAIN, STALE_RECORDS_ISSUE)
     assert issue is not None
-    assert f"- {PUMP_OBJECT.name}" in issue.translation_placeholders["names"]
+    placeholders = issue.translation_placeholders
+    assert placeholders is not None
+    assert f"- {PUMP_OBJECT.name}" in placeholders["names"]
 
 
 async def test_a_row_refused_at_setup_comes_back_under_its_module(
@@ -489,7 +689,9 @@ async def test_a_row_refused_at_setup_comes_back_under_its_module(
     switch_id = entity_id_of(hass, "switch", unique_id(PUMP_OBJECT.id))
     _refuse(mock_client, PUMP_OBJECT.id)
     await _reload(hass, mock_config_entry)
-    assert hass.states.get(switch_id).attributes.get(ATTR_RESTORED) is True
+    restored = hass.states.get(switch_id)
+    assert restored is not None
+    assert restored.attributes.get(ATTR_RESTORED) is True
 
     # The installer checks the box again, so the door admits the row.
     mock_client.objects[PUMP_OBJECT.id] = PUMP_OBJECT
@@ -499,6 +701,7 @@ async def test_a_row_refused_at_setup_comes_back_under_its_module(
     await _settle(hass)
 
     state = hass.states.get(switch_id)
+    assert state is not None
     assert state.state != STATE_UNAVAILABLE
     assert state.attributes.get(ATTR_RESTORED) is None
     assert "hangs under a different module" not in caplog.text
@@ -556,8 +759,10 @@ async def test_a_dead_entity_on_a_held_module_is_still_offered(
     assert on_the_module <= {entity.entity_id for entity in stale.entities}
     issue = issue_registry.async_get_issue(DOMAIN, STALE_RECORDS_ISSUE)
     assert issue is not None
+    placeholders = issue.translation_placeholders
+    assert placeholders is not None
     for entity_id in on_the_module:
-        assert f"- {entity_id}" in issue.translation_placeholders["names"]
+        assert f"- {entity_id}" in placeholders["names"]
 
 
 @pytest.mark.parametrize("answered", [True, False])

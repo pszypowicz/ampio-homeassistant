@@ -156,36 +156,47 @@ class RefusedRows:
 
     The ``AmpioNotConfigured`` setup catches and the ``NotConfigured``
     event are both projected into this, and neither is kept. Both carry
-    the Designer name of every object row they report in ``objects``;
-    ``collisions`` is an override mac and Designer row ids, with no name
-    anywhere in it. docs/debugging.md promises that no object, room or
-    module name leaves the install, so the projection drops the object
-    names and nothing downstream holds one to put in an issue, a log
-    line or a translation placeholder.
+    the Designer name of every object row they report in ``leafless`` and
+    ``unrecognized``, and ``collisions`` is an override mac and Designer
+    row ids, with no name anywhere in it. docs/debugging.md promises that
+    no object, room or module name leaves the install, so the projection
+    drops the object names and nothing downstream holds one to put in an
+    issue, a log line or a translation placeholder.
 
-    The field names are the library's own. ``objects`` is the row ids with
-    no Designer leaf, and ``collisions`` pairs each override mac more than
-    one module row carries with the ids of those rows.
+    The field names are the library's own. ``leafless`` is the row ids
+    with no Designer leaf, ``unrecognized`` is the row ids whose leaf the
+    library cannot read, and ``collisions`` pairs each override mac more
+    than one module row carries with the ids of those rows.
     """
 
-    objects: tuple[int, ...]
+    leafless: tuple[int, ...]
+    unrecognized: tuple[int, ...]
     collisions: tuple[tuple[int, tuple[int, ...]], ...]
 
     @classmethod
     def from_error(cls, err: AmpioNotConfigured) -> RefusedRows:
         """Keep the ids the door refused and let the names go."""
-        return cls(tuple(oid for oid, _ in err.objects), err.collisions)
+        return cls(
+            tuple(oid for oid, _ in err.leafless),
+            tuple(oid for oid, _ in err.unrecognized),
+            err.collisions,
+        )
 
     @classmethod
     def from_event(cls, event: NotConfigured) -> RefusedRows | None:
         """The ids the door refuses now, or None when it refuses nothing.
 
-        Every event carries both sides of the door's answer, so two empty
-        sides are the recovery signal and read here as no refusal at all.
+        Every event carries all three sides of the door's answer, so three
+        empty sides are the recovery signal and read here as no refusal at
+        all.
         """
-        if not event.objects and not event.collisions:
+        if not (event.leafless or event.unrecognized or event.collisions):
             return None
-        return cls(tuple(oid for oid, _ in event.objects), event.collisions)
+        return cls(
+            tuple(oid for oid, _ in event.leafless),
+            tuple(oid for oid, _ in event.unrecognized),
+            event.collisions,
+        )
 
 
 class AmpioData:
@@ -217,7 +228,7 @@ class AmpioData:
         # The rows the library's admission door refuses, so that the
         # repair can name them. Setup writes what it caught at connect,
         # and the ``NotConfigured`` event keeps it current: the library
-        # reports every change of either side, a change to empty included.
+        # reports every change of any side, a change to empty included.
         #
         # ``RefusedRows`` holds ids and nothing else, which is what keeps
         # the Designer names of those rows inside the library.

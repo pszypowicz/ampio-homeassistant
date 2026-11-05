@@ -40,7 +40,7 @@ If you skip the panel lights in a template through a label, as described under [
 
 ## An entity is listed that Ampio Designer no longer has
 
-**Check:** Such an entity reads `unavailable` while the connection is up, and under Settings, then Tools, then States, its attributes include `restored: true`. After each start or reload the integration raises up to three repairs on the Settings page, under Repairs. One lists the devices and entities it did not build and cannot explain. One lists the entities it withheld because your Ampio account is not the administrator one. The third names Ampio Designer rows it could not use at all, and it asks you to fix them in Designer rather than offering to delete anything. Read that one first, because an entity it accounts for is not stale. [designer-quirks.md](designer-quirks.md) covers both faults it reports.
+**Check:** Such an entity reads `unavailable` while the connection is up, and under Settings, then Tools, then States, its attributes include `restored: true`. After each start or reload the integration raises up to four repairs on the Settings page, under Repairs. One lists the devices and entities it did not build and cannot explain. One lists the entities it withheld because your Ampio account is not the administrator one. The third names Ampio Designer rows it could not use at all, and it asks you to fix them in Designer rather than offering to delete anything. [designer-quirks.md](designer-quirks.md) covers both faults it reports. The fourth names objects this version of the integration cannot read, as described in [A repair says this version cannot read some Ampio objects](#a-repair-says-this-version-cannot-read-some-ampio-objects). Read the third and the fourth first, because an entity either of them accounts for is not stale.
 
 **Fix:** Select Submit on the repair that lists the records to clean up, and it deletes them all at once. The integration then reloads. If you moved an object to another module in Ampio Designer, its device moves under the new module, and its entities keep their entity ids.
 
@@ -54,6 +54,12 @@ To delete a single record by hand instead:
 4. Select "Delete".
 
 If the "Delete" button is not offered, the integration still creates that entity. Check Ampio Designer before you go further.
+
+## A repair says this version cannot read some Ampio objects
+
+**Check:** The Settings page shows a repair titled "Ampio objects this version cannot read", and it lists Ampio object ids. Those objects have no working entities. The log carries a warning that starts "Ampio objects" and names the same ids. The objects use a module address in a shape this version of the integration does not read yet, so nothing in Ampio Designer or Home Assistant changes it.
+
+**Fix:** Download the diagnostics as described in [debugging.md](debugging.md) and open an issue with the file attached. The `snapshot.unrecognized` block lists each of these objects with its module address and type, which is what support for them needs, and the file carries no object, room, or module name. Every other object keeps working in the meantime. Once a version that reads these addresses is installed, the objects load on their own and the repair goes away.
 
 ## I changed my Ampio password
 

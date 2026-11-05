@@ -1178,6 +1178,8 @@ async def test_an_unload_lets_a_parked_removal_finish(
         typ_urzadzenia=44,
         wersja_softu=63,
         wersja_pcb=7,
+        mac_group=0,
+        parent="",
     )
     mock_client.capabilities[NEW_MAC] = {ModuleFunction.BUZZER: 4}
     await setup_integration(hass, mock_config_entry)

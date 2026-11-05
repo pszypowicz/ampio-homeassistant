@@ -307,6 +307,10 @@
           }
         }
       }
+    },
+    "unrecognized_objects": {
+      "title": "Ampio objects this version cannot read",
+      "description": "The Ampio server serves objects whose module address this version of the integration cannot read. The integration left them out, so it cannot read or control them, and they have no working entities in Home Assistant.\n\nAmpio object ids ({object_count}):\n\n{objects}\n\nNo change in Ampio Designer fixes this, because the integration has to learn to read these addresses. Download the diagnostics from Settings -> Devices & services -> Ampio -> the three-dot menu on the entry -> Download diagnostics, and attach the file to a new issue on GitHub. Learn more opens the issue list. The file lists these objects with their module addresses and their types, which is what support for them needs, and it carries no object, room, or module name.\n\nThis notice goes away once a version of the integration that reads these objects is installed, or when the objects leave the Ampio Designer project."
     }
   },
   "options": {

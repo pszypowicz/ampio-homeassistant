@@ -61,6 +61,8 @@
       'last_payloads': dict({
         'info': '{"Results": {"mac": 47846, "userId": -1, "serverVersion": "1865", "serverRevision": "409", "mqttVersion": "5.133.11"}}',
       }),
+      'leafless': list([
+      ]),
       'mac_collisions': list([
       ]),
       'modules': list([
@@ -68,7 +70,9 @@
           'id': 3,
           'last_seen': 1782108300.0,
           'mac': '0xBE82',
+          'mac_group': 0,
           'model': 'M-REL-8s',
+          'parent': '',
           'supply_voltage': 13.9,
           'temperature': 31.5,
           'typ_urzadzenia': 4,
@@ -77,13 +81,13 @@
           'id': 17,
           'last_seen': None,
           'mac': '0xCB8F',
+          'mac_group': 0,
           'model': 'M-SENS',
+          'parent': '',
           'supply_voltage': None,
           'temperature': None,
           'typ_urzadzenia': 44,
         }),
-      ]),
-      'not_configured': list([
       ]),
       'params_gap': list([
       ]),
@@ -96,6 +100,8 @@
         'server_version': '1865',
         'user_id': -1,
       }),
+      'unrecognized': list([
+      ]),
     }),
   })
 # ---
