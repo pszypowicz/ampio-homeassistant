@@ -197,20 +197,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     # Home Assistant refuses the duplicate with a log line.
     entry.async_on_unload(entry.runtime_data.async_subscribe())
 
-    # The room map seeds a child device's area, and the platforms below
-    # create those devices, so the fetch precedes them. It runs here
-    # rather than inside the tree so that nothing between the connect and
-    # the subscriptions above awaits.
-    await entry.runtime_data.async_refresh_rooms()
-
-    # The sweep fills each module's capability map and each object's
-    # record bundle. Setup waits for it: the capability map decides which
-    # modules carry a buzzer, and the platforms load below. The sweep is
-    # served to the administrator login alone, and the narrowed reference
-    # is what says so. A batch that adds a module device sweeps again.
-    if (admin := entry.runtime_data.admin) is not None:
-        await _async_sweep_records(admin)
-
+    # The connection subscriptions start before the awaits below. A
+    # reconnect the broker rejects, or a crashed loop, while setup waits for
+    # the room map or the record sweep would otherwise reach nobody, and the
+    # entry would stay loaded on a connection that has ended.
     was_unavailable = False
 
     @callback
@@ -243,6 +233,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     entry.async_on_unload(
         client.subscribe(_connection_ended, of=(AuthFailed, ConnectionDied))
     )
+
+    # The room map seeds a child device's area, and the platforms below
+    # create those devices, so the fetch precedes them. It runs here
+    # rather than inside the tree so that nothing between the connect and
+    # the subscriptions above awaits.
+    await entry.runtime_data.async_refresh_rooms()
+
+    # The sweep fills each module's capability map and each object's
+    # record bundle. Setup waits for it: the capability map decides which
+    # modules carry a buzzer, and the platforms load below. The sweep is
+    # served to the administrator login alone, and the narrowed reference
+    # is what says so. A batch that adds a module device sweeps again.
+    if (admin := entry.runtime_data.admin) is not None:
+        await _async_sweep_records(admin)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     # The platforms have run, so a catalogue one of them fetches has
