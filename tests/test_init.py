@@ -572,6 +572,35 @@ async def test_runtime_auth_failure_reloads_into_auth_error(
     assert list(mock_config_entry.async_get_active_flows(hass, {SOURCE_REAUTH}))
 
 
+@pytest.mark.parametrize("window", ["fetch_rooms", "resolve_records"])
+async def test_auth_failure_while_setup_awaits_reloads_into_auth_error(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    window: str,
+) -> None:
+    """A credential rejection during the room fetch or the record sweep still reloads.
+
+    Both run after the connect and before the platforms, so the event
+    lands while setup is awaiting them.
+    """
+    served = getattr(mock_client, window).return_value
+
+    def _reject(*_args: object, **_kwargs: object) -> object:
+        mock_client.connect.side_effect = AmpioAuthError("credentials changed")
+        emit(mock_client, AuthFailed(reason="not authorized"))
+        return served
+
+    getattr(mock_client, window).side_effect = _reject
+
+    await setup_integration(hass, mock_config_entry)
+    await hass.async_block_till_done()
+
+    assert mock_config_entry.state is ConfigEntryState.SETUP_ERROR
+    assert mock_config_entry.error_reason_translation_key == "invalid_auth"
+    assert list(mock_config_entry.async_get_active_flows(hass, {SOURCE_REAUTH}))
+
+
 async def test_connection_died_reloads_and_recovers(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:
