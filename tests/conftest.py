@@ -513,7 +513,6 @@ def set_access_tier(client: MagicMock, tier: AccessTier) -> None:
     """Give the mock the public surface and identity of the selected client class."""
     client_class = AmpioAdminClient if tier is AccessTier.ADMIN else AmpioClient
     client.mock_add_spec(client_class)
-    client.__class__ = client_class
     if tier is AccessTier.ADMIN:
         template = create_autospec(AmpioAdminClient, instance=True)
         for name in ADMIN_MEMBERS:

@@ -271,3 +271,29 @@ ignore-words-list = "hass,termostat"
 # The Polish translation is not English, so an English dictionary reads most
 # of its words as typos.
 skip = "custom_components/ampio/translations/pl.json"
+
+# Pyright checks the whole tree, tests included, and turns off two groups of
+# rules. Home Assistant's Entity declares available, is_on, native_value and
+# the other state properties as cached properties, and overriding one with
+# @property is Home Assistant's own pattern, so the integration turns the
+# override rule off. A test reads hass.states.get() or a flow result directly,
+# and a None or a missing key fails the test anyway, so the tests turn the
+# Optional and NotRequired access rules off. The tests environment names the
+# repo root as an import path, because an execution environment's root
+# replaces it.
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+exclude = [".venv"]
+
+[[tool.pyright.executionEnvironments]]
+root = "custom_components"
+reportIncompatibleVariableOverride = "none"
+
+[[tool.pyright.executionEnvironments]]
+root = "tests"
+extraPaths = ["."]
+reportOptionalMemberAccess = "none"
+reportOptionalSubscript = "none"
+reportOptionalIterable = "none"
+reportTypedDictNotRequiredAccess = "none"
