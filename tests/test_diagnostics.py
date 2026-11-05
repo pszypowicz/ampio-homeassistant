@@ -47,7 +47,8 @@ DIAGNOSTICS_SNAPSHOT = {
         "protocol_violations": {},
     },
     "params_gap": [],
-    "not_configured": [],
+    "leafless": [],
+    "unrecognized": [],
     "mac_collisions": [],
     # One row per module: the relay has pushed since the connect and carries
     # its health broadcast, the sensor module has not spoken yet.
@@ -60,6 +61,8 @@ DIAGNOSTICS_SNAPSHOT = {
             "last_seen": 1782108300.0,
             "supply_voltage": 13.9,
             "temperature": 31.5,
+            "mac_group": 0,
+            "parent": "",
         },
         {
             "id": 17,
@@ -69,6 +72,8 @@ DIAGNOSTICS_SNAPSHOT = {
             "last_seen": None,
             "supply_voltage": None,
             "temperature": None,
+            "mac_group": 0,
+            "parent": "",
         },
     ],
     # The library keeps only the parsed values of the info reply, so the

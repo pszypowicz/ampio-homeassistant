@@ -47,6 +47,12 @@ ADMIN_ONLY_RECORDS_ISSUE: Final = "admin_only_records"
 # is gone, or an override mac two module rows share. The installer fixes
 # each one in Ampio Designer.
 NOT_CONFIGURED_ISSUE: Final = "not_configured"
+# Object rows whose leaf the library cannot read. No Designer edit fixes
+# these, so the repair asks for a bug report with the diagnostics download.
+UNRECOGNIZED_OBJECTS_ISSUE: Final = "unrecognized_objects"
+# Where that bug report goes. It equals the manifest's ``issue_tracker``,
+# which the repair cannot read from a callback without awaiting.
+ISSUE_TRACKER_URL: Final = "https://github.com/pszypowicz/ampio-homeassistant/issues"
 
 # The stem every module-keyed string is built from: the device identifier
 # ``module_mac:<mac>`` and the entity unique id ``module_mac_<mac>_<suffix>``.

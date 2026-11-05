@@ -6,9 +6,9 @@ received. What the integration was not served, it does not report,
 because an unknown is not an absence.
 
 The records of a Designer row the library's admission door refused are
-not offered either, because the install still needs them. That repair
-names the Designer fix instead, and the records it covers stay out of the
-deletion lists while it stands.
+not offered either, because the server still serves the row and the
+install still needs them. The refusal repairs name the cause instead, and
+the records they cover stay out of the deletion lists while they stand.
 """
 
 from collections.abc import Iterable, Mapping
@@ -28,10 +28,12 @@ from homeassistant.helpers import (
 from .const import (
     ADMIN_ONLY_RECORDS_ISSUE,
     DOMAIN,
+    ISSUE_TRACKER_URL,
     MODULE_KEY_PREFIX,
     NOT_CONFIGURED_ISSUE,
     SCENE_KEY_STEM,
     STALE_RECORDS_ISSUE,
+    UNRECOGNIZED_OBJECTS_ISSUE,
 )
 from .data import AmpioConfigEntry, AmpioData, RefusedRows
 
@@ -130,7 +132,10 @@ def _refused_records(entry: AmpioConfigEntry) -> _RefusedRecords:
     if refused is None:
         return _RefusedRecords(frozenset(), ())
     return _RefusedRecords(
-        frozenset(f"{OBJECT_KEY_PREFIX}{oid}" for oid in refused.objects),
+        frozenset(
+            f"{OBJECT_KEY_PREFIX}{oid}"
+            for oid in (*refused.leafless, *refused.unrecognized)
+        ),
         tuple(
             f"{MODULE_KEY_PREFIX}{format_mac(mac)}_" for mac, _ in refused.collisions
         ),
@@ -440,29 +445,29 @@ def async_remove_stale_records(
 def async_report_not_configured(
     hass: HomeAssistant, entry: AmpioConfigEntry, refused: RefusedRows | None
 ) -> None:
-    """Record what the admission door refuses, and raise or clear its repair.
+    """Record what the admission door refuses, and raise or clear its repairs.
 
-    The record and the repair move together, because the stale report
+    The record and the repairs move together, because the stale report
     reads the record to keep a refused row's leftovers out of its lists.
-    None is the door refusing nothing, which takes the repair down.
+    None is the door refusing nothing, which takes both repairs down.
 
     Ids alone, and structurally so: ``RefusedRows`` carries no name to
     put in a placeholder, because the projection that builds it keeps the
     Designer names inside the library.
 
-    Either fault can stand without the other, so the text follows which of
-    the two the door reports. An account that is not the administrator is
-    served no module list and therefore meets the object fault alone.
+    A leafless row and a collision are fixed in Ampio Designer, and an
+    unrecognized row needs a library that reads its leaf, so each cause
+    gets a repair of its own that the installer can act on.
 
     Both callers, the connect-time catch and the subscription, reach the
-    warning through here, so a fault logs identically regardless of when
+    warnings through here, so a fault logs identically regardless of when
     it appears. The clear path logs nothing.
     """
     entry.runtime_data.not_configured = refused
     # The batch queued here brings the module entities in line with the
     # macs the catalogue names, then reports, which is what re-reads this
     # record. The report keeps a refused row's records out of its lists,
-    # so a change to either side has to re-read both. A row that was an
+    # so every change of the record has to reach it. A row that was an
     # object queues that batch through its eviction as well, but a row the
     # door refused at connect never became one, so when Ampio Designer
     # deletes it the library has nothing to evict and this is the only
@@ -470,13 +475,29 @@ def async_report_not_configured(
     entry.runtime_data.async_request_pass()
     if refused is None:
         ir.async_delete_issue(hass, DOMAIN, NOT_CONFIGURED_ISSUE)
+        ir.async_delete_issue(hass, DOMAIN, UNRECOGNIZED_OBJECTS_ISSUE)
         return
-    if refused.objects:
+    _report_designer_faults(hass, refused)
+    _report_unrecognized(hass, refused)
+
+
+@callback
+def _report_designer_faults(hass: HomeAssistant, refused: RefusedRows) -> None:
+    """Raise or clear the repair for the rows the installer fixes in Ampio Designer.
+
+    Either fault can stand without the other, so the text follows which of
+    the two the door reports. An account that is not the administrator is
+    served no module list and therefore meets the object fault alone.
+    """
+    if not (refused.leafless or refused.collisions):
+        ir.async_delete_issue(hass, DOMAIN, NOT_CONFIGURED_ISSUE)
+        return
+    if refused.leafless:
         _LOGGER.warning(
             "Ampio objects %s carry no Designer leaf, so the integration "
             "cannot address them and left them out. Restore each in Ampio "
             "Designer and save",
-            sorted(refused.objects),
+            sorted(refused.leafless),
         )
     for mac, ids in refused.collisions:
         _LOGGER.warning(
@@ -486,7 +507,7 @@ def async_report_not_configured(
             sorted(ids),
             format_mac(mac),
         )
-    objects = [str(oid) for oid in refused.objects]
+    objects = [str(oid) for oid in refused.leafless]
     # One line per shared mac: the address, then the Designer device ids
     # that carry it. The mac is written the way the config flow writes the
     # server's, so one install reads one way.
@@ -512,5 +533,39 @@ def async_report_not_configured(
             "objects": "\n".join(f"- {oid}" for oid in objects),
             "module_count": str(len(collisions)),
             "modules": "\n".join(f"- {line}" for line in collisions),
+        },
+    )
+
+
+@callback
+def _report_unrecognized(hass: HomeAssistant, refused: RefusedRows) -> None:
+    """Raise or clear the repair for the object rows whose leaf the library cannot read.
+
+    No Designer edit or submit fixes such a row, so the repair offers no
+    flow and links the issue tracker, where a report with the diagnostics
+    download carries the leaves a fix needs.
+    """
+    if not refused.unrecognized:
+        ir.async_delete_issue(hass, DOMAIN, UNRECOGNIZED_OBJECTS_ISSUE)
+        return
+    _LOGGER.warning(
+        "Ampio objects %s carry a module address this version of the "
+        "integration cannot read, so it left them out. Report it at %s and "
+        "attach the diagnostics download",
+        sorted(refused.unrecognized),
+        ISSUE_TRACKER_URL,
+    )
+    objects = [str(oid) for oid in refused.unrecognized]
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        UNRECOGNIZED_OBJECTS_ISSUE,
+        is_fixable=False,
+        learn_more_url=ISSUE_TRACKER_URL,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=UNRECOGNIZED_OBJECTS_ISSUE,
+        translation_placeholders={
+            "object_count": str(len(objects)),
+            "objects": "\n".join(f"- {oid}" for oid in objects),
         },
     )

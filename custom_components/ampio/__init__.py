@@ -47,6 +47,7 @@ from .const import (
     NOT_CONFIGURED_ISSUE,
     PLATFORMS,
     STALE_RECORDS_ISSUE,
+    UNRECOGNIZED_OBJECTS_ISSUE,
 )
 from .data import AmpioConfigEntry, AmpioData, RefusedRows
 from .stale import async_report_not_configured, async_report_stale_records
@@ -142,8 +143,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     except AmpioNotConfigured as err:
         # The library's admission door refuses a Designer row it cannot
         # address and serves every other one, with the connection up. One
-        # unchecked Matter box must not take the install offline, so setup
-        # runs on what was served and a repair names the refused rows. The
+        # unchecked Matter box, or one leaf this library version cannot
+        # read, must not take the install offline, so setup runs on what
+        # was served and the repairs name the refused rows. The
         # door is checked only after every initial reply has landed, so
         # the catalogue and the server info are populated here.
         # Ids alone, from here on. The exception's message embeds the
@@ -167,7 +169,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     # From here to the subscriptions below, nothing awaits. The library
     # dispatches what its admission door refuses as an event, and an event
     # that lands while setup sits between connect and the subscription
-    # reaches nobody. The installer repair would not appear, and the
+    # reaches nobody. The refusal repairs would not appear, and the
     # refused row's records would read to the stale-record report as
     # leftovers. ``create`` is synchronous for that reason, and the room
     # map is fetched once the window is closed.
@@ -176,12 +178,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
 
     @callback
     def _not_configured(event: NotConfigured) -> None:
-        """Raise or clear the installer repair as the admission door changes.
+        """Raise or clear the refusal repairs as the admission door changes.
 
         The library reports every change of what the door refuses, and
-        each event carries both sides, so a row that loses its Designer
-        leaf and the fix that gives it back both land here. Two empty
-        sides mean the door refuses nothing now.
+        each event carries all three sides, so a row that loses its
+        Designer leaf and the fix that gives it back both land here. Three
+        empty sides mean the door refuses nothing now.
         """
         async_report_not_configured(hass, entry, RefusedRows.from_event(event))
 
@@ -280,6 +282,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> No
     ir.async_delete_issue(hass, DOMAIN, ADMIN_ONLY_RECORDS_ISSUE)
     ir.async_delete_issue(hass, DOMAIN, STALE_RECORDS_ISSUE)
     ir.async_delete_issue(hass, DOMAIN, NOT_CONFIGURED_ISSUE)
+    ir.async_delete_issue(hass, DOMAIN, UNRECOGNIZED_OBJECTS_ISSUE)
 
 
 async def async_remove_config_entry_device(

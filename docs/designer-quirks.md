@@ -14,7 +14,7 @@ The fix, in the current web Designer: touch every affected output individually -
 
 ## Unchecking an object's Matter box removes its entity
 
-**Check:** An object's entities are gone from Home Assistant, and a repair on the Settings page titled "Ampio objects with no module output" names the object's id. If you opened that object in Ampio Designer and cleared its "Matter" checkbox, this is why. The same ids appear under `snapshot.not_configured` in the diagnostics download, described in [debugging.md](debugging.md).
+**Check:** An object's entities are gone from Home Assistant, and a repair on the Settings page titled "Ampio objects with no module output" names the object's id. If you opened that object in Ampio Designer and cleared its "Matter" checkbox, this is why. The same ids appear under `snapshot.leafless` in the diagnostics download, described in [debugging.md](debugging.md).
 
 Every object row carries a `leafId`, the pointer to the module output that drives it. Designer's per-object "Matter" checkbox rewrites that field on every save. A check writes it back from the linked output record and re-syncs the `type` column from the module record. An uncheck saves the row without it, and the M-SERV stores an empty value.
 

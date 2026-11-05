@@ -307,6 +307,10 @@
                     }
                 }
             }
+        },
+        "unrecognized_objects": {
+            "title": "Obiekty Ampio, których ta wersja nie potrafi odczytać",
+            "description": "Serwer Ampio udostępnia obiekty, których adresu modułu ta wersja integracji nie potrafi odczytać. Integracja je pominęła, więc nie może ich odczytać ani nimi sterować, a w Home Assistant nie mają działających encji.\n\nIdentyfikatory obiektów Ampio ({object_count}):\n\n{objects}\n\nŻadna zmiana w Ampio Designer tego nie naprawi, bo integracja musi nauczyć się odczytywać te adresy. Pobierz diagnostykę w Ustawienia -> Urządzenia oraz usługi -> Ampio -> menu z trzema kropkami przy wpisie -> Pobierz diagnostykę i dołącz plik do nowego zgłoszenia na GitHubie. Przycisk Dowiedz się więcej otwiera listę zgłoszeń. Plik wymienia te obiekty z adresami modułów i typami, czyli tym, czego potrzeba do ich obsługi, i nie zawiera nazw obiektów, pomieszczeń ani modułów.\n\nTen komunikat zniknie po zainstalowaniu wersji integracji, która odczytuje te obiekty, albo gdy obiekty znikną z projektu w Ampio Designer."
         }
     },
     "options": {
