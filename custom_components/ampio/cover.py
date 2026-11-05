@@ -138,8 +138,9 @@ class AmpioCover(AmpioEntity, CoverEntity):
         feature drop already covers it.
         """
         features = self._unblocked_features
-        if (obj := self._object) is None:
+        if not self._served:
             return features
+        obj = self._object
         if obj.read_only:
             return CoverEntityFeature(0)
         if obj.blocks_opening:
@@ -156,17 +157,13 @@ class AmpioCover(AmpioEntity, CoverEntity):
     @override
     def current_cover_position(self) -> int | None:
         """Travel percent, or None without a position axis or feedback."""
-        if (obj := self._object) is None:
-            return None
-        return obj.position
+        return self._object.position
 
     @property
     @override
     def current_cover_tilt_position(self) -> int | None:
         """Slat angle percent; the library populates it only for tilt-capable covers."""
-        if (obj := self._object) is None:
-            return None
-        return obj.lammel
+        return self._object.lammel
 
     @property
     @override
@@ -208,7 +205,7 @@ class AmpioCover(AmpioEntity, CoverEntity):
         nothing can decide, and the command goes out.
         """
         obj = self._object
-        if obj is None or current is None:
+        if current is None:
             return
         if target > current and obj.blocks_opening:
             key = "cover_blocked_opening"

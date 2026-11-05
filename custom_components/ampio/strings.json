@@ -110,12 +110,6 @@
       }
     },
     "sensor": {
-      "co2": {
-        "name": "CO2"
-      },
-      "loudness": {
-        "name": "Loudness"
-      },
       "pressure_abs": {
         "name": "Absolute pressure"
       },

@@ -892,7 +892,7 @@ async def test_every_object_gets_a_child_device(
         ("sensor", 36, "Temperatura", "Temperatura"),
         ("climate", 91, "Termostat Salon", "Termostat Salon"),
         ("switch", 74, "Object 74", "Object 74"),
-        ("sensor", 43, "Object 43", "Object 43 CO2"),
+        ("sensor", 43, "Object 43", "Object 43 Carbon dioxide"),
     ):
         child = device_registry.async_get_child_device_by_identifier(
             (DOMAIN, unique_id(object_id)), mock_config_entry.entry_id

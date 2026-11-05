@@ -62,10 +62,14 @@ class AmpioClimate(AmpioEntity, ClimateEntity):
 
     @property
     def _thermostat(self) -> ThermostatState | None:
-        """The regulator's readback, or None before the first rich push."""
-        if (obj := self._object) is None:
+        """The regulator's readback, or None before the first rich push.
+
+        ``hvac_modes`` reads it through ``hvac_mode``, and Home Assistant
+        reads that capability while the entity is unavailable too.
+        """
+        if not self._served:
             return None
-        return obj.thermostat
+        return self._object.thermostat
 
     @property
     @override
@@ -119,8 +123,7 @@ class AmpioClimate(AmpioEntity, ClimateEntity):
     @override
     def hvac_action(self) -> HVACAction | None:
         """Idle while stopped; cooling or heating by the readback flag."""
-        if (obj := self._object) is None:
-            return None
+        obj = self._object
         if not obj.is_on:
             return HVACAction.IDLE
         if (thermostat := obj.thermostat) is not None and thermostat.cooling:

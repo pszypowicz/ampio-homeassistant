@@ -119,7 +119,7 @@ async def _async_sweep_records(client: AmpioAdminClient) -> None:
     )
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> None:
     """Set up Ampio from a config entry."""
     client = _build_client(entry.data)
     entry.async_on_unload(client.disconnect)
@@ -263,18 +263,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> boo
     # the installer repair and kept out of the offer, and no two repairs ask
     # for opposite things about one record.
     async_report_stale_records(hass, entry)
-    return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> None:
     """Unload a config entry.
 
     The batches stop first, so that none adds an entity to a platform
-    that has unloaded, and one that is removing an entity finishes that. The client stays connected until the on-unload
-    callbacks run, after the platforms.
+    that has unloaded, and one that is removing an entity finishes that.
+    The client stays connected until the on-unload callbacks run, after
+    the platforms.
     """
     await entry.runtime_data.async_shutdown()
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    await hass.config_entries.async_unload_platforms_or_raise(entry, PLATFORMS)
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> None:

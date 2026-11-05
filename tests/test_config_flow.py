@@ -4,9 +4,12 @@ from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
 from ampio_mqtt import AmpioAuthError, AmpioConnectionError, AmpioTimeoutError
+import probatio
+from probatio.humanize import humanize_error
 import pytest
 from pytest_homeassistant.common import MockConfigEntry, get_schema_suggested_value
 
+from custom_components.ampio.config_flow import STEP_USER_DATA_SCHEMA
 from custom_components.ampio.const import CONF_BLEND_WHITE, DOMAIN
 from homeassistant.config_entries import SOURCE_USER, ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
@@ -406,3 +409,15 @@ async def test_options_flow_stores_the_choice_and_reloads(
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert mock_config_entry.options == {CONF_BLEND_WHITE: True}
     assert mock_setup_entry.call_count == 2
+
+
+def test_password_stays_out_of_validation_errors() -> None:
+    """A rejected password reads as redacted in the validation error text.
+
+    The schema backs the user, reauth and reconfigure steps alike.
+    """
+    data = {CONF_HOST: "ampio.test", CONF_USERNAME: "admin", CONF_PASSWORD: 98765}
+    with pytest.raises(probatio.Invalid) as err:
+        STEP_USER_DATA_SCHEMA(data)
+
+    assert "98765" not in humanize_error(data, err.value)

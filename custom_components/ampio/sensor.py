@@ -79,7 +79,6 @@ SENSOR_DESCRIPTIONS: dict[str, SensorEntityDescription] = {
         ),
         SensorEntityDescription(
             key="loudness",
-            translation_key="loudness",
             device_class=SensorDeviceClass.SOUND_PRESSURE,
             native_unit_of_measurement=UnitOfSoundPressure.DECIBEL,
             state_class=SensorStateClass.MEASUREMENT,
@@ -100,7 +99,6 @@ SENSOR_DESCRIPTIONS: dict[str, SensorEntityDescription] = {
         ),
         SensorEntityDescription(
             key="co2",
-            translation_key="co2",
             device_class=SensorDeviceClass.CO2,
             native_unit_of_measurement=UnitOfRatio.PARTS_PER_MILLION,
             state_class=SensorStateClass.MEASUREMENT,
@@ -240,9 +238,7 @@ class AmpioSensor(AmpioEntity, SensorEntity):
     @override
     def native_value(self) -> float | None:
         """The current reading, or None when missing or non-numeric."""
-        if (obj := self._object) is None:
-            return None
-        return obj.numeric_value
+        return self._object.numeric_value
 
 
 class AmpioValueSensor(AmpioEntity, SensorEntity):
@@ -259,17 +255,18 @@ class AmpioValueSensor(AmpioEntity, SensorEntity):
     @override
     def native_value(self) -> float | None:
         """The current reading, or None when missing or non-numeric."""
-        if (obj := self._object) is None:
-            return None
-        return obj.numeric_value
+        return self._object.numeric_value
 
     @property
     @override
     def native_unit_of_measurement(self) -> str | None:
-        """The unit Designer stores on the object, or None."""
-        if (obj := self._object) is None:
+        """The unit Designer stores on the object, or None.
+
+        Home Assistant reads the unit while the entity is unavailable too.
+        """
+        if not self._served:
             return None
-        return obj.unit
+        return self._object.unit
 
     @property
     @override
@@ -293,10 +290,14 @@ class AmpioValueSensor(AmpioEntity, SensorEntity):
     @property
     @override
     def suggested_display_precision(self) -> int | None:
-        """The decimals Designer's string format fixes, or None."""
-        if (obj := self._object) is None:
+        """The decimals Designer's string format fixes, or None.
+
+        Home Assistant reads the precision while the entity is unavailable
+        too.
+        """
+        if not self._served:
             return None
-        return obj.decimals
+        return self._object.decimals
 
 
 class AmpioPulseTimeSensor(AmpioEntity, SensorEntity):
@@ -316,10 +317,8 @@ class AmpioPulseTimeSensor(AmpioEntity, SensorEntity):
     @property
     @override
     def native_value(self) -> int | None:
-        """The configured pulse length, or None once the object is gone."""
-        if (obj := self._object) is None:
-            return None
-        return obj.pulse_ms
+        """The configured pulse length."""
+        return self._object.pulse_ms
 
 
 class AmpioModuleSensor(AmpioModuleEntity, SensorEntity):

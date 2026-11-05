@@ -88,7 +88,7 @@ class AmpioNumber(AmpioEntity, NumberEntity):
         here would show ``120.0`` for a field that never carries a
         fraction. Rounding to ``int`` keeps the displayed state an integer.
         """
-        if (obj := self._object) is None or (value := obj.numeric_value) is None:
+        if (value := self._object.numeric_value) is None:
             return None
         return round(value)
 

@@ -11,6 +11,7 @@ from ampio_mqtt import (
     AmpioTimeoutError,
     AmpioValueError,
     ModuleFunction,
+    ObjectRemoved,
     ObjectUpdated,
 )
 import pytest
@@ -168,6 +169,22 @@ async def test_all_entities(
     with_panel_settings(mock_client)
     await setup_integration(hass, mock_config_entry)
     await snapshot_platform(hass, entity_registry, snapshot, mock_config_entry.entry_id)
+
+
+async def test_removed_light_becomes_unavailable(
+    hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
+) -> None:
+    """A library removal makes the light unavailable.
+
+    The light remembers its lit state on every push, and the removal is one.
+    """
+    await setup_integration(hass, mock_config_entry)
+
+    obj = mock_client.objects.pop(72)
+    emit(mock_client, ObjectRemoved(object=obj))
+    await hass.async_block_till_done()
+
+    assert hass.states.get(RGBW_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
 
 
 async def test_relay_light_turn_on_off(
