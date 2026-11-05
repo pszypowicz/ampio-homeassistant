@@ -2,6 +2,7 @@
 
 [![Marketplace custom repository](https://img.shields.io/badge/Marketplace-custom_repository-41BDF5.svg)](https://www.home-assistant.io/integrations/marketplace)
 [![GitHub Release](https://img.shields.io/github/v/release/pszypowicz/ampio-homeassistant)](https://github.com/pszypowicz/ampio-homeassistant/releases)
+[![Downloads](https://img.shields.io/github/downloads/pszypowicz/ampio-homeassistant/total)](https://github.com/pszypowicz/ampio-homeassistant/releases)
 [![CI](https://github.com/pszypowicz/ampio-homeassistant/actions/workflows/ci.yaml/badge.svg)](https://github.com/pszypowicz/ampio-homeassistant/actions/workflows/ci.yaml)
 [![License](https://img.shields.io/github/license/pszypowicz/ampio-homeassistant)](LICENSE)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)

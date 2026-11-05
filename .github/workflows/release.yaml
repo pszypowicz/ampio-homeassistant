@@ -1,0 +1,19 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      # The Marketplace extracts the asset into custom_components/ampio, so
+      # the archive holds the integration's files at its root.
+      - run: git archive --format=zip --output=ampio.zip HEAD:custom_components/ampio
+      - run: gh release upload "$GITHUB_REF_NAME" ampio.zip --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
