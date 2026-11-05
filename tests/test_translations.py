@@ -41,7 +41,6 @@ LANGUAGES: dict[str, frozenset[str]] = {
             "config.step.reconfigure.data.host",
             "config.step.user.data.host",
             "entity.binary_sensor.alarm.name",
-            "entity.sensor.co2.name",
         }
     ),
 }

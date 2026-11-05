@@ -599,7 +599,7 @@ def mock_client(mock_client_class: MagicMock) -> MagicMock:
 @pytest.fixture
 def mock_setup_entry() -> Generator[MagicMock]:
     """Patch the entry setup so config-flow tests don't run real setup."""
-    with patch("custom_components.ampio.async_setup_entry", return_value=True) as mock:
+    with patch("custom_components.ampio.async_setup_entry", return_value=None) as mock:
         yield mock
 
 

@@ -271,6 +271,33 @@ async def test_removed_object_becomes_unavailable(
     assert hass.states.get(CO2_ENTITY_ID(hass)).state == STATE_UNAVAILABLE
 
 
+async def test_removed_value_sensor_takes_a_registry_update(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """A value sensor whose object is gone goes unavailable and takes a rename.
+
+    Home Assistant reads the unit while it writes the unavailable state,
+    and the display precision when the registry entry changes.
+    """
+    await setup_integration(hass, mock_config_entry)
+    entity_id = entity_id_of(hass, "sensor", unique_id(160))
+
+    obj = mock_client.objects.pop(160)
+    emit(mock_client, ObjectRemoved(object=obj))
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == STATE_UNAVAILABLE
+
+    entity_registry.async_update_entity(entity_id, name="Renamed")
+    await hass.async_block_till_done()
+
+    state = hass.states.get(entity_id)
+    assert state.state == STATE_UNAVAILABLE
+    assert state.attributes["friendly_name"].endswith("Renamed")
+
+
 async def test_broker_availability_flips_entities(
     hass: HomeAssistant, mock_client: MagicMock, mock_config_entry: MockConfigEntry
 ) -> None:

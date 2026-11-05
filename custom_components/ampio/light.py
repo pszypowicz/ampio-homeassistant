@@ -281,9 +281,13 @@ class AmpioLight(AmpioEntity, LightEntity, RestoreEntity):
         super()._push_received(event)
 
     def _remember(self) -> None:
-        """Keep the state the object holds when it is lit."""
-        if (obj := self._object) is None:
+        """Keep the state the object holds when it is lit.
+
+        It runs on every push, a removal and a lost connection included.
+        """
+        if not self._served:
             return
+        obj = self._object
         if self._rgbw_output:
             if (rgbw := obj.rgbw) is not None and any(rgbw):
                 self._last_rgbw = rgbw
@@ -309,8 +313,7 @@ class AmpioLight(AmpioEntity, LightEntity, RestoreEntity):
         state value stays non-zero and the power axis is the only honest
         answer.
         """
-        if (obj := self._object) is None:
-            return None
+        obj = self._object
         if self._attr_color_mode is ColorMode.COLOR_TEMP:
             return None if (cct := obj.cct) is None else cct[0] > 0
         return obj.is_on
@@ -323,8 +326,7 @@ class AmpioLight(AmpioEntity, LightEntity, RestoreEntity):
         A dimmer's own level, an rgbw output's peak channel, or a CCT
         light's power axis.
         """
-        if (obj := self._object) is None:
-            return None
+        obj = self._object
         if self._rgbw_output:
             return None if (rgbw := obj.rgbw) is None else max(rgbw)
         if self._attr_color_mode is ColorMode.COLOR_TEMP:
@@ -337,7 +339,7 @@ class AmpioLight(AmpioEntity, LightEntity, RestoreEntity):
     @override
     def rgbw_color(self) -> tuple[int, int, int, int] | None:
         """The four channels of an rgbw output, with the peak at 255."""
-        if (obj := self._object) is None or (rgbw := obj.rgbw) is None:
+        if (rgbw := self._object.rgbw) is None:
             return None
         red, green, blue, white = _at_level(rgbw, 255)
         return (red, green, blue, white)
@@ -350,7 +352,7 @@ class AmpioLight(AmpioEntity, LightEntity, RestoreEntity):
         ``AmpioObject.rgbw`` reads None for every other kind, so no mode
         check belongs here.
         """
-        if (obj := self._object) is None or (rgbw := obj.rgbw) is None:
+        if (rgbw := self._object.rgbw) is None:
             return None
         return color_rgbw_to_rgb(*_at_level(rgbw, 255))
 
@@ -362,7 +364,7 @@ class AmpioLight(AmpioEntity, LightEntity, RestoreEntity):
         ``AmpioObject.cct`` reads None for every other kind, so no mode
         check belongs here.
         """
-        if (obj := self._object) is None or (cct := obj.cct) is None:
+        if (cct := self._object.cct) is None:
             return None
         return _kelvin_from_coldness(
             cct[1], self.min_color_temp_kelvin, self.max_color_temp_kelvin

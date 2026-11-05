@@ -37,14 +37,14 @@ async def async_turn_on_honoring_pulse(
         await client.turn_on(object_id)
 
 
-def raise_if_read_only(obj: AmpioObject | None) -> None:
+def raise_if_read_only(obj: AmpioObject) -> None:
     """Raise before a write the M-SERV would silently drop.
 
     Designer's read-only marker is enforced server-side on both account
     tiers, which drops such a write with no error and no echo. The entity
     keeps its platform because the checkbox can change at any time.
     """
-    if obj is not None and obj.read_only:
+    if obj.read_only:
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="read_only_object",
@@ -162,9 +162,20 @@ class AmpioEntity(AmpioBaseEntity):
         self.async_write_ha_state()
 
     @property
-    def _object(self) -> AmpioObject | None:
-        """The backing object, or None once the catalogue dropped it."""
-        return self._data.client.objects.get(self._object_id)
+    def _served(self) -> bool:
+        """Whether the catalogue still serves the backing object."""
+        return self._object_id in self._data.client.objects
+
+    @property
+    def _object(self) -> AmpioObject:
+        """The backing object, served while the entity is available.
+
+        Home Assistant reads the state properties and calls the actions
+        only while the entity is available. A property it reads
+        regardless, such as the supported features, a unit, or a
+        capability attribute, checks ``_served`` before it reads this.
+        """
+        return self._data.client.objects[self._object_id]
 
     @property
     @override
@@ -173,11 +184,11 @@ class AmpioEntity(AmpioBaseEntity):
 
         The library's admission door evicts a hidden row before any
         consumer sees it, so a Designer delete reads the same on either
-        account tier: the object leaves ``objects`` and ``_object`` goes
-        None. There is no hidden bit left for an entity to read, and no
-        tier the delete signal differs on.
+        account tier: the object leaves ``objects``. There is no hidden bit
+        left for an entity to read, and no tier the delete signal differs
+        on.
         """
-        return self._data.client.available and self._object is not None
+        return self._data.client.available and self._served
 
 
 class AmpioModuleEntity(AmpioBaseEntity):

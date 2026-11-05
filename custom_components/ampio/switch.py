@@ -79,10 +79,8 @@ class AmpioSwitch(AmpioEntity, SwitchEntity):
     @property
     @override
     def is_on(self) -> bool | None:
-        """Whether the object is on, or None once it is gone."""
-        if (obj := self._object) is None:
-            return None
-        return obj.is_on
+        """Whether the object is on."""
+        return self._object.is_on
 
     @override
     async def async_turn_on(self, **kwargs: Any) -> None:

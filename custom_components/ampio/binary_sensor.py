@@ -120,10 +120,8 @@ class AmpioBinarySensor(AmpioEntity, BinarySensorEntity):
     @property
     @override
     def is_on(self) -> bool | None:
-        """Whether the input reads on, or None once the object is gone."""
-        if (obj := self._object) is None:
-            return None
-        return obj.is_on
+        """Whether the input reads on."""
+        return self._object.is_on
 
 
 class AmpioCoverLockSensor(AmpioEntity, BinarySensorEntity):
@@ -148,7 +146,7 @@ class AmpioCoverLockSensor(AmpioEntity, BinarySensorEntity):
     @property
     @override
     def is_on(self) -> bool | None:
-        """Whether this direction is held, or None without an object or lock report."""
-        if (obj := self._object) is None or obj.block is None:
+        """Whether this direction is held, or None before a lock report."""
+        if (obj := self._object).block is None:
             return None
         return self.entity_description.is_locked_fn(obj)
