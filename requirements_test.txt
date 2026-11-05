@@ -15,8 +15,11 @@
 # Home Assistant core install, and the gates read it from there so the tested
 # version is always the shipped version.
 #
-# mypy is pinned here because the type gate runs from this venv, locally and
-# in CI. ruff is not: its pre-commit hook pins the version by itself.
+# mypy and pyright are pinned here because the type gates run from this venv,
+# locally and in CI. pyright carries the nodejs extra, so the venv installs a
+# Node.js runtime with it and the gate never downloads one on its first run.
+# ruff is not pinned here, because its pre-commit hook pins the version itself.
 homeassistant==2026.11.0b6
 pytest-homeassistant==2026.11.0b6
 mypy==2.3.1
+pyright[nodejs]==1.1.414

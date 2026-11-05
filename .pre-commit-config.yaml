@@ -56,6 +56,14 @@ repos:
         language: system
         types_or: [python, pyi]
         pass_filenames: false
+      # Checks the whole tree, tests included, with the rules [tool.pyright] in
+      # pyproject.toml sets, so it also runs when that file changes.
+      - id: pyright
+        name: pyright
+        entry: uv run --no-project pyright
+        language: system
+        files: ^(pyproject\.toml|.*\.pyi?)$
+        pass_filenames: false
       - id: pytest
         name: pytest
         entry: uv run --no-project python -m pytest tests/ -q

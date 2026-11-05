@@ -17,7 +17,7 @@ These are not negotiable, and no shortcut open only to a custom repository earns
 
 - No synchronous I/O in setup. Everything on the event loop is async.
 - Every platform ships tests at the sensor suite's depth, snapshots included.
-- Fully typed. `mypy --strict` passes with no ignores.
+- Fully typed. `mypy --strict` passes with no ignores, and so does `pyright` under `[tool.pyright]` in `pyproject.toml`.
 - All MQTT goes through `ampio-mqtt`. No hand-rolled clients, no raw publishes.
 - Dependencies stay at `ampio-mqtt` plus what Home Assistant already pulls in.
 - `quality_scale.yaml` changes carry a reason in the commit message.
@@ -36,7 +36,9 @@ That distinction is worth keeping straight. A repair that reports what no catalo
 
 ## Quality gates
 
-The gate is `.pre-commit-config.yaml`: betterleaks, ruff check, ruff format, `mypy --strict`, `pytest`, codespell, and the file hygiene hooks. It runs twice. The pre-commit hook runs it on every commit, and the `pre-commit` job of `.github/workflows/ci.yaml` runs it on every PR. Protected `main` requires `pre-commit`, `hassfest`, and `hacs` before merge. Fix the CI, do not skip the check.
+The gate is `.pre-commit-config.yaml`: betterleaks, ruff check, ruff format, `mypy --strict`, `pyright`, `pytest`, codespell, and the file hygiene hooks. It runs twice. The pre-commit hook runs it on every commit, and the `pre-commit` job of `.github/workflows/ci.yaml` runs it on every PR. Protected `main` requires `pre-commit`, `hassfest`, and `hacs` before merge. Fix the CI, do not skip the check.
+
+mypy checks the integration alone, and Pyright checks the whole tree, tests included, so an editor that runs Pyright shows what the gate shows. `[tool.pyright]` in `pyproject.toml` turns off two groups of rules, and the comment there says why. Any other Pyright error is fixed in the code. A local `pyrightconfig.json` would take precedence over that section, so the settings live in `pyproject.toml` alone.
 
 ## Tier-independent identity rule
 
@@ -116,8 +118,8 @@ A release that leaves an install unable to recover on its own carries manual ste
 
 ## Tools and commands
 
-- Gate venv: `./.venv` (uv-managed, gitignored). The mypy and pytest hooks start through `uv run --no-project`, which finds `.venv` in the checkout or in a parent directory, so a worktree inside the checkout needs nothing; a worktree elsewhere sets `VIRTUAL_ENV`. Install the hook with `pre-commit install` (a pre-commit from outside the venv); ruff and betterleaks come from their own pre-commit hooks, not the venv.
-- Recreate the venv from the same two sources CI reads: `uv venv .venv --python 3.14 && uv pip install -p .venv -r requirements_test.txt "$(jq -r '.requirements[0]' custom_components/ampio/manifest.json)"`. mypy is pinned in `requirements_test.txt`.
+- Gate venv: `./.venv` (uv-managed, gitignored). The mypy, pyright and pytest hooks start through `uv run --no-project`, which finds `.venv` in the checkout or in a parent directory, so a worktree inside the checkout needs nothing; a worktree elsewhere sets `VIRTUAL_ENV`. Install the hook with `pre-commit install` (a pre-commit from outside the venv); ruff and betterleaks come from their own pre-commit hooks, not the venv.
+- Recreate the venv from the same two sources CI reads: `uv venv .venv --python 3.14 && uv pip install -p .venv -r requirements_test.txt "$(jq -r '.requirements[0]' custom_components/ampio/manifest.json)"`. mypy and pyright are pinned in `requirements_test.txt`.
 - **Two pins, two files, both explicit. Nothing resolves a version at run time.** `requirements_test.txt` holds the Home Assistant release and the `pytest-homeassistant` release of the same version. That is core's own test package, and each release pins its exact core release, so the pair moves together. `custom_components/ampio/manifest.json` holds `ampio-mqtt`, so the gates test the version the Marketplace installs. Never leave the test package unpinned, because the resolver would pick a release of its own, which can pin a different core release or none at all. Python 3.14.2 or newer is required, because the pinned Home Assistant release requires it, and the exact pin makes an install on an older Python fail.
 - Keep local filesystem paths out of tracked Markdown and Python files. The `no-local-paths` hook in `.pre-commit-config.yaml` rejects them.
 

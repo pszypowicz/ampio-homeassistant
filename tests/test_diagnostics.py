@@ -2,6 +2,7 @@
 
 from dataclasses import asdict
 import json
+from typing import Any
 from unittest.mock import MagicMock
 
 from ampio_mqtt import AccessTier
@@ -162,7 +163,7 @@ async def test_designer_config_standard_account_has_no_modules_and_does_not_rais
     mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
-    result = await get_diagnostics_for_config_entry(
+    result: dict[str, Any] = await get_diagnostics_for_config_entry(
         hass, hass_client, mock_config_entry
     )
 
@@ -225,7 +226,7 @@ async def test_designer_config_emits_only_the_reviewed_keys(
     mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
-    result = await get_diagnostics_for_config_entry(
+    result: dict[str, Any] = await get_diagnostics_for_config_entry(
         hass, hass_client, mock_config_entry
     )
 
@@ -279,7 +280,7 @@ async def test_designer_config_names_known_capability_and_numbers_unknown(
     mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
-    result = await get_diagnostics_for_config_entry(
+    result: dict[str, Any] = await get_diagnostics_for_config_entry(
         hass, hass_client, mock_config_entry
     )
 
@@ -297,7 +298,7 @@ async def test_designer_config_module_without_panel_settings_reports_none(
     mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
-    result = await get_diagnostics_for_config_entry(
+    result: dict[str, Any] = await get_diagnostics_for_config_entry(
         hass, hass_client, mock_config_entry
     )
 
@@ -322,7 +323,7 @@ async def test_designer_config_lists_every_cover_reporting_none_without_paramete
     mock_client.diagnostics_snapshot.return_value = {**DIAGNOSTICS_SNAPSHOT}
     await setup_integration(hass, mock_config_entry)
 
-    result = await get_diagnostics_for_config_entry(
+    result: dict[str, Any] = await get_diagnostics_for_config_entry(
         hass, hass_client, mock_config_entry
     )
 
