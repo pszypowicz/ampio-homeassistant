@@ -23,5 +23,5 @@
     "ampio-mqtt==0.79.0"
   ],
   "single_config_entry": true,
-  "version": "0.0.58"
+  "version": "0.0.59"
 }

@@ -137,6 +137,12 @@ class AmpioBuzzer(AmpioModuleEntity, SirenEntity):
             self._cancel_pending_stop()
             await self._async_silence()
 
+    @callback
+    @override
+    def async_entity_id_changed(self, old_entity_id: str) -> None:
+        """Keep a sounding buzzer sounding, with its stop timer."""
+        super().async_entity_id_changed(old_entity_id)
+
     @override
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Sound the buzzer, for a time or until stopped.

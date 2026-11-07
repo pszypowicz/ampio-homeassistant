@@ -446,6 +446,29 @@ async def test_identify_unload_sends_stop(
 
 
 @pytest.mark.usefixtures("button_only")
+async def test_entity_id_change_keeps_the_identify_hold(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """A new entity id during the hold sends no early stop, and the stop follows on time."""
+    await setup_integration(hass, mock_config_entry)
+    await _press(hass, IDENTIFY_ENTITY_ID(hass))
+
+    entity_registry.async_update_entity(
+        IDENTIFY_ENTITY_ID(hass), new_entity_id="button.panel_identify"
+    )
+    await hass.async_block_till_done()
+
+    mock_client.identify_stop.assert_not_called()
+
+    await _elapse(hass, IDENTIFY_HOLD_SECONDS + 1)
+
+    mock_client.identify_stop.assert_awaited_once_with(17)
+
+
+@pytest.mark.usefixtures("button_only")
 async def test_identify_button_follows_new_module(
     hass: HomeAssistant,
     mock_client: MagicMock,

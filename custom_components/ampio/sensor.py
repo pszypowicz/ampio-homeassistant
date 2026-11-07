@@ -355,6 +355,12 @@ class AmpioModuleSensor(AmpioModuleEntity, SensorEntity):
         )
 
     @callback
+    @override
+    def async_entity_id_changed(self, old_entity_id: str) -> None:
+        """Keep the subscription to the module's broadcasts."""
+        super().async_entity_id_changed(old_entity_id)
+
+    @callback
     def _module_updated(self, event: ModuleUpdated | ModuleRemoved) -> None:
         """Write state when this override mac's row changes, gains a reading, or goes.
 

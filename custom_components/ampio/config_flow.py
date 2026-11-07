@@ -125,7 +125,7 @@ class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Take the credentials to use after a rejection."""
         return await self._async_step_credentials(
-            user_input, "reauth_confirm", self._get_reauth_entry()
+            user_input, "reauth_confirm", "reauth_successful", self._get_reauth_entry()
         )
 
     async def async_step_reconfigure(
@@ -133,17 +133,26 @@ class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Take a new address or a new account for the entry."""
         return await self._async_step_credentials(
-            user_input, "reconfigure", self._get_reconfigure_entry()
+            user_input,
+            "reconfigure",
+            "reconfigure_successful",
+            self._get_reconfigure_entry(),
         )
 
     async def _async_step_credentials(
-        self, user_input: dict[str, Any] | None, step_id: str, entry: ConfigEntry
+        self,
+        user_input: dict[str, Any] | None,
+        step_id: str,
+        reason: str,
+        entry: ConfigEntry,
     ) -> ConfigFlowResult:
         """Point the entry at a host and an account, from one shared form.
 
         The reauth dialog and the reconfigure dialog differ in their step
-        id alone, which is what gives each its own title and description.
-        The entry id does not move, so the reload keeps every device
+        id, which gives each its own title and description, and in the
+        abort reason, which gives each its own closing message. A left-out
+        reason resolves from core's strings rather than this integration's,
+        so the reason is always passed. The entry id does not move, so the reload keeps every device
         record and every entity record. The entry takes the key of the
         M-SERV that answers, so a replaced M-SERV keeps the entry.
         """
@@ -153,6 +162,7 @@ class AmpioConfigFlow(ConfigFlow, domain=DOMAIN):
             if info is not None:
                 return self.async_update_reload_and_abort(
                     entry,
+                    reason=reason,
                     unique_id=info.server_key,
                     data_updates=user_input,
                     title=user_input[CONF_HOST],
