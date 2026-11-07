@@ -280,14 +280,16 @@ async def test_removing_the_entry_clears_both_refusal_repairs(
     mock_config_entry: MockConfigEntry,
     issue_registry: ir.IssueRegistry,
 ) -> None:
-    """Neither refusal repair outlives the entry it was raised for."""
+    """Both refusal repairs belong to the entry, so Home Assistant clears them with it."""
     mock_client.connect.side_effect = AmpioNotConfigured(
         leafless=((168, "Alarm strefa garaz"),),
         unrecognized=((170, "Przekaznik ogrod"),),
     )
     await setup_integration(hass, mock_config_entry)
-    assert issue_registry.async_get_issue(DOMAIN, NOT_CONFIGURED_ISSUE) is not None
-    assert issue_registry.async_get_issue(DOMAIN, UNRECOGNIZED_OBJECTS_ISSUE)
+    for issue_id in (NOT_CONFIGURED_ISSUE, UNRECOGNIZED_OBJECTS_ISSUE):
+        issue = issue_registry.async_get_issue(DOMAIN, issue_id)
+        assert issue is not None
+        assert issue.config_entry_id == mock_config_entry.entry_id
 
     await hass.config_entries.async_remove(mock_config_entry.entry_id)
     await hass.async_block_till_done()

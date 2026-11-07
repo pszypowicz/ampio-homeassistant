@@ -357,6 +357,7 @@ def async_report_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> 
     stale = find_stale_records(hass, entry)
     _async_report(
         hass,
+        entry,
         ADMIN_ONLY_RECORDS_ISSUE,
         "admin_only_records",
         _record_names([], stale.withheld),
@@ -367,6 +368,7 @@ def async_report_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> 
         translation_key = "stale_records_not_served"
     _async_report(
         hass,
+        entry,
         STALE_RECORDS_ISSUE,
         translation_key,
         _record_names(stale.devices, stale.entities),
@@ -375,7 +377,11 @@ def async_report_stale_records(hass: HomeAssistant, entry: AmpioConfigEntry) -> 
 
 @callback
 def _async_report(
-    hass: HomeAssistant, issue_id: str, translation_key: str, names: list[str]
+    hass: HomeAssistant,
+    entry: AmpioConfigEntry,
+    issue_id: str,
+    translation_key: str,
+    names: list[str],
 ) -> None:
     """Raise one repair issue for a list of records, or clear it when empty."""
     if not names:
@@ -391,6 +397,7 @@ def _async_report(
         hass,
         DOMAIN,
         issue_id,
+        config_entry_id=entry.entry_id,
         is_fixable=True,
         severity=ir.IssueSeverity.WARNING,
         translation_key=translation_key,
@@ -477,12 +484,14 @@ def async_report_not_configured(
         ir.async_delete_issue(hass, DOMAIN, NOT_CONFIGURED_ISSUE)
         ir.async_delete_issue(hass, DOMAIN, UNRECOGNIZED_OBJECTS_ISSUE)
         return
-    _report_designer_faults(hass, refused)
-    _report_unrecognized(hass, refused)
+    _report_designer_faults(hass, entry, refused)
+    _report_unrecognized(hass, entry, refused)
 
 
 @callback
-def _report_designer_faults(hass: HomeAssistant, refused: RefusedRows) -> None:
+def _report_designer_faults(
+    hass: HomeAssistant, entry: AmpioConfigEntry, refused: RefusedRows
+) -> None:
     """Raise or clear the repair for the rows the installer fixes in Ampio Designer.
 
     Either fault can stand without the other, so the text follows which of
@@ -525,6 +534,7 @@ def _report_designer_faults(hass: HomeAssistant, refused: RefusedRows) -> None:
         hass,
         DOMAIN,
         NOT_CONFIGURED_ISSUE,
+        config_entry_id=entry.entry_id,
         is_fixable=True,
         severity=ir.IssueSeverity.WARNING,
         translation_key=translation_key,
@@ -538,7 +548,9 @@ def _report_designer_faults(hass: HomeAssistant, refused: RefusedRows) -> None:
 
 
 @callback
-def _report_unrecognized(hass: HomeAssistant, refused: RefusedRows) -> None:
+def _report_unrecognized(
+    hass: HomeAssistant, entry: AmpioConfigEntry, refused: RefusedRows
+) -> None:
     """Raise or clear the repair for the object rows whose leaf the library cannot read.
 
     No Designer edit or submit fixes such a row, so the repair offers no
@@ -560,6 +572,7 @@ def _report_unrecognized(hass: HomeAssistant, refused: RefusedRows) -> None:
         hass,
         DOMAIN,
         UNRECOGNIZED_OBJECTS_ISSUE,
+        config_entry_id=entry.entry_id,
         is_fixable=False,
         learn_more_url=ISSUE_TRACKER_URL,
         severity=ir.IssueSeverity.WARNING,

@@ -273,6 +273,12 @@ class AmpioLight(AmpioEntity, LightEntity, RestoreEntity):
 
     @callback
     @override
+    def async_entity_id_changed(self, old_entity_id: str) -> None:
+        """Keep the lit-state memory, which the add reads from the cache."""
+        super().async_entity_id_changed(old_entity_id)
+
+    @callback
+    @override
     def _push_received(
         self, event: ObjectUpdated | ObjectRemoved | AvailabilityChanged
     ) -> None:

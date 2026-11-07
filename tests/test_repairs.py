@@ -365,13 +365,15 @@ async def test_removing_the_entry_clears_both_issues(
     mock_config_entry: MockConfigEntry,
     issue_registry: ir.IssueRegistry,
 ) -> None:
-    """The records go with the entry, so neither issue has anything left to fix."""
+    """Both issues belong to the entry, so Home Assistant clears them with it."""
     await setup_integration(hass, mock_config_entry)
     _leave_records_behind(mock_client)
     set_access_tier(mock_client, AccessTier.RESTRICTED)
     await _reload(hass, mock_config_entry)
-    assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is not None
-    assert issue_registry.async_get_issue(DOMAIN, ADMIN_ISSUE_ID) is not None
+    for issue_id in (ISSUE_ID, ADMIN_ISSUE_ID):
+        issue = issue_registry.async_get_issue(DOMAIN, issue_id)
+        assert issue is not None
+        assert issue.config_entry_id == mock_config_entry.entry_id
 
     await hass.config_entries.async_remove(mock_config_entry.entry_id)
     await hass.async_block_till_done()

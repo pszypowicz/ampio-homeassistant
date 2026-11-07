@@ -155,6 +155,12 @@ class AmpioEntity(AmpioBaseEntity):
         )
 
     @callback
+    @override
+    def async_entity_id_changed(self, old_entity_id: str) -> None:
+        """Keep the subscriptions, which follow the object and the connection."""
+        super().async_entity_id_changed(old_entity_id)
+
+    @callback
     def _push_received(
         self, event: ObjectUpdated | ObjectRemoved | AvailabilityChanged
     ) -> None:
@@ -253,6 +259,12 @@ class AmpioModuleEntity(AmpioBaseEntity):
                 self._connection_changed, of=AvailabilityChanged
             )
         )
+
+    @callback
+    @override
+    def async_entity_id_changed(self, old_entity_id: str) -> None:
+        """Keep the subscription, which follows the connection."""
+        super().async_entity_id_changed(old_entity_id)
 
     @callback
     def _connection_changed(self, event: AvailabilityChanged) -> None:

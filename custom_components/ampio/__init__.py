@@ -33,22 +33,10 @@ from homeassistant.exceptions import (
     HomeAssistantError,
     ServiceValidationError,
 )
-from homeassistant.helpers import (
-    config_validation as cv,
-    device_registry as dr,
-    issue_registry as ir,
-)
+from homeassistant.helpers import config_validation as cv, device_registry as dr
 from homeassistant.helpers.typing import ConfigType
 
-from .const import (
-    ADMIN_ONLY_RECORDS_ISSUE,
-    ADMIN_USERNAME,
-    DOMAIN,
-    NOT_CONFIGURED_ISSUE,
-    PLATFORMS,
-    STALE_RECORDS_ISSUE,
-    UNRECOGNIZED_OBJECTS_ISSUE,
-)
+from .const import ADMIN_USERNAME, DOMAIN, PLATFORMS
 from .data import AmpioConfigEntry, AmpioData, RefusedRows
 from .stale import async_report_not_configured, async_report_stale_records
 
@@ -275,18 +263,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> No
     """
     await entry.runtime_data.async_shutdown()
     await hass.config_entries.async_unload_platforms_or_raise(entry, PLATFORMS)
-
-
-async def async_remove_entry(hass: HomeAssistant, entry: AmpioConfigEntry) -> None:
-    """The records go with the entry, so no repair has anything left to fix.
-
-    Home Assistant leaves an integration's issues standing when its entry
-    goes, so every issue id the integration raises is named here.
-    """
-    ir.async_delete_issue(hass, DOMAIN, ADMIN_ONLY_RECORDS_ISSUE)
-    ir.async_delete_issue(hass, DOMAIN, STALE_RECORDS_ISSUE)
-    ir.async_delete_issue(hass, DOMAIN, NOT_CONFIGURED_ISSUE)
-    ir.async_delete_issue(hass, DOMAIN, UNRECOGNIZED_OBJECTS_ISSUE)
 
 
 async def async_remove_config_entry_device(

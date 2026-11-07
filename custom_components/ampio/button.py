@@ -168,6 +168,12 @@ class AmpioIdentifyButton(AmpioModuleEntity, ButtonEntity):
         if self._cancel_pending_stop():
             await self._async_stop()
 
+    @callback
+    @override
+    def async_entity_id_changed(self, old_entity_id: str) -> None:
+        """Keep the identify hold and its pending stop."""
+        super().async_entity_id_changed(old_entity_id)
+
     @override
     async def async_press(self) -> None:
         """Send the identify start, and schedule the stop."""

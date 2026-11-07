@@ -215,6 +215,9 @@ async def test_reauth_flow_replaces_the_credentials(
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
+    # The message comes from this integration's strings, which carry it in
+    # every language the integration ships.
+    assert "translation_domain" not in result
     assert dict(mock_config_entry.data) == rotated
     assert mock_config_entry.unique_id == MSERV_MAC
 
@@ -241,6 +244,7 @@ async def test_reconfigure_flow_moves_the_host_and_the_title(
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
+    assert "translation_domain" not in result
     assert dict(mock_config_entry.data) == moved
     assert mock_config_entry.title == "ampio2.test"
     assert mock_config_entry.unique_id == MSERV_MAC

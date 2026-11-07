@@ -312,6 +312,37 @@ async def test_unload_stops_a_sounding_buzzer(
 
 
 @pytest.mark.usefixtures("siren_only")
+async def test_entity_id_change_leaves_the_buzzer_sounding(
+    hass: HomeAssistant,
+    mock_client: MagicMock,
+    mock_config_entry: MockConfigEntry,
+    entity_registry: er.EntityRegistry,
+) -> None:
+    """A new entity id moves a sounding buzzer's state and sends no stop.
+
+    The buzzer still knows it sounds, so the unload sends the stop.
+    """
+    with_buzzer(mock_client)
+    await setup_integration(hass, mock_config_entry)
+    await _turn_on(hass)
+    old_entity_id = BUZZER_ENTITY_ID(hass)
+
+    entity_registry.async_update_entity(
+        old_entity_id, new_entity_id="siren.panel_buzzer"
+    )
+    await hass.async_block_till_done()
+
+    mock_client.buzz_stop.assert_not_called()
+    assert hass.states.get(old_entity_id) is None
+    assert hass.states.get("siren.panel_buzzer").state == "on"
+
+    await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    mock_client.buzz_stop.assert_awaited_once_with(17)
+
+
+@pytest.mark.usefixtures("siren_only")
 async def test_buzzer_follows_the_connection(
     hass: HomeAssistant,
     mock_client: MagicMock,
