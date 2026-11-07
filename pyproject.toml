@@ -7,19 +7,22 @@ asyncio_default_fixture_loop_scope = "function"
 # pytest plugin has imported httpx. pytest-homeassistant imports respx itself.
 addopts = "-p no:respx"
 
-# Ruff config mirrors Home Assistant core's pyproject.toml so the integration
-# files (byte-identical to core) lint clean here. This root config (select,
-# ignore, extend-aliases, banned-api, required ruff version) is verbatim from
-# core except for two intentional divergences:
+# Ruff config follows Home Assistant core's pyproject.toml at the pinned
+# Home Assistant release, so the integration is held to core's lint rules.
+# The root config (select, ignore, aliases, banned-api, required ruff
+# version) matches core's, except for three intentional divergences:
+# - target-version is set here, because this file has no [project] table
+#   whose requires-python ruff could read it from.
 # - isort known-first-party adds custom_components, and keeps homeassistant
-#   first-party so the mirrored files sort the same as upstream.
+#   first-party so imports sort the way they do in core.
 # - per-file-ignores paths use the custom_components / tests layout instead
-#   of core's homeassistant / tests/components layout.
+#   of core's homeassistant / tests/components layout, and the entries core
+#   keeps for its own paths (extend-exclude, known-third-party) are left out.
 # tests/ruff.toml mirrors core's own tests/ruff.toml test-scope override,
 # with adaptations documented there (this tree is the flat `tests` package
 # itself, unlike core's tests/components/<domain> nesting).
 [tool.ruff]
-required-version = ">=0.16.3"
+required-version = ">=0.17.3"
 target-version = "py314"
 
 [tool.ruff.lint]
@@ -44,6 +47,7 @@ select = [
   "INP",    # flake8-no-pep420
   "ISC",    # flake8-implicit-str-concat
   "ICN001", # import concentions; {name} should be imported as {asname}
+  "ICN002", # import conventions; {name} should not be imported as {asname}
   "LOG",    # flake8-logging
   "N804",   # First argument of a class method should be named cls
   "N805",   # First argument of a method should be named self
@@ -222,6 +226,9 @@ ignore = [
 "homeassistant.util.uuid" = "uuid_util"
 "homeassistant.util.yaml" = "yaml_util"
 
+[tool.ruff.lint.flake8-import-conventions.banned-aliases]
+"probatio" = ["vol"]
+
 [tool.ruff.lint.flake8-pytest-style]
 fixture-parentheses = false
 mark-parentheses = false
@@ -230,6 +237,13 @@ mark-parentheses = false
 "async_timeout".msg = "use asyncio.timeout instead"
 "pytz".msg = "use zoneinfo instead"
 "tests".msg = "You should not import tests"
+"voluptuous".msg = "use probatio instead"
+"httpx".msg = "use httpx2 instead"
+"httpcore".msg = "use httpcore2 instead"
+"homeassistant.helpers.config_validation.ensure_list".msg = "use probatio.EnsureList() instead"
+"homeassistant.helpers.config_validation.port".msg = "use probatio.Port() instead"
+"homeassistant.helpers.config_validation.has_at_least_one_key".msg = "use probatio.AtLeastOne instead"
+"homeassistant.helpers.config_validation.has_at_most_one_key".msg = "use probatio.AtMostOne instead"
 "__future__.annotations".msg = "It should not be needed because Home Assistant requires Python 3.14+"
 
 [tool.ruff.lint.isort]
@@ -253,16 +267,6 @@ max-complexity = 25
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 property-decorators = ["propcache.api.cached_property"]
-
-# mypy --strict's blanket no_implicit_reexport flags names like ColorMode,
-# which core light platforms import from `homeassistant.components.light`
-# relying on that package's implicit re-export (it carries no __all__).
-# Core's own mypy.ini resets no_implicit_reexport to false for every
-# `homeassistant.components.*` module; this mirrors that override so code
-# copied from core type-checks the way core's own CI type-checks it.
-[[tool.mypy.overrides]]
-module = "homeassistant.components.*"
-no_implicit_reexport = false
 
 [tool.codespell]
 # hass is Home Assistant's own name for its core object. Termostat is Polish

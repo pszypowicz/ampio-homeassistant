@@ -114,7 +114,7 @@ def _coldness_from_kelvin(kelvin: int, minimum: int, maximum: int) -> int:
 # The touch field numbers a per-field call colors. Validated against the
 # panel's own count in _AmpioPanelLight.async_set_fields, not here, because
 # the count comes from the administrator's capability map.
-_FIELDS_VALIDATOR = probatio.All(cv.ensure_list, [probatio.Coerce(int)])
+_FIELDS_VALIDATOR = probatio.All(probatio.EnsureList(), [probatio.Coerce(int)])
 SET_BACKLIGHT_FIELDS_SCHEMA: VolDictType = {
     probatio.Required("fields"): _FIELDS_VALIDATOR,
     probatio.Required(ATTR_RGBW_COLOR): probatio.All(
