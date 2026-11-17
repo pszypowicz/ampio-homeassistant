@@ -11,6 +11,7 @@ PLATFORMS: Final = [
     Platform.BUTTON,
     Platform.CLIMATE,
     Platform.COVER,
+    Platform.EVENT,
     Platform.LIGHT,
     Platform.NUMBER,
     Platform.SCENE,
@@ -71,3 +72,9 @@ MODULE_KEY_PREFIX: Final = f"{MODULE_KEY_STEM}_"
 # mints it and the stale report reads it back, so one constant keeps the
 # report from mistaking a scene record for a shape nothing mints.
 SCENE_KEY_STEM: Final = "scene"
+
+# The unique id of the one bus event entity on the hub. The platform mints
+# it and the stale report reads it back. It is built on the administrator
+# login alone, so on a standard account the record is withheld rather than
+# stale.
+BUS_EVENT_KEY: Final = "bus_event"

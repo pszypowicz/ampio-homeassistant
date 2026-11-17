@@ -93,6 +93,24 @@
                 "name": "Odblokuj pola dotykowe"
             }
         },
+        "event": {
+            "bus_event": {
+                "name": "Zdarzenie",
+                "state_attributes": {
+                    "event_number": {
+                        "name": "Numer zdarzenia"
+                    },
+                    "event_type": {
+                        "state": {
+                            "raised": "Wysłane"
+                        }
+                    },
+                    "source": {
+                        "name": "Źródło"
+                    }
+                }
+            }
+        },
         "light": {
             "backlight": {
                 "name": "Podświetlenie"

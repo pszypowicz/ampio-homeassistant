@@ -93,6 +93,24 @@
         "name": "Unlock touch"
       }
     },
+    "event": {
+      "bus_event": {
+        "name": "Bus event",
+        "state_attributes": {
+          "event_number": {
+            "name": "Event number"
+          },
+          "event_type": {
+            "state": {
+              "raised": "Raised"
+            }
+          },
+          "source": {
+            "name": "Source"
+          }
+        }
+      }
+    },
     "light": {
       "backlight": {
         "name": "Backlight"

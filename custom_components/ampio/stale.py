@@ -27,6 +27,7 @@ from homeassistant.helpers import (
 
 from .const import (
     ADMIN_ONLY_RECORDS_ISSUE,
+    BUS_EVENT_KEY,
     DOMAIN,
     ISSUE_TRACKER_URL,
     MODULE_KEY_PREFIX,
@@ -180,11 +181,13 @@ class _LiveCatalogue:
         answers True for a scene record, because an unknown is not an
         absence.
 
-        Three shapes reach a registry record today: ``obj_<id>`` with an
-        optional suffix, ``module_mac_<mac>_<suffix>``, and ``scene_<id>``.
-        A key that matches none of them is one this release does not mint,
-        and the report names it, so a fourth shape added to the entities
-        owes this method an arm. This integration does not migrate, so a
+        Four shapes reach a registry record today: ``obj_<id>`` with an
+        optional suffix, ``module_mac_<mac>_<suffix>``, ``scene_<id>``, and
+        the hub's ``bus_event``. The bus is no catalogue and answers to the
+        entry, as the hub does, so its record is always accounted for. A key
+        that matches none of them is one this release does not mint, and
+        the report names it, so a fifth shape added to the entities owes
+        this method an arm. This integration does not migrate, so a
         record an older key left behind is reported as it stands, never
         rewritten into the shape that replaced it.
         """
@@ -197,7 +200,7 @@ class _LiveCatalogue:
             return unique_id.startswith(self.module_prefixes)
         if unique_id.startswith(SCENE_KEY_PREFIX):
             return self.scenes is None or unique_id in self.scenes
-        return False
+        return unique_id == BUS_EVENT_KEY
 
 
 def _live_catalogue(data: AmpioData) -> _LiveCatalogue:

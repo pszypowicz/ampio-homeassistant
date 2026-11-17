@@ -706,6 +706,7 @@ async def test_downgrade_raises_the_admin_only_issue(
     assert issue.translation_placeholders == {
         "names": (
             "- button.m_sens_salon_identify\n"
+            "- event.m_serv_bus_event\n"
             "- sensor.m_sens_salon_supply_voltage\n"
             "- sensor.m_sens_salon_temperature"
         ),
@@ -757,6 +758,7 @@ async def test_the_two_issues_split_their_records(
     assert admin_issue.translation_placeholders == {
         "names": (
             "- button.m_sens_salon_identify\n"
+            "- event.m_serv_bus_event\n"
             "- sensor.m_sens_salon_supply_voltage\n"
             "- sensor.m_sens_salon_temperature"
         ),
