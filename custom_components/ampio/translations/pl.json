@@ -177,6 +177,9 @@
         "discovery_timeout": {
             "message": "Połączono z serwerem Ampio, ale serwer nie dokończył przesyłania swojej konfiguracji."
         },
+        "event_failed": {
+            "message": "Nie udało się połączyć z serwerem Ampio, więc zdarzenie nie zostało wysłane."
+        },
         "identify_failed": {
             "message": "Serwer Ampio nie potwierdził polecenia identyfikacji, więc dioda LED modułu może się nie zaświecić."
         },
@@ -196,7 +199,7 @@
             "message": "Ten przycisk nie steruje panelem dotykowym. Wskaż przycisk „Odblokuj pola dotykowe” panelu, który chcesz zablokować."
         },
         "not_loaded": {
-            "message": "Integracja Ampio nie jest wczytana, więc nie ma serwera, do którego można wysłać wiadomość."
+            "message": "Integracja Ampio nie jest wczytana, więc nie ma serwera Ampio, do którego można coś wysłać."
         },
         "notification_failed": {
             "message": "Nie udało się połączyć z serwerem Ampio, więc powiadomienie nie zostało wysłane."
@@ -367,6 +370,16 @@
                 "seconds": {
                     "name": "Czas trwania",
                     "description": "Jak długo panel ignoruje dotyk, w sekundach, od 0,01 do 655,35."
+                }
+            }
+        },
+        "raise_event": {
+            "name": "Wyślij zdarzenie Ampio",
+            "description": "Wysyła numerowane zdarzenie na magistralę Ampio, co uruchamia logikę przypisaną do tego numeru w Ampio Designer, tak samo jak naciśnięcie panelu, które je wysyła. Działa na obu poziomach konta. Serwer Ampio nie publikuje odpowiedzi w żadnym temacie, więc udane wywołanie oznacza tylko, że zdarzenie zostało wysłane, a nie że logika zadziałała.",
+            "fields": {
+                "event_number": {
+                    "name": "Numer zdarzenia",
+                    "description": "Numer zdarzenia taki, jak pokazuje go Ampio Designer, od 1 do 65535."
                 }
             }
         },

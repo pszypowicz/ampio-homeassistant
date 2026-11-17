@@ -97,6 +97,16 @@ data:
 
 The Ampio server answers on no topic, so a successful call means the message was sent, not that it arrived. A message cannot contain a slash: the server reads what follows one as a user name and drops the rest, and the action refuses such a message before it reaches the wire.
 
+`ampio.raise_event` raises a numbered bus event, from 1 to 65535, and runs whatever logic Ampio Designer binds to that number, just as a panel press that raises it does. It works on either account tier:
+
+```yaml
+action: ampio.raise_event
+data:
+  event_number: 201
+```
+
+The Ampio server answers on no topic, so a successful call means the event was sent, not that any logic ran. The per-user event rights the Ampio app shows are not enforced for this call, so a standard account can raise any event, and the logic behind an event can drive objects the account cannot command directly.
+
 ## Installation
 
 Ampio installs through the Marketplace that comes with Home Assistant. It is not in the Marketplace catalog, so you add it as a custom repository, and adding one needs a GitHub connection. The Marketplace asks you to connect GitHub when you add the repository, and you confirm the connection with a code on GitHub, so your GitHub password never goes into Home Assistant.

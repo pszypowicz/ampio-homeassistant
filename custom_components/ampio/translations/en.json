@@ -177,6 +177,9 @@
         "discovery_timeout": {
             "message": "Connected to the Ampio server, but it did not finish reporting its configuration."
         },
+        "event_failed": {
+            "message": "The Ampio server could not be reached, so the event was not raised."
+        },
         "identify_failed": {
             "message": "The Ampio server did not confirm the identify command, so the module's LED may not light."
         },
@@ -196,7 +199,7 @@
             "message": "This button does not drive a touch panel. Target the Unlock touch button of the panel you want to lock."
         },
         "not_loaded": {
-            "message": "The Ampio integration is not loaded, so there is no server to send the message to."
+            "message": "The Ampio integration is not loaded, so there is no Ampio server to send to."
         },
         "notification_failed": {
             "message": "The Ampio server could not be reached, so the notification was not sent."
@@ -367,6 +370,16 @@
                 "seconds": {
                     "name": "Length",
                     "description": "How long the panel ignores touches, in seconds, from 0.01 to 655.35."
+                }
+            }
+        },
+        "raise_event": {
+            "name": "Raise an Ampio event",
+            "description": "Raises a numbered event on the Ampio bus, which runs whatever logic Ampio Designer binds to that number, just as a panel press that raises it does. Works on either account tier. The Ampio server answers on no topic, so a successful call means the event was sent and not that any logic ran.",
+            "fields": {
+                "event_number": {
+                    "name": "Event number",
+                    "description": "The event number as Ampio Designer shows it, from 1 to 65535."
                 }
             }
         },

@@ -17,6 +17,7 @@ from ampio_mqtt import (
     RecordSweep,
     parse_module_address,
 )
+import probatio
 import pytest
 from pytest_homeassistant.common import MockConfigEntry
 
@@ -1181,3 +1182,76 @@ async def test_send_notification_translates_a_broker_failure(
         )
 
     assert err.value.translation_key == "notification_failed"
+
+
+async def test_raise_event_is_registered_before_any_entry(
+    hass: HomeAssistant,
+) -> None:
+    """The action addresses the install, so it exists without a loaded entry."""
+    assert await async_setup_component(hass, DOMAIN, {})
+
+    assert hass.services.has_service(DOMAIN, "raise_event")
+
+
+async def test_raise_event_without_an_entry_refuses(
+    hass: HomeAssistant,
+) -> None:
+    """With nothing loaded there is no server to reach, and the error says so."""
+    assert await async_setup_component(hass, DOMAIN, {})
+
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(
+            DOMAIN, "raise_event", {"event_number": 201}, blocking=True
+        )
+
+    assert err.value.translation_key == "not_loaded"
+
+
+@pytest.mark.parametrize("event_number", [1, 201, 65535])
+async def test_raise_event_reaches_the_client(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_client: MagicMock,
+    event_number: int,
+) -> None:
+    """Every number the bus carries goes out unchanged, the range ends included."""
+    await setup_integration(hass, mock_config_entry)
+
+    await hass.services.async_call(
+        DOMAIN, "raise_event", {"event_number": event_number}, blocking=True
+    )
+
+    mock_client.set_event.assert_awaited_once_with(event_number)
+
+
+@pytest.mark.parametrize("event_number", [0, 65536, -1])
+async def test_raise_event_refuses_a_number_off_the_bus(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_client: MagicMock,
+    event_number: int,
+) -> None:
+    """A number outside 1-65535 is refused before it reaches the client."""
+    await setup_integration(hass, mock_config_entry)
+
+    with pytest.raises(probatio.Invalid):
+        await hass.services.async_call(
+            DOMAIN, "raise_event", {"event_number": event_number}, blocking=True
+        )
+
+    mock_client.set_event.assert_not_awaited()
+
+
+async def test_raise_event_translates_a_broker_failure(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_client: MagicMock
+) -> None:
+    """An entry can stay loaded through an outage, so the publish itself can fail."""
+    await setup_integration(hass, mock_config_entry)
+    mock_client.set_event.side_effect = AmpioConnectionError("no session")
+
+    with pytest.raises(HomeAssistantError) as err:
+        await hass.services.async_call(
+            DOMAIN, "raise_event", {"event_number": 201}, blocking=True
+        )
+
+    assert err.value.translation_key == "event_failed"

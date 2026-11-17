@@ -74,6 +74,16 @@ lock_touch:
           step: 0.01
           unit_of_measurement: s
           mode: box
+raise_event:
+  fields:
+    event_number:
+      required: true
+      example: 201
+      selector:
+        number:
+          min: 1
+          max: 65535
+          mode: box
 send_notification:
   fields:
     message:
