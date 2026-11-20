@@ -343,7 +343,7 @@ async def test_restricted_account_groups_by_module_mac(
     # identifier, and a standard account is given no identify button.
     hub_unique_ids = {unique_id(121)}
     for entity in entities:
-        if entity.domain in ("scene", "event"):
+        if entity.domain == "scene":
             assert entity.device_id == hub.id
             continue
         assert entity.device_id is not None

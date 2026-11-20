@@ -38,7 +38,9 @@ def event_only() -> Generator[None]:
         yield
 
 
-async def _downgrade(hass: HomeAssistant, client: MagicMock, entry: MockConfigEntry) -> None:
+async def _downgrade(
+    hass: HomeAssistant, client: MagicMock, entry: MockConfigEntry
+) -> None:
     """Point the entry at a standard account and reload it."""
     set_access_tier(client, AccessTier.RESTRICTED)
     hass.config_entries.async_update_entry(
