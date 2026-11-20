@@ -22,6 +22,7 @@ A Home Assistant integration for the [Ampio Smart Home](https://ampio.com/) syst
 | `button`        | Relays and flags marked as bell objects in Ampio Designer (a single press), an Identify button on each module that lights its CAN LED, and an Unlock touch button on each touch panel that releases its touch lock, with an `ampio.lock_touch` action to set one (administrator login)                              |
 | `climate`       | Heating regulators with temperature readback and operating-mode presets                                                                                                                                                                                                                                             |
 | `scene`         | The Ampio app's scene catalog                                                                                                                                                                                                                                                                                       |
+| `event`         | Every bus event raised by a panel, Ampio logic, Ampio Designer, the app, or `ampio.raise_event`, as one entity on the M-SERV device with the event number and the mac that raised it (administrator login)                                                                                                          |
 | `siren`         | The buzzer on each Ampio touch panel, with an `ampio.buzz_pattern` action for two-step sequences (administrator login)                                                                                                                                                                                              |
 | `number`        | Ampio analog flags, the module's own 8-bit and signed 16-bit variables, bounded by the field width                                                                                                                                                                                                                  |
 
@@ -96,6 +97,33 @@ data:
 ```
 
 The Ampio server answers on no topic, so a successful call means the message was sent, not that it arrived. A message cannot contain a slash: the server reads what follows one as a user name and drops the rest, and the action refuses such a message before it reaches the wire.
+
+`ampio.raise_event` raises a numbered bus event, from 1 to 65535, and runs whatever logic Ampio Designer binds to that number, just as a panel press that raises it does. It works on either account tier:
+
+```yaml
+action: ampio.raise_event
+data:
+  event_number: 201
+```
+
+The Ampio server answers on no topic, so a successful call means the event was sent, not that any logic ran. The per-user event rights the Ampio app shows are not enforced for this call, so a standard account can raise any event, and the logic behind an event can drive objects the account cannot command directly.
+
+Events travel the other way through one event entity on the M-SERV device, Bus event. It fires for every event on the bus, whether a wall panel, Ampio logic, Ampio Designer, the app, or `ampio.raise_event` raised it, and it carries `event_number` and `source`, the mac of what raised it as Ampio Designer writes it. An event number is global on the bus, so one trigger catches a number whatever raised it. Only the administrator login gets this entity, because the M-SERV serves received events to that login alone. On an English install, an automation that reacts to event 4 reads:
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: event.m_serv_bus_event
+    not_from: unavailable
+    not_to: unavailable
+conditions:
+  - condition: state
+    entity_id: event.m_serv_bus_event
+    attribute: event_number
+    state: 4
+```
+
+The entity reports every number unfiltered, including the ones the M-SERV raises for itself: `ampio-mqtt` documents event 254 from the M-SERV's own mac whenever a client asks for a discovery refresh. Trigger on the numbers your Designer logic uses, as in the example, rather than on every change of the entity.
 
 ## Installation
 

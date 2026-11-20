@@ -43,7 +43,9 @@ from .stale import async_report_not_configured, async_report_stale_records
 _LOGGER = logging.getLogger(__name__)
 
 SERVICE_SEND_NOTIFICATION = "send_notification"
+SERVICE_RAISE_EVENT = "raise_event"
 ATTR_MESSAGE = "message"
+ATTR_EVENT_NUMBER = "event_number"
 
 
 def _build_client(data: Mapping[str, Any]) -> AmpioClient:
@@ -56,8 +58,8 @@ def _build_client(data: Mapping[str, Any]) -> AmpioClient:
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the actions that address the install rather than an entity."""
 
-    async def send_notification(call: ServiceCall) -> None:
-        """Push a message to every user of the install's mobile app."""
+    def loaded_client() -> AmpioClient:
+        """The client of the loaded entry, which both actions address."""
         entries = hass.config_entries.async_loaded_entries(DOMAIN)
         if not entries:
             raise ServiceValidationError(
@@ -65,9 +67,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             )
         # The manifest allows a single config entry, and only its runtime
         # data type carries the client.
-        entry = cast(AmpioConfigEntry, entries[0])
+        return cast(AmpioConfigEntry, entries[0]).runtime_data.client
+
+    async def send_notification(call: ServiceCall) -> None:
+        """Push a message to every user of the install's mobile app."""
+        client = loaded_client()
         try:
-            await entry.runtime_data.client.send_notification(call.data[ATTR_MESSAGE])
+            await client.send_notification(call.data[ATTR_MESSAGE])
         except AmpioValueError as err:
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="notification_rejected"
@@ -82,6 +88,29 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         SERVICE_SEND_NOTIFICATION,
         send_notification,
         schema=probatio.Schema({probatio.Required(ATTR_MESSAGE): cv.string}),
+    )
+
+    async def raise_event(call: ServiceCall) -> None:
+        """Raise a bus event, running whatever Ampio logic is bound to it."""
+        client = loaded_client()
+        try:
+            await client.set_event(call.data[ATTR_EVENT_NUMBER])
+        except (AmpioConnectionError, AmpioTimeoutError) as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="event_failed"
+            ) from err
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_RAISE_EVENT,
+        raise_event,
+        schema=probatio.Schema(
+            {
+                probatio.Required(ATTR_EVENT_NUMBER): probatio.All(
+                    probatio.Coerce(int), probatio.Range(min=1, max=65535)
+                )
+            }
+        ),
     )
     return True
 

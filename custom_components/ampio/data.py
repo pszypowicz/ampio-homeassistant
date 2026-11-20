@@ -33,7 +33,7 @@ from homeassistant.helpers.entity_platform import (
     async_get_current_platform,
 )
 
-from .const import DOMAIN, MODULE_KEY_PREFIX, MODULE_KEY_STEM
+from .const import BUS_EVENT_KEY, DOMAIN, MODULE_KEY_PREFIX, MODULE_KEY_STEM
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -482,7 +482,9 @@ class AmpioData:
         Empty on the administrator login. Every module entity reaches an
         administrator-only surface, so on a standard account no factory
         runs and none can, and the records those factories would have
-        built are recognized by their unique id alone.
+        built are recognized by their unique id alone. The bus event entity
+        on the hub reads the raw tree, which is administrator-only too, so
+        its record is withheld the same way.
 
         The convention is the contract. A module entity's unique id reads
         ``module_mac_<mac>_<suffix>``, built from ``MODULE_KEY_PREFIX``,
@@ -500,6 +502,7 @@ class AmpioData:
                 entity_registry, self.entry.entry_id
             )
             if record.unique_id.startswith(MODULE_KEY_PREFIX)
+            or record.unique_id == BUS_EVENT_KEY
         }
 
     def _expected_entities(
